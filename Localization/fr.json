@@ -31142,5 +31142,17 @@
  "permadeath.contact_admin2": "dans les 7 jours pour une restauration éventuelle.",
  "permadeath.restore_hint": "Si c'est une erreur, tape /restore sous 7 jours pour le récupérer,",
  "permadeath.restore_hint2": "ou contacte un sysop sur Discord.",
- "permadeath.disconnecting": "Déconnexion."
+ "permadeath.disconnecting": "Déconnexion.",
+ "grief.stage_none": "None",
+ "grief.stage_denial": "Denial",
+ "grief.stage_anger": "Anger",
+ "grief.stage_bargaining": "Bargaining",
+ "grief.stage_depression": "Depression",
+ "grief.stage_acceptance": "Acceptance",
+ "love_street.pref_monogamous": "monogamous",
+ "love_street.pref_open": "open relationship",
+ "love_street.pref_poly": "polyamorous",
+ "love_street.pref_casual": "casual only",
+ "love_street.pref_fwb": "friends with benefits",
+ "love_street.pref_undecided": "undecided"
 }

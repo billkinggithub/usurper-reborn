@@ -552,7 +552,18 @@ namespace UsurperRemake.Systems
             {
                 if (!grief.IsComplete)
                 {
-                    terminal.WriteLine($"  {Loc.Get("grief.current_stage", grief.CurrentStage)}", "yellow");
+                    // v1.3.8: the stage is looked up, not printed from the enum, so a translated game
+                    // shows 当前悲恸阶段：否认 instead of 当前悲恸阶段：Denial. English is unchanged.
+                    var stageLabel = grief.CurrentStage switch
+                    {
+                        GriefStage.Denial => Loc.Get("grief.stage_denial"),
+                        GriefStage.Anger => Loc.Get("grief.stage_anger"),
+                        GriefStage.Bargaining => Loc.Get("grief.stage_bargaining"),
+                        GriefStage.Depression => Loc.Get("grief.stage_depression"),
+                        GriefStage.Acceptance => Loc.Get("grief.stage_acceptance"),
+                        _ => Loc.Get("grief.stage_none"),
+                    };
+                    terminal.WriteLine($"  {Loc.Get("grief.current_stage", stageLabel)}", "yellow");
                     terminal.WriteLine($"  {Loc.Get("grief.days_grieving", GetCurrentDay() - grief.GriefStartDay)}", "gray");
                 }
                 else
@@ -927,6 +938,7 @@ namespace UsurperRemake.Systems
         Depression,
         Acceptance
     }
+
 
     public class GriefState
     {
