@@ -341,26 +341,16 @@ namespace UsurperRemake.Systems
         /// </summary>
         internal static List<string> InscriptionRows(string text, int width)
         {
-            // Simple word-wrap. Render as italic-style indented narrative.
+            // v1.3.8: measured in display columns, and a line with no spaces in it is broken by
+            // width, so a Chinese inscription wraps instead of printing as one very long row.
+            // The quote frame and the indentation are unchanged; width - 1 keeps the content
+            // inside the space the old character-counting loop allowed.
             var rows = new List<string>();
-            var words = text.Split(' ');
-            var line = new System.Text.StringBuilder("    \"");
-            foreach (var w in words)
-            {
-                if (line.Length + w.Length + 1 > width + 4)
-                {
-                    rows.Add(line.ToString());
-                    line.Clear();
-                    line.Append("     ");
-                }
-                if (line.Length > 5) line.Append(' ');
-                line.Append(w);
-            }
-            if (line.Length > 5)
-            {
-                line.Append('"');
-                rows.Add(line.ToString());
-            }
+            var wrapped = UsurperRemake.UI.UIHelper.WordWrap(text, Math.Max(1, width - 1));
+            if (wrapped.Count == 0) return rows;
+            rows.Add("    \"" + wrapped[0]);
+            for (int i = 1; i < wrapped.Count; i++) rows.Add("     " + wrapped[i]);
+            rows[^1] += "\"";
             return rows;
         }
 
