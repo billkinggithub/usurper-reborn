@@ -4695,7 +4695,9 @@ public class HomeLocation : BaseLocation
 
             // Show target's stats
             terminal.SetColor("white");
-            terminal.WriteLine(Loc.Get("home.equip_stats_level", target.Level, GameConfig.GetLocalizedClassName(target.Class), target.Race));
+            // v1.3.8: the race goes through the same localiser the other stat lines already use.
+            // Passing the enum printed "Race: Human" in every language; English output is unchanged.
+            terminal.WriteLine(Loc.Get("home.equip_stats_level", target.Level, GameConfig.GetLocalizedClassName(target.Class), GameConfig.GetLocalizedRaceName(target.Race)));
             terminal.WriteLine(Loc.Get("home.equip_stats_hp", target.HP, target.MaxHP, target.Mana, target.MaxMana));
             terminal.WriteLine(Loc.Get("home.equip_stats_str", target.Strength, target.Dexterity, target.Agility, target.Constitution));
             terminal.WriteLine(Loc.Get("home.equip_stats_int", target.Intelligence, target.Wisdom, target.Charisma, target.Defence));
