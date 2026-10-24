@@ -1079,7 +1079,9 @@ public class FeatureInteractionSystem
         terminal.WriteLine("");
         await Pacing.Wait(600);
 
-        var className = player.Class.ToString();
+        // v1.3.8: the class goes through the localiser, so the line does not print the enum name
+        // in every language. English is unchanged: for en the helper returns the display name.
+        var className = GameConfig.GetLocalizedClassName(player.Class);
         terminal.SetColor("bright_magenta");
         var article = "aeiouAEIOU".Contains(className[0]) ? "an" : "a";
         terminal.WriteLine(Loc.Get("feature.class_training_reveals", article, className));

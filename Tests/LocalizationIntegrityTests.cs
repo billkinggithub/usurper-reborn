@@ -155,6 +155,11 @@ namespace UsurperRemake.Tests
             { "base.auction_gold_awaiting", new HashSet<string> { "{2}" } },
             { "base.auction_expired_count", new HashSet<string> { "{1}" } },
             { "inn.items_equipped", new HashSet<string> { "{1}" } },
+            // v1.3.8: the same literal "s" argument, found later in the feature and road text.
+            { "feature.find_potions", new HashSet<string> { "{1}" } },
+            { "feature.poison_vials", new HashSet<string> { "{1}" } },
+            { "anchor_road.defeated_after", new HashSet<string> { "{1}" } },
+            { "love_corner.child_age", new HashSet<string> { "{1}" } },
         };
 
         [Fact]
