@@ -99,22 +99,11 @@ namespace UsurperRemake.Systems
             await term.PressAnyKey();
         }
 
+        // v1.3.8: the shared wrapper measures display columns and can break a line that has no
+        // spaces in it. This copy measured characters and only split on spaces, so a Chinese lore
+        // paragraph came out as a single line two or three times the width of the screen.
         private static List<string> Wrap(string text, int width)
-        {
-            var lines = new List<string>();
-            string current = "";
-            foreach (var word in text.Split(' '))
-            {
-                if (current.Length > 0 && current.Length + 1 + word.Length > width)
-                {
-                    lines.Add(current);
-                    current = word;
-                }
-                else current = current.Length == 0 ? word : current + " " + word;
-            }
-            if (current.Length > 0) lines.Add(current);
-            return lines;
-        }
+            => UsurperRemake.UI.UIHelper.WordWrap(text, width);
 
         /// <summary>Show the pending announcement, once. Returns false when nothing was pending.</summary>
         public static async Task<bool> ShowPending(TerminalEmulator term, Character? player)
