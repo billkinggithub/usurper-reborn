@@ -144,6 +144,12 @@ namespace UsurperRemake.Tests
             // from GetOrdinalSuffix) as {3}; the other languages write the ordinal their own way.
             { "news.birthday", new HashSet<string> { "{3}" } },
             { "worldsim.news_immigrant", new HashSet<string> { "{0}" } },   // v1.2.5: the English article ("A", "An")
+            // v1.3.8: HomeLocation passes a literal English plural "s" for {1} (HomeLocation.cs, the
+            // family roster), so {1} is an English suffix, not a word. Chinese does not inflect the
+            // noun after a count and leaves it out; string.Format ignores the extra argument.
+            { "home.family_married_days", new HashSet<string> { "{1}" } },
+            { "home.family_together_days", new HashSet<string> { "{1}" } },
+            { "home.family_child_age", new HashSet<string> { "{1}" } },
         };
 
         [Fact]
