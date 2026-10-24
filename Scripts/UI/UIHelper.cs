@@ -131,8 +131,12 @@ namespace UsurperRemake.UI
             if (TextWidth.Width(value) > valueWidth)
                 value = TextWidth.Truncate(value, valueWidth);
 
+            // v1.3.8: the separator is localised, so a Chinese label row reads 金币：1,234
+            // rather than borrowing the English colon.
+            string separator = UsurperRemake.Systems.Loc.Get("ui.label_separator");
+
             terminal.Write($"{Vertical}", borderColor);
-            terminal.Write(label + ": ", labelColor);
+            terminal.Write(label + separator, labelColor);
             terminal.Write(TextWidth.PadRight(value, valueWidth), valueColor);
             terminal.WriteLine($"{Vertical}", borderColor);
         }

@@ -56,6 +56,7 @@
  "ui.no_escape_attempts": "你没有剩余的逃跑机会！",
  "ui.game_saved": "游戏已保存。",
  "ui.gold": "金币",
+ "ui.label_separator": "：",
  "ui.level": "等级",
  "ui.experience": "经验",
  "ui.stat_str": "力",
