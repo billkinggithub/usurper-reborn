@@ -160,6 +160,28 @@ namespace UsurperRemake.Tests
             { "feature.poison_vials", new HashSet<string> { "{1}" } },
             { "anchor_road.defeated_after", new HashSet<string> { "{1}" } },
             { "love_corner.child_age", new HashSet<string> { "{1}" } },
+            // v1.3.8: HomeLocation passes literal English pronouns ("she", "her", "him") into these
+            // positions rather than the localized pronoun helpers, so any translation that kept them
+            // printed English inside its own sentence. Chinese leaves the position out; the other
+            // languages keep it, and the keys are exempt here so both choices are legal.
+            { "home.hw_gets_ready", new HashSet<string> { "{0}", "{1}" } },
+            { "home.hw_prepares", new HashSet<string> { "{0}" } },
+            { "home.hw_asked_out", new HashSet<string> { "{1}" } },
+            { "home.hw_told_married", new HashSet<string> { "{0}" } },
+            { "home.hw_permission", new HashSet<string> { "{0}" } },
+            { "home.hw_leaves_date", new HashSet<string> { "{0}", "{1}" } },
+            { "home.hw_smoldering", new HashSet<string> { "{0}" } },
+            { "home.hw_attentive", new HashSet<string> { "{1}" } },
+            { "home.hw_came_home", new HashSet<string> { "{0}" } },
+            { "home.cuck_takes_hand", new HashSet<string> { "{0}", "{1}" } },
+            { "home.cuck_dont_worry", new HashSet<string> { "{0}", "{1}" } },
+            { "home.cuck_wants_this", new HashSet<string> { "{0}" } },
+            { "home.cuck_intensity", new HashSet<string> { "{0}", "{1}" } },
+            { "home.cuck_sit_there", new HashSet<string> { "{0}" } },
+            { "home.cuck_beckons", new HashSet<string> { "{0}" } },
+            { "home.cuck_gathers_leaves", new HashSet<string> { "{0}", "{1}" } },
+            { "home.cuck_discovered", new HashSet<string> { "{0}", "{1}" } },
+            { "home.reject_shakes_head", new HashSet<string> { "{0}", "{1}" } },
         };
 
         [Fact]
