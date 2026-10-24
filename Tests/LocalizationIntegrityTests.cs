@@ -150,6 +150,11 @@ namespace UsurperRemake.Tests
             { "home.family_married_days", new HashSet<string> { "{1}" } },
             { "home.family_together_days", new HashSet<string> { "{1}" } },
             { "home.family_child_age", new HashSet<string> { "{1}" } },
+            // v1.3.8: the same literal-English-plural argument. BaseLocation and InnLocation pass
+            // "s" / "" for the item count, so the position is an English suffix.
+            { "base.auction_gold_awaiting", new HashSet<string> { "{2}" } },
+            { "base.auction_expired_count", new HashSet<string> { "{1}" } },
+            { "inn.items_equipped", new HashSet<string> { "{1}" } },
         };
 
         [Fact]
