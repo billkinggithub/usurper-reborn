@@ -182,6 +182,15 @@ namespace UsurperRemake.Tests
             { "home.cuck_gathers_leaves", new HashSet<string> { "{0}", "{1}" } },
             { "home.cuck_discovered", new HashSet<string> { "{0}", "{1}" } },
             { "home.reject_shakes_head", new HashSet<string> { "{0}", "{1}" } },
+            // v1.3.8: the last literal plural arguments. Chinese has no plural suffix, so its value
+            // leaves the position out; the other languages keep theirs.
+            { "engine.trade_waiting", new HashSet<string> { "{1}" } },
+            { "healer.handed_potions", new HashSet<string> { "{2}" } },
+            { "healer.handed_mana", new HashSet<string> { "{2}" } },
+            { "healer.handed_antidotes", new HashSet<string> { "{2}" } },
+            { "inn.took_items", new HashSet<string> { "{1}" } },
+            { "home.family_spouses_label", new HashSet<string> { "{0}" } },
+            { "love_street.potion_forget_effect", new HashSet<string> { "{1}" } },
         };
 
         [Fact]
