@@ -22,7 +22,7 @@ Good contributions, roughly in order of how happy they make me:
 
 1. **Bug fixes for things you personally hit in play.** Include enough detail in the PR description that I can see you understood the bug, not just the symptom.
 2. **Balance tweaks backed by play experience.** "This class is weak/broken because X at level Y" lands better than "I think Z should be higher."
-3. **Localization.** Adding or improving translations in one of the five supported languages (English, Spanish, French, Hungarian, Italian) or adding a new language. See [Localization/](Localization/) for the key files.
+3. **Localization.** Adding or improving translations in one of the completed languages (English, Spanish, French, Hungarian, Italian), extending the Simplified Chinese translation in progress, or adding a new language. `Localization/zh.json` is being translated incrementally and falls back to English for any key it does not carry yet, so partial work is useful on its own. See [Localization/](Localization/) for the key files.
 4. **New content that fits the setting.** Monsters, items, events, dialogue, dungeon features. Small and thematic beats large and out-of-place.
 5. **Quality-of-life improvements** that you've personally wanted while playing. Usability, display, accessibility, compact-mode coverage.
 6. **Performance fixes** with a measurement attached. "Faster" without numbers isn't compelling.
@@ -74,7 +74,7 @@ If the change is user-visible, add a line for the release notes. Don't bump the 
 - **Keep comments tight.** Comment the *why* when it's non-obvious. Don't narrate the *what*.
 - **Don't pre-emptively abstract.** Three similar lines beats a premature helper.
 - **Trust internal code.** Don't add null-guards or error-handling for scenarios that can't happen; only validate at system boundaries (user input, external APIs, save loads).
-- **Localize user-facing text.** Any new string the player can see goes through `Loc.Get("key")` with keys added to all five language files. See existing keys in [Localization/en.json](Localization/en.json) for naming conventions.
+- **Localize user-facing text.** Any new string the player can see goes through `Loc.Get("key")` with keys added to every language file -- at minimum English and the completed languages; `PartialLangs` in [Tests/LocalizationIntegrityTests.cs](Tests/LocalizationIntegrityTests.cs) lists the translations that are still in progress and fall back to English. See existing keys in [Localization/en.json](Localization/en.json) for naming conventions.
 
 ## Save-Compatibility Rules
 
@@ -87,9 +87,11 @@ The game has months/years of player saves on public BBSes and the online server.
 
 ## Localization Rules
 
-- Every new user-facing string needs keys in all five files: `en.json`, `es.json`, `fr.json`, `hu.json`, `it.json`.
+- Every new user-facing string needs keys in all five completed files: `en.json`, `es.json`, `fr.json`, `hu.json`, `it.json`. `zh.json` is still being translated; add a key there too when you can, but it is not required for a key to ship.
 - Keys stay identical across languages; only values differ.
 - `{0}`, `{1}` format args must be present in all translations.
+- Don't leave a translation empty where the English has text, and don't put an em dash, en dash or ellipsis character in any value: `BannedPunctuation_NoneInAnyValue` keeps the ceiling at zero in every language file, including `zh.json`. Use ASCII `--` and `...` instead.
+- Layout is measured in terminal columns, not characters: a Chinese, Japanese or Korean character and an emoji are two columns wide. `UIHelper` and `TextWidth` measure this for you; if you pad or centre a string by hand, use `TextWidth.PadRight`/`PadLeft`/`Truncate` rather than `String.PadRight` or `.Length`.
 - If you don't speak a language, English-to-machine-translation with a note in the PR (`"[MT, needs review]"`) is acceptable for non-English files, as long as the English version is correct.
 - Don't translate localization keys themselves, only values.
 
