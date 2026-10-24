@@ -9230,7 +9230,7 @@
  "puzzle.current_alignment": "  当前排列：",
  "puzzle.panel_label": "    面板 {0}：{1}",
  "puzzle.available_symbols": "  可用符号：{0}",
- "puzzle.enter_symbol": "输入：[面板编号] [symbol]（例如 '1 sun'）：",
+ "puzzle.enter_symbol": "输入：[面板编号] [符号]（例如 '1 sun'）：",
  "puzzle.torches_label": "  火把：",
  "puzzle.torch_lit": "* 已燃 *  ",
  "puzzle.torch_unlit": "  未燃  ",
