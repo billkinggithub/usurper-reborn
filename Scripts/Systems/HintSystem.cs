@@ -182,33 +182,11 @@ namespace UsurperRemake.Systems
         /// <summary>
         /// Word wrap text to fit within a maximum width
         /// </summary>
+        // v1.3.8: the shared wrapper measures display columns and can break a line with no spaces in
+        // it. This copy split on spaces and counted characters, so a Chinese hint came out as one
+        // line and ran past the box. English wraps exactly as before.
         private List<string> WordWrap(string text, int maxWidth)
-        {
-            var lines = new List<string>();
-            var words = text.Split(' ');
-            var currentLine = "";
-
-            foreach (var word in words)
-            {
-                if (currentLine.Length + word.Length + 1 <= maxWidth)
-                {
-                    if (currentLine.Length > 0)
-                        currentLine += " ";
-                    currentLine += word;
-                }
-                else
-                {
-                    if (currentLine.Length > 0)
-                        lines.Add(currentLine);
-                    currentLine = word;
-                }
-            }
-
-            if (currentLine.Length > 0)
-                lines.Add(currentLine);
-
-            return lines;
-        }
+            => UsurperRemake.UI.UIHelper.WordWrap(text, maxWidth);
 
         /// <summary>
         /// Definition for a single hint
