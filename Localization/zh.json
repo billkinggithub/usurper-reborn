@@ -16038,7 +16038,7 @@
  "relationship.reject_high_2": "「过些时候再问我一次...我只是还需要一点时间。」",
  "relationship.reject_high_3.f": "你感觉得到，她快要答应了。",
  "relationship.reject_high_3.m": "你感觉得到，他快要答应了。",
- "feature.interact_with": "你对{1}进行了{0}...",
+ "feature.interact_with": "你{0}了{1}。",
  "feature.lore.944dc7675c8e": "「破碎之前，梅尔凯斯是凡人的盾。」",
  "feature.lore.8009b43289d9": "「众人逃走时，他独自挡在虚空之前。」",
  "feature.lore.0569ee980b2f": "「但无尽的战争，连神钢也会腐蚀...」",
@@ -30967,5 +30967,13 @@
  "love_street.pref_poly": "多重关系",
  "love_street.pref_casual": "只求轻松",
  "love_street.pref_fwb": "只谈身体",
- "love_street.pref_undecided": "还没想好"
+ "love_street.pref_undecided": "还没想好",
+ "feature.verb_examine": "查看",
+ "feature.verb_open": "打开",
+ "feature.verb_search": "搜寻",
+ "feature.verb_read": "阅读",
+ "feature.verb_take": "拿取",
+ "feature.verb_use": "使用",
+ "feature.verb_break": "砸开",
+ "feature.verb_enter": "进入"
 }

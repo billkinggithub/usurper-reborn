@@ -31154,5 +31154,13 @@
  "love_street.pref_poly": "polyamorous",
  "love_street.pref_casual": "casual only",
  "love_street.pref_fwb": "friends with benefits",
- "love_street.pref_undecided": "undecided"
+ "love_street.pref_undecided": "undecided",
+ "feature.verb_examine": "examine",
+ "feature.verb_open": "open",
+ "feature.verb_search": "search",
+ "feature.verb_read": "read",
+ "feature.verb_take": "take",
+ "feature.verb_use": "use",
+ "feature.verb_break": "break",
+ "feature.verb_enter": "enter"
 }
