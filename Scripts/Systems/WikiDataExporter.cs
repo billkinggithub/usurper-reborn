@@ -12,7 +12,8 @@ namespace UsurperRemake.Systems;
 public static class WikiDataExporter
 {
     public const int SchemaVersion = 1;
-    private static readonly string[] Languages = ["en", "es", "fr", "hu", "it"];
+    // v1.3.8: zh added, so the exported wiki data carries Chinese entity names like the other five.
+    private static readonly string[] Languages = ["en", "es", "fr", "hu", "it", "zh"];
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
