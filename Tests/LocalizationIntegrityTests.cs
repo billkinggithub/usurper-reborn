@@ -18,6 +18,16 @@ namespace UsurperRemake.Tests
     {
         private static readonly string[] TargetLangs = { "es", "fr", "it", "hu" };
 
+        /// <summary>
+        /// Languages still being translated. Every key they do carry is held to the same rules as a
+        /// finished language (placeholders, markup, no empty value, no banned punctuation), but they
+        /// are not yet required to cover every English key -- the game falls back to English for the
+        /// rest. Move a code into TargetLangs once its file is complete.
+        /// </summary>
+        private static readonly string[] PartialLangs = { "zh" };
+
+        private static IEnumerable<string> CheckedLangs => TargetLangs.Concat(PartialLangs);
+
         // Intentionally-empty translations: pro-drop pronouns (v0.61.5 design)
         // and no-plural-after-numeral suffixes. Add here ONLY with a reason.
         private static readonly HashSet<string> IntentionalEmpty = new()
@@ -34,7 +44,7 @@ namespace UsurperRemake.Tests
         // number ranges, "..." for ellipsis. The ceiling is zero.
         private static readonly Dictionary<string, int> PunctCeiling = new()
         {
-            { "en", 0 }, { "es", 0 }, { "fr", 0 }, { "it", 0 }, { "hu", 0 },
+            { "en", 0 }, { "es", 0 }, { "fr", 0 }, { "it", 0 }, { "hu", 0 }, { "zh", 0 },
         };
 
         private static string LocDir()
@@ -143,7 +153,7 @@ namespace UsurperRemake.Tests
             // name renders the scene without the partner (es/hu afterglow.silent_l1, fixed
             // 2026-09-07). Pronoun positions are exempt through OptionalPlaceholders.
             var en = Load("en");
-            foreach (var lang in TargetLangs)
+            foreach (var lang in CheckedLangs)
             {
                 var d = Load(lang);
                 var bad = new List<string>();
@@ -177,7 +187,7 @@ namespace UsurperRemake.Tests
             // The crash direction: a translation referencing {N} the caller
             // never passes throws FormatException at runtime -> raw template.
             var en = Load("en");
-            foreach (var lang in TargetLangs)
+            foreach (var lang in CheckedLangs)
             {
                 var d = Load(lang);
                 var bad = new List<string>();
@@ -196,7 +206,7 @@ namespace UsurperRemake.Tests
         public void Translations_NotEmptyWhereEnglishHasText()
         {
             var en = Load("en");
-            foreach (var lang in TargetLangs)
+            foreach (var lang in CheckedLangs)
             {
                 var d = Load(lang);
                 var bad = d.Where(kv => IsRealKey(kv.Key)
