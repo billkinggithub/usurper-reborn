@@ -292,6 +292,15 @@ public abstract class BaseLocation
 
         string utterance = AiAssistant.Strip(raw);
         string language = GameConfig.Language ?? "en";
+
+        // v1.3.9: a provider that needs a model id must not be called without one, or every attempt
+        // looks like the feature is broken
+        if (string.IsNullOrWhiteSpace(AiSettings.EffectiveModel))
+        {
+            terminal.WriteLine("");
+            terminal.WriteLine($"  {Loc.Get("ai.model_required")}", "yellow");
+            return "";
+        }
         string context = $"Location: {Name}. Player: {currentPlayer?.Name2 ?? currentPlayer?.Name1 ?? "?"}, " +
                          $"level {currentPlayer?.Level}, class {currentPlayer?.ClassName}.";
         string extra = "";
@@ -382,6 +391,13 @@ public abstract class BaseLocation
             }
 
             if (result.Choice != null) return result.Choice;
+
+            if (result.Error != null)
+            {
+                terminal.WriteLine("");
+                terminal.WriteLine($"  {Loc.Get("ai.error", result.Error)}", "yellow");
+                return "";
+            }
 
             terminal.WriteLine("");
             terminal.WriteLine($"  {Loc.Get("ai.not_understood")}", "yellow");
@@ -4691,6 +4707,7 @@ public abstract class BaseLocation
                 terminal.WriteLine($"  I. {Loc.Get("prefs.ai_mode")}: {(AiSettings.Enabled ? Loc.Get("prefs.ai_mode.on") : Loc.Get("prefs.ai_mode.off"))}");
                 terminal.WriteLine($"  C. {Loc.Get("prefs.ai_endpoint")}: {(string.IsNullOrWhiteSpace(AiSettings.Endpoint) ? Loc.Get("ui.none") : AiSettings.Endpoint)}");
                 terminal.WriteLine($"  K. {Loc.Get("prefs.ai_key")}: {(string.IsNullOrWhiteSpace(AiSettings.ApiKey) ? Loc.Get("ui.none") : AiSettings.MaskedKey())}");
+                terminal.WriteLine($"  V. {Loc.Get("prefs.ai_model")}: {(string.IsNullOrWhiteSpace(AiSettings.EffectiveModel) ? Loc.Get("ui.none") : AiSettings.EffectiveModel)}");
                 terminal.WriteLine($"  {Loc.Get("ai.prefs_hint")}", "gray");
                 terminal.WriteLine(Loc.Get("base.prefs_character"));
                 terminal.WriteLine($"  3. {Loc.Get("prefs.toggle", Loc.Get("prefs.skip_intimate"))}");
@@ -4787,6 +4804,7 @@ public abstract class BaseLocation
                 WriteMenuOption("I", $"{Loc.Get("prefs.ai_mode")}: {(AiSettings.Enabled ? Loc.Get("prefs.ai_mode.on") : Loc.Get("prefs.ai_mode.off"))}");
                 WriteMenuOption("C", $"{Loc.Get("prefs.ai_endpoint")}: {(string.IsNullOrWhiteSpace(AiSettings.Endpoint) ? Loc.Get("ui.none") : AiSettings.Endpoint)}");
                 WriteMenuOption("K", $"{Loc.Get("prefs.ai_key")}: {(string.IsNullOrWhiteSpace(AiSettings.ApiKey) ? Loc.Get("ui.none") : AiSettings.MaskedKey())}");
+                WriteMenuOption("V", $"{Loc.Get("prefs.ai_model")}: {(string.IsNullOrWhiteSpace(AiSettings.EffectiveModel) ? Loc.Get("ui.none") : AiSettings.EffectiveModel)}");
                 terminal.WriteLine($"  {Loc.Get("ai.prefs_hint")}", "gray");
                 terminal.WriteLine("");
 
@@ -5077,6 +5095,15 @@ public abstract class BaseLocation
                         () => AiSettings.ApiKey,
                         v => AiSettings.ApiKey = v,
                         masked: true);
+                    break;
+
+                case "V":
+                    await EditAiText(
+                        Loc.Get("prefs.ai_model"),
+                        Loc.Get("prefs.ai_model_prompt"),
+                        () => AiSettings.EffectiveModel,
+                        v => AiSettings.Model = v,
+                        masked: false);
                     break;
 
                 case "B":

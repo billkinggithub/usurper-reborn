@@ -124,7 +124,25 @@ namespace UsurperRemake.Systems
 
             using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseContentRead);
             if (!response.IsSuccessStatusCode)
-                return new Resolution { Error = $"http {(int)response.StatusCode}" };
+            {
+                // v1.3.9: carry the provider's own message back. A wrong or renamed model answers 400
+                // with a sentence that says so, and hiding it behind "not understood" is what makes a
+                // configuration mistake look like a broken feature.
+                string detail = "";
+                try
+                {
+                    string errorBody = await response.Content.ReadAsStringAsync();
+                    using var errorDoc = JsonDocument.Parse(errorBody);
+                    if (errorDoc.RootElement.TryGetProperty("error", out var err)
+                        && err.TryGetProperty("message", out var msg))
+                        detail = msg.GetString() ?? "";
+                }
+                catch { /* the status alone is enough when the body is not json */ }
+                return new Resolution
+                {
+                    Error = $"HTTP {(int)response.StatusCode}" + (detail.Length > 0 ? $": {detail}" : ""),
+                };
+            }
 
             string body = await response.Content.ReadAsStringAsync();
             using var doc = JsonDocument.Parse(body);

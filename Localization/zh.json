@@ -31001,5 +31001,9 @@
  "prefs.ai_current": "当前：{0}",
  "prefs.ai_saved_value": "已保存：{0}",
  "prefs.ai_unchanged": "未改动。（输入 - 可清除。）",
- "prefs.ai_cleared": "已清除。"
+ "prefs.ai_cleared": "已清除。",
+ "prefs.ai_model": "模型",
+ "prefs.ai_model_prompt": "模型名，留空则保留： ",
+ "ai.model_required": "没有设置模型名。请在偏好设置里按 V 填入服务商的模型标识（DeepSeek 现在叫 flash / pro 之类）。",
+ "ai.error": "AI 请求失败：{0}"
 }

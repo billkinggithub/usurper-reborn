@@ -52,11 +52,13 @@ namespace UsurperRemake.Systems
             {
                 if (!string.IsNullOrWhiteSpace(Model)) return Model.Trim();
                 string e = Endpoint ?? "";
-                if (e.Contains("deepseek", StringComparison.OrdinalIgnoreCase)) return "deepseek-chat";
+                // Providers rename their models (DeepSeek's are flash and pro now, not what they were
+                // last year), so the only safe default is one the player typed. For a local server the
+                // name is ours to pick.
                 if (e.Contains("11434", StringComparison.Ordinal) || e.Contains("localhost", StringComparison.OrdinalIgnoreCase))
                     return "llama3.1";
                 if (e.Contains("openai.com", StringComparison.OrdinalIgnoreCase)) return "gpt-4o-mini";
-                return "";   // let the provider pick
+                return "";   // unknown provider: ask the player rather than guess a stale name
             }
         }
 
