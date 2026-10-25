@@ -4566,6 +4566,17 @@ public abstract class BaseLocation
                 WriteMenuOption("B", $"{Loc.Get("prefs.language")}: {UsurperRemake.Systems.Loc.GetLanguageName(currentPlayer.Language)}");
                 terminal.WriteLine("");
 
+                // -- AI DIALOGUE --
+                // v1.3.9: off unless the player turns it on. The switch takes effect on the next line,
+                // and the credentials live outside the save (see AiSettings).
+                terminal.SetColor("bright_cyan");
+                terminal.WriteLine($"  {Loc.Get("base.prefs_ai_header")}");
+                terminal.SetColor("white");
+                WriteMenuOption("I", $"{Loc.Get("prefs.ai_mode")}: {(AiSettings.Enabled ? Loc.Get("prefs.ai_mode.on") : Loc.Get("prefs.ai_mode.off"))}");
+                WriteMenuOption("E", $"{Loc.Get("prefs.ai_endpoint")}: {(string.IsNullOrWhiteSpace(AiSettings.Endpoint) ? Loc.Get("ui.none") : AiSettings.Endpoint)}");
+                WriteMenuOption("K", $"{Loc.Get("prefs.ai_key")}: {(string.IsNullOrWhiteSpace(AiSettings.ApiKey) ? Loc.Get("ui.none") : AiSettings.MaskedKey())}");
+                terminal.WriteLine("");
+
                 // -- CHARACTER --
                 terminal.SetColor("bright_cyan");
                 terminal.WriteLine($"  {Loc.Get("base.prefs_character_header")}");
@@ -4822,6 +4833,43 @@ public abstract class BaseLocation
                     terminal.WriteLine($"  {Loc.Get("base.date_format_example")}: {GameConfig.FormatDate(DateTime.Now, currentPlayer.DateFormatPreference)}", "gray");
                     await GameEngine.Instance.SaveCurrentGame();
                     await Pacing.Wait(800);
+                    break;
+
+                case "I":
+                    // v1.3.9: the AI mode switch. Takes effect on the next line either way; nothing is
+                    // regenerated and no state is lost by turning it off.
+                    AiSettings.Enabled = !AiSettings.Enabled;
+                    AiSettings.Save();
+                    terminal.WriteLine("");
+                    if (AiSettings.Enabled && !AiSettings.IsConfigured)
+                        terminal.WriteLine(Loc.Get("prefs.ai_needs_endpoint"), "yellow");
+                    else
+                        terminal.WriteLine(AiSettings.Enabled ? Loc.Get("prefs.ai_mode.on") : Loc.Get("prefs.ai_mode.off"), "green");
+                    await Pacing.Wait(600);
+                    break;
+
+                case "E":
+                    terminal.WriteLine("");
+                    var newEndpoint = await terminal.GetInput(Loc.Get("prefs.ai_endpoint_prompt"));
+                    if (newEndpoint != null)
+                    {
+                        AiSettings.Endpoint = newEndpoint.Trim();
+                        AiSettings.Save();
+                        terminal.WriteLine(Loc.Get("prefs.ai_saved"), "green");
+                        await Pacing.Wait(400);
+                    }
+                    break;
+
+                case "K":
+                    terminal.WriteLine("");
+                    var newKey = await terminal.GetMaskedInput(Loc.Get("prefs.ai_key_prompt"));
+                    if (newKey != null)
+                    {
+                        AiSettings.ApiKey = newKey.Trim();
+                        AiSettings.Save();
+                        terminal.WriteLine(Loc.Get("prefs.ai_saved"), "green");
+                        await Pacing.Wait(400);
+                    }
                     break;
 
                 case "B":

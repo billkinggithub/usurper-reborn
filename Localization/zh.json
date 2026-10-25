@@ -30975,5 +30975,15 @@
  "feature.verb_take": "拿取",
  "feature.verb_use": "使用",
  "feature.verb_break": "砸开",
- "feature.verb_enter": "进入"
+ "feature.verb_enter": "进入",
+ "base.prefs_ai_header": "AI 对话",
+ "prefs.ai_mode": "AI 对话",
+ "prefs.ai_mode.on": "已开启（由模型撰写台词）",
+ "prefs.ai_mode.off": "已关闭（只用作者写好的台词）",
+ "prefs.ai_endpoint": "API 地址",
+ "prefs.ai_key": "API 密钥",
+ "prefs.ai_endpoint_prompt": "API 地址，留空则清除： ",
+ "prefs.ai_key_prompt": "API 密钥，留空则清除： ",
+ "prefs.ai_saved": "已保存。",
+ "prefs.ai_needs_endpoint": "请先填写 API 地址。"
 }

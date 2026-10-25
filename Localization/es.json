@@ -31162,5 +31162,15 @@
  "feature.verb_take": "take",
  "feature.verb_use": "use",
  "feature.verb_break": "break",
- "feature.verb_enter": "enter"
+ "feature.verb_enter": "enter",
+ "base.prefs_ai_header": "AI dialogue",
+ "prefs.ai_mode": "AI dialogue",
+ "prefs.ai_mode.on": "Enabled (a model writes the lines)",
+ "prefs.ai_mode.off": "Disabled (authored lines only)",
+ "prefs.ai_endpoint": "API address",
+ "prefs.ai_key": "API key",
+ "prefs.ai_endpoint_prompt": "API address, empty to clear: ",
+ "prefs.ai_key_prompt": "API key, empty to clear: ",
+ "prefs.ai_saved": "Saved.",
+ "prefs.ai_needs_endpoint": "Set an API address first."
 }
