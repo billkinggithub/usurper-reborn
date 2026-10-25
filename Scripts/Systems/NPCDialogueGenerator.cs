@@ -216,17 +216,23 @@ public static class NPCDialogueGenerator
             greeting = ApplyPersonalityModifiers(greeting, npc.Personality, keys);
         }
 
-        // Add memory reference (20% chance)
-        if (npc.Memory != null && Rng.NextDouble() < 0.20)
+        // Add memory reference. v1.3.9: the chance used to be a flat 20%, so an NPC who had saved
+        // your life brought it up as often as one who once sold you a drink. It now follows the
+        // weight of what they remember, from 20% up to 55% for something that matters a lot.
+        if (npc.Memory != null)
         {
-            var memory = GetMemoryReference(npc.Memory, player);
-            if (memory != null)
+            double mentionChance = MemoryMentionChance(npc.Memory, player);
+            if (mentionChance > 0 && Rng.NextDouble() < mentionChance)
             {
-                var (refKey, timeKey) = memory.Value;
-                keys.Add(refKey);
-                keys.Add(timeKey);
-                var inner = greeting;
-                greeting = () => Join(K + "join", inner(), Loc.Get(refKey, Loc.Get(timeKey)));
+                var memory = GetMemoryReference(npc.Memory, player);
+                if (memory != null)
+                {
+                    var (refKey, timeKey) = memory.Value;
+                    keys.Add(refKey);
+                    keys.Add(timeKey);
+                    var inner = greeting;
+                    greeting = () => Join(K + "join", inner(), Loc.Get(refKey, Loc.Get(timeKey)));
+                }
             }
         }
 
@@ -478,6 +484,32 @@ public static class NPCDialogueGenerator
         keys.Add(key);
         var inner = greeting;
         return () => Wrap(key, inner());
+    }
+
+    /// <summary>
+    /// v1.3.9: how likely this NPC is to bring up what they remember about the player, 0 when they
+    /// remember nothing worth saying. The weight of the heaviest relevant memory sets it: a life saved
+    /// or a betrayal is worth well over twice a compliment. Consumes no randomness, so the seeded pick
+    /// order stays exactly as it was.
+    /// </summary>
+    private static double MemoryMentionChance(MemorySystem memory, Player player)
+    {
+        if (memory == null || player == null) return 0;
+
+        var playerName = player.Name2 ?? player.Name1;
+        if (string.IsNullOrEmpty(playerName)) return 0;
+
+        float heaviest = 0f;
+        bool any = false;
+        foreach (var m in memory.GetMemoriesAboutCharacter(playerName))
+        {
+            if (!MemoryReferences.Contains(m.Type)) continue;
+            any = true;
+            if (m.Importance > heaviest) heaviest = m.Importance;
+        }
+        if (!any) return 0;
+
+        return 0.20 + 0.35 * Math.Clamp(heaviest, 0f, 1f);
     }
 
     /// <summary>The memory reference key and the time key, or null when there is no memory of the player.</summary>
