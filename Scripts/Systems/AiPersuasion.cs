@@ -63,6 +63,10 @@ namespace UsurperRemake.Systems
         public const float MaxImportance = 0.35f;
         public const float MaxImpact = 0.30f;
 
+        /// <summary>Marks a memory this layer wrote, so the daily allowance can find it and nothing
+        /// else mistakes it for something the engine recorded.</summary>
+        public const string MemoryTag = "ai_persuasion";
+
         public const int MaxSayChars = 200;
         public const int MaxMemoryChars = 120;
 

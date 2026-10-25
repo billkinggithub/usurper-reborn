@@ -31189,5 +31189,6 @@
  "ai.trial_nudge": "Would move \"{0}\" {1:0} -> {2:0}",
  "ai.trial_memory": "Would record: {0} (importance {1:0.00})",
  "ai.trial_nothing": "(the AI proposed no change)",
- "ai.trial_no_goals": "(no goals to weigh against)"
+ "ai.trial_no_goals": "(no goals to weigh against)",
+ "ai.memory_written": "Recorded: {0}"
 }

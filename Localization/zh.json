@@ -31002,5 +31002,6 @@
  "ai.trial_nudge": "想把「{0}」的权重从 {1:0} 调到 {2:0}",
  "ai.trial_memory": "会记下：{0}（重要性 {1:0.00}）",
  "ai.trial_nothing": "（AI 没有提出任何改动）",
- "ai.trial_no_goals": "（他没有可权衡的目标）"
+ "ai.trial_no_goals": "（他没有可权衡的目标）",
+ "ai.memory_written": "已记下：{0}"
 }

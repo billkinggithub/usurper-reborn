@@ -584,11 +584,15 @@ namespace UsurperRemake.Systems
         }
 
         /// <summary>
-        /// v1.3.9: what the model would change about this NPC's intent, printed and not applied.
+        /// v1.3.9: what the model makes of the player's words, and the one part of its answer that is
+        /// applied: a memory.
         ///
-        /// This is how the persuasion layer is looked at without grinding: every number it proposes is
-        /// shown next to the goal it would move, at any level, and the save is untouched. The goals come
-        /// from the NPC's own GoalSystem, so what is on screen is what a tick would actually weigh.
+        /// Weights are shown but never changed, because a trial had the model raise "Find Better Weapons"
+        /// during a conversation about revenge. The memory is written, because that is the loop the design
+        /// rests on: it goes into the NPC's own MemorySystem, the existing impression rule turns it into a
+        /// shift in how he feels, and every later scoring pass reads it as it would any other memory. It
+        /// is capped at a low importance, so when the memory list is full the engine's own events push it
+        /// out first, and one per NPC per day, so it cannot be farmed.
         /// </summary>
         private async Task ShowPersuasionTrial(NPC npc, string said, int relationLevel, string languageName)
         {
@@ -607,11 +611,14 @@ namespace UsurperRemake.Systems
                 return;
             }
 
+            string playerName = player?.Name2 ?? player?.DisplayName ?? "";
+            bool memoryAllowed = !HasAiMemoryToday(npc, playerName);
+
             terminal.WriteLine($"  {Loc.Get("ai.trial_header")}", "darkgray");
             terminal.WriteLine($"  {Loc.Get("ai.trial_goals", string.Join(", ", candidates.Select(c => $"{c.Action} {c.Weight:0}")))}", "gray");
 
             var outcome = await AiPersuasion.AskAsync(
-                npc!, player, relationLevel, candidates, said, languageName, memoryAllowed: true);
+                npc!, player, relationLevel, candidates, said, languageName, memoryAllowed);
             if (outcome == null) return;
 
             if (outcome.NudgeAction != null)
@@ -622,10 +629,49 @@ namespace UsurperRemake.Systems
             }
 
             if (outcome.Memory != null)
-                terminal.WriteLine($"  {Loc.Get("ai.trial_memory", outcome.MemoryText, outcome.MemoryImportance)}", "bright_cyan");
+            {
+                bool written = RecordPersuasionMemory(npc!, playerName, outcome);
+                terminal.WriteLine(written
+                    ? $"  {Loc.Get("ai.memory_written", outcome.MemoryText)}"
+                    : $"  {Loc.Get("ai.trial_memory", outcome.MemoryText, outcome.MemoryImportance)}", "bright_cyan");
+            }
 
             if (!outcome.HasAnything)
                 terminal.WriteLine($"  {Loc.Get("ai.trial_nothing")}", "gray");
+        }
+
+        /// <summary>True when this NPC already took a memory from the player's words in the last day, which
+        /// keeps a repeated conversation from being a second helping.</summary>
+        private static bool HasAiMemoryToday(NPC npc, string playerName)
+        {
+            var memory = npc?.Brain?.Memory;
+            if (memory == null || string.IsNullOrEmpty(playerName)) return false;
+            return memory.GetRecentEvents(24).Any(e =>
+                e.Details.ContainsKey(AiPersuasion.MemoryTag)
+                && string.Equals(e.InvolvedCharacter, playerName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>Write the one memory the answer earned. Marked in Details so the daily check can find
+        /// it again, and capped low so the engine's own events outrank it when the list is full.</summary>
+        private static bool RecordPersuasionMemory(NPC npc, string playerName, PersuasionOutcome outcome)
+        {
+            var memory = npc.Brain?.Memory;
+            if (memory == null || outcome.Memory == null || string.IsNullOrWhiteSpace(outcome.MemoryText))
+                return false;
+
+            var record = new MemoryEvent
+            {
+                Type = outcome.Memory.Value,
+                Description = outcome.MemoryText!,
+                InvolvedCharacter = playerName,
+                Importance = outcome.MemoryImportance,
+                EmotionalImpact = outcome.MemoryImpact,
+            };
+            record.Details[AiPersuasion.MemoryTag] = true;
+
+            memory.RecordEvent(record);
+            DebugLogger.Instance.LogInfo("AI", $"memory recorded: {outcome.Memory.Value} for {playerName}");
+            return true;
         }
 
         /// <summary>
