@@ -80,6 +80,34 @@ namespace UsurperRemake.Systems
         public const int MaxMemoryChars = 120;
 
         /// <summary>
+        /// Memories that are evidence this NPC actually did something for the player. Used to check a
+        /// claim of past help instead of taking the player's word for it.
+        /// </summary>
+        public static readonly IReadOnlyList<MemoryType> ProofOfHelp = new[]
+        {
+            MemoryType.Helped,
+            MemoryType.Defended,
+            MemoryType.Saved,
+            MemoryType.SharedItem,
+            MemoryType.SharedDrink,
+        };
+
+        /// <summary>
+        /// v1.3.9: whether this NPC remembers helping the player at all. Thanking someone for help they
+        /// never gave is a lie, and the model cannot know that: it reads the sentence and believes it. The
+        /// engine can know, because the help would be in the NPC's own memory, so a claim is checked
+        /// against that. A promise of future help has no evidence either and earns nothing until it is
+        /// kept, which is the same rule and the honest one.
+        /// </summary>
+        public static bool HasRealHelp(NPC npc, string playerName)
+        {
+            if (string.IsNullOrEmpty(playerName)) return false;
+            var memories = npc?.Brain?.Memory?.GetMemoriesAboutCharacter(playerName);
+            if (memories == null) return false;
+            return memories.Any(m => ProofOfHelp.Contains(m.Type));
+        }
+
+        /// <summary>
         /// The only memory types a conversation may create. Each carries a fixed impression change in
         /// MemorySystem.ImpressionChangeFor, so this list is also the value limit.
         ///
@@ -305,7 +333,8 @@ namespace UsurperRemake.Systems
                 $"nudge.delta must be between -{MaxNudge} and 0: your words can make you less inclined to " +
                 "do something, never more. Raising a drive is refused. " +
                 $"memory.type must be one of: {allowedTypes}. " +
-                "Never invent events that did not happen.";
+                "Never invent events that did not happen. If the player thanks you for help you do not " +
+                "remember giving, do not accept it as fact: answer with suspicion and record nothing.";
 
             string user =
                 $"You are {npc?.Name2 ?? "someone"}" + (string.IsNullOrEmpty(npc?.Archetype) ? "" : $", a {npc!.Archetype}") + ".\n" +

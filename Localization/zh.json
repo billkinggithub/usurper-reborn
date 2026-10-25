@@ -31007,5 +31007,6 @@
  "ai.memory_spent": "（你今天已经让他记下过一次了，这次没有写入）",
  "ai.impression_now": "他对你的印象：{0:0.00}",
  "ai.impression_after": "他对你的印象：{0:0.00} → {1:0.00}",
- "ai.memory_thin": "（这句话还不足以让他改变看法）"
+ "ai.memory_thin": "（这句话还不足以让他改变看法）",
+ "ai.memory_unearned": "（她并不记得帮过你，这话不算数）"
 }

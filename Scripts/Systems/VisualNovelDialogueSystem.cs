@@ -628,6 +628,15 @@ namespace UsurperRemake.Systems
             // on the screen, not a guess.
             if (outcome.Memory != null)
             {
+                // v1.3.9: a claim of past help has to be checked, not believed. "Thank you for helping me"
+                // when she never did is a lie, and the model has no way to tell; her own memory does.
+                if (outcome.Memory == MemoryType.Helped && !AiPersuasion.HasRealHelp(npc!, playerName))
+                {
+                    terminal.WriteLine($"  {Loc.Get("ai.memory_unearned")}", "yellow");
+                    terminal.WriteLine($"  {Loc.Get("ai.impression_now", impressionBefore)}", "gray");
+                    return;
+                }
+
                 bool written = RecordPersuasionMemory(npc!, playerName, outcome);
                 terminal.WriteLine(written
                     ? $"  {Loc.Get("ai.memory_written", outcome.MemoryText)}"
