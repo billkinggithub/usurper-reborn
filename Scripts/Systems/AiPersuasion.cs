@@ -34,6 +34,10 @@ namespace UsurperRemake.Systems
         public float MemoryImportance { get; set; }
         public float MemoryImpact { get; set; }
 
+        /// <summary>True when a memory was offered but the daily allowance for this NPC was already
+        /// spent. Surfaced so the screen can say so instead of silently showing nothing.</summary>
+        public bool MemoryRefusedToday { get; set; }
+
         /// <summary>Why parts of the answer were thrown away, in the order they were checked.</summary>
         public List<string> Notes { get; } = new();
 
@@ -202,6 +206,7 @@ namespace UsurperRemake.Systems
 
             if (!memoryAllowed)
             {
+                outcome.MemoryRefusedToday = true;
                 outcome.Notes.Add("dropped memory: already moved by words today");
                 return;
             }

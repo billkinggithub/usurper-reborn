@@ -31192,5 +31192,6 @@
  "ai.trial_memory": "Would record: {0} (importance {1:0.00})",
  "ai.trial_nothing": "(the AI proposed no change)",
  "ai.trial_no_goals": "(no goals to weigh against)",
- "ai.memory_written": "Recorded: {0}"
+ "ai.memory_written": "Recorded: {0}",
+ "ai.memory_spent": "(you already left an impression on him today; nothing was recorded)"
 }

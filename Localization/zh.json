@@ -31003,5 +31003,6 @@
  "ai.trial_memory": "会记下：{0}（重要性 {1:0.00}）",
  "ai.trial_nothing": "（AI 没有提出任何改动）",
  "ai.trial_no_goals": "（他没有可权衡的目标）",
- "ai.memory_written": "已记下：{0}"
+ "ai.memory_written": "已记下：{0}",
+ "ai.memory_spent": "（你今天已经让他记下过一次了，这次没有写入）"
 }

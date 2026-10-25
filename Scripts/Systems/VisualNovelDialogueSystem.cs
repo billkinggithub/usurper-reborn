@@ -621,13 +621,9 @@ namespace UsurperRemake.Systems
                 npc!, player, relationLevel, candidates, said, languageName, memoryAllowed);
             if (outcome == null) return;
 
-            if (outcome.NudgeAction != null)
-            {
-                double before = candidates.First(c => c.Action == outcome.NudgeAction).Weight;
-                string after = Math.Max(0, before + outcome.NudgeDelta).ToString("0");
-                terminal.WriteLine($"  {Loc.Get("ai.trial_nudge", outcome.NudgeAction, before, after)}", "bright_cyan");
-            }
-
+            // v1.3.9: the weight change is deliberately never applied, so showing it only promised
+            // something that would not happen. The goals line stays as context and the memory is the part
+            // that is real.
             if (outcome.Memory != null)
             {
                 bool written = RecordPersuasionMemory(npc!, playerName, outcome);
@@ -635,9 +631,16 @@ namespace UsurperRemake.Systems
                     ? $"  {Loc.Get("ai.memory_written", outcome.MemoryText)}"
                     : $"  {Loc.Get("ai.trial_memory", outcome.MemoryText, outcome.MemoryImportance)}", "bright_cyan");
             }
-
-            if (!outcome.HasAnything)
+            else if (outcome.MemoryRefusedToday)
+            {
+                // the model did offer one; saying nothing made a spent allowance look like a model that
+                // had nothing to say
+                terminal.WriteLine($"  {Loc.Get("ai.memory_spent")}", "gray");
+            }
+            else if (!outcome.HasAnything)
+            {
                 terminal.WriteLine($"  {Loc.Get("ai.trial_nothing")}", "gray");
+            }
         }
 
         /// <summary>True when this NPC already took a memory from the player's words in the last day, which
