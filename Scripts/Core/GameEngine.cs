@@ -868,6 +868,7 @@ public partial class GameEngine
                     var selectedLang = doorLangs[doorLangIdx - 1].Code;
                     GameConfig.Language = selectedLang;
                     _languageSetThisSession.Value = true;
+                    UsurperRemake.Systems.UserSettings.RememberLanguage(GameConfig.Language);   // v1.3.9: remembered for the next launch
                     terminal.WriteLine(Loc.Get("prefs.language_set", UsurperRemake.Systems.Loc.GetLanguageName(selectedLang)), "green");
                     await Pacing.Wait(800);
                 }
@@ -1807,6 +1808,7 @@ public partial class GameEngine
                         var selectedLang = mainLangs[mainLangIdx - 1].Code;
                         GameConfig.Language = selectedLang;
                         _languageSetThisSession.Value = true;
+                        UsurperRemake.Systems.UserSettings.RememberLanguage(GameConfig.Language);   // v1.3.9: remembered for the next launch
                         terminal.WriteLine(Loc.Get("prefs.language_set", UsurperRemake.Systems.Loc.GetLanguageName(selectedLang)), "green");
                         await Pacing.Wait(800);
                     }

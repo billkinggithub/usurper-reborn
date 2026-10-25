@@ -96,6 +96,15 @@ namespace UsurperConsole
             // mode off and the authored pools in charge.
             UsurperRemake.Systems.AiSettings.Load();
 
+            // v1.3.9: the language last picked, so the main menu opens in it instead of asking again.
+            // Applied here, before anything renders, and only when it is a language this build ships.
+            UsurperRemake.Systems.UserSettings.Load();
+            if (!string.IsNullOrEmpty(UsurperRemake.Systems.UserSettings.Language)
+                && UsurperRemake.Systems.Loc.LoadedLanguages.Contains(UsurperRemake.Systems.UserSettings.Language))
+            {
+                GameConfig.Language = UsurperRemake.Systems.UserSettings.Language;
+            }
+
             // Export built-in wiki facts before GameDataLoader can apply local mods.
             var wikiExit = UsurperRemake.Systems.WikiDataExporter.RunCommandLine(args, Console.Out, Console.Error);
             if (wikiExit.HasValue)

@@ -3956,6 +3956,7 @@ public abstract class BaseLocation
                     {
                         GameConfig.Language = value;
                         currentPlayer.Language = value;
+                        UsurperRemake.Systems.UserSettings.RememberLanguage(value);   // v1.3.9: remembered for the next launch
                         Loc.Initialize();
                         if (GameConfig.ElectronMode)
                             ElectronBridge.EmitSettingsApplied("language", value);
@@ -4935,6 +4936,7 @@ public abstract class BaseLocation
                     {
                         var selectedLang = langs[langIdx - 1].Code;
                         currentPlayer.Language = selectedLang;
+                        UsurperRemake.Systems.UserSettings.RememberLanguage(selectedLang);   // v1.3.9: remembered for the next launch
                         GameConfig.Language = selectedLang;
                         terminal.WriteLine(Loc.Get("prefs.language_set", UsurperRemake.Systems.Loc.GetLanguageName(selectedLang)), "green");
                         // Invalidate cached dungeon floor so rooms regenerate in new language
