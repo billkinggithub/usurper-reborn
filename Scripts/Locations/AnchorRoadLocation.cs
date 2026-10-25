@@ -1948,7 +1948,7 @@ public class AnchorRoadLocation : BaseLocation
             // Action prompt.
             terminal.SetColor("white");
             terminal.WriteLine(Loc.Get("merc.hall_prompt_options"));
-            string input = (await terminal.GetInput(Loc.Get("ui.your_choice"))).Trim().ToUpperInvariant();
+            string input = (await GetChoice()).Trim().ToUpperInvariant();
 
             if (input == "Q" || input == "")
             {
@@ -2084,7 +2084,7 @@ public class AnchorRoadLocation : BaseLocation
                 terminal.WriteLine($"  [{i + 1}] {FormatMercFactionTag(ready[i].IssuingFaction)} {ready[i].GetDisplayTitle()}");
             }
             terminal.WriteLine("");
-            string input = (await terminal.GetInput(Loc.Get("ui.your_choice"))).Trim();
+            string input = (await GetChoice()).Trim();
             if (!int.TryParse(input, out int idx) || idx < 1 || idx > ready.Count)
             {
                 return;

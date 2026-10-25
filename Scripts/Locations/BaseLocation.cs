@@ -174,7 +174,7 @@ public abstract class BaseLocation
     protected Character GetCurrentPlayer() => currentPlayer ?? GameEngine.Instance.CurrentPlayer;
 
     /// <summary>
-    /// Localized Loc.Get("ui.your_choice") prompt. Use instead of terminal.GetInput(Loc.Get("ui.your_choice")).
+    /// Localized Loc.Get("ui.your_choice") prompt. Use instead of GetChoice().
     /// </summary>
     protected static string GetOrientationLabel(SexualOrientation orientation) => orientation switch
     {
@@ -187,7 +187,7 @@ public abstract class BaseLocation
 
     protected async Task<string> GetChoice()
     {
-        return await terminal.GetInput(Loc.Get("ui.your_choice"));
+        return await GetChoice();
     }
 
     /// <summary>
@@ -4887,7 +4887,7 @@ public abstract class BaseLocation
                         terminal.WriteLine($"  {li + 1}. {langs[li].Name}{marker}");
                     }
                     terminal.WriteLine("");
-                    var langChoice = await terminal.GetInput(Loc.Get("ui.your_choice"));
+                    var langChoice = await GetChoice();
                     if (int.TryParse(langChoice.Trim(), out int langIdx) && langIdx >= 1 && langIdx <= langs.Length)
                     {
                         var selectedLang = langs[langIdx - 1].Code;
@@ -4984,7 +4984,7 @@ public abstract class BaseLocation
                     terminal.WriteLine($"  {Loc.Get("creation.orientation_3")}");
                     terminal.WriteLine($"  {Loc.Get("creation.orientation_4")}");
                     terminal.WriteLine("");
-                    var oriChoice = await terminal.GetInput(Loc.Get("ui.your_choice"));
+                    var oriChoice = await GetChoice();
                     switch (oriChoice.Trim())
                     {
                         case "1":
