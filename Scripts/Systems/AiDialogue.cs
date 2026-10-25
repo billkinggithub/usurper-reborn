@@ -80,6 +80,80 @@ namespace UsurperRemake.Systems
         private static bool IsSinglePlayer()
             => !BBS.DoorMode.IsInDoorMode && !BBS.DoorMode.IsMudServerMode && !BBS.DoorMode.IsMudRelayMode;
 
+        /// <summary>
+        /// v1.3.9: the NPC's answer to something the player actually said, in this NPC's voice, reacting
+        /// to both the words and the tone. Null when the mode is off or the call fails, in which case the
+        /// conversation simply continues and the player's line stands on its own.
+        /// </summary>
+        public static string? ReplyTo(NPC npc, Player player, string playerSaid, string? tone)
+        {
+            if (!AiSettings.IsActive || !IsSinglePlayer()) return null;
+            if (string.IsNullOrWhiteSpace(playerSaid)) return null;
+
+            string language = GameConfig.Language ?? "en";
+            string playerName = player?.Name2 ?? player?.Name1 ?? "";
+            try
+            {
+                string reply = ReplyAsync(npc, playerSaid, tone, languageName: Loc.GetLanguageName(language))
+                    .GetAwaiter().GetResult();
+                if (string.IsNullOrWhiteSpace(reply)) return null;
+                reply = reply.Trim();
+                if (!IsUsable(reply)) return null;
+                return MaskName(reply, playerName).Replace(PlayerPlaceholder, playerName);
+            }
+            catch (Exception ex)
+            {
+                if (Interlocked.Increment(ref _failuresLogged) == 1)
+                    DebugLogger.Instance.LogWarning("AI", $"NPC reply unavailable: {ex.GetType().Name}: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static async Task<string?> ReplyAsync(NPC npc, string playerSaid, string? tone, string languageName)
+        {
+            var p = npc?.Personality;
+            string system =
+                "You are role playing one character in a text adventure. Answer what the player just said " +
+                "in that character's own voice, reacting to both the words and the manner. " +
+                $"Write in {languageName}. Reply with the spoken line alone: no quotes, no stage directions, " +
+                $"one line, at most {MaxLineLength} characters.";
+
+            string user =
+                $"Character: {npc?.Name2 ?? "someone"}" + (string.IsNullOrEmpty(npc?.Archetype) ? "" : $", a {npc!.Archetype}") + "\n" +
+                (p == null ? "" :
+                    $"Traits: aggressive {p.Aggression:0.0}, loyal {p.Loyalty:0.0}, clever {p.Intelligence:0.0}, " +
+                    $"sociable {p.Sociability:0.0}, cautious {p.Caution:0.0}, vengeful {p.Vengefulness:0.0}\n") +
+                $"They feel about the player: {RelationshipWord(npc, "")}\n" +
+                $"The player said, in a {tone ?? "neutral"} manner:\n{playerSaid}";
+
+            var payload = new
+            {
+                model = string.IsNullOrWhiteSpace(AiSettings.Model) ? null : AiSettings.Model,
+                messages = new object[]
+                {
+                    new { role = "system", content = system },
+                    new { role = "user", content = user },
+                },
+                max_tokens = 120,
+                temperature = 0.8,
+            };
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, AiSettings.Endpoint)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json"),
+            };
+            if (!string.IsNullOrWhiteSpace(AiSettings.ApiKey))
+                request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + AiSettings.ApiKey);
+
+            using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseContentRead);
+            if (!response.IsSuccessStatusCode) return null;
+            string body = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(body);
+            var choices = doc.RootElement.GetProperty("choices");
+            if (choices.GetArrayLength() == 0) return null;
+            return choices[0].GetProperty("message").GetProperty("content").GetString();
+        }
+
         private static string CacheKey(NPC npc, string language, string authored)
             => $"{npc?.Name2 ?? npc?.Name1}|{language}|{authored}";
 

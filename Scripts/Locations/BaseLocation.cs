@@ -185,6 +185,36 @@ public abstract class BaseLocation
         _ => Loc.Get("base.orientation_straight")
     };
 
+    /// <summary>
+    /// v1.3.9: deliver what the player said through a free-form action, and let the NPC answer it.
+    /// The reply is written in this NPC's voice and reacts to both the words and the tone; if the model
+    /// is off or unreachable the player's line simply stands and the conversation carries on.
+    /// </summary>
+    private async Task DeliverPendingSpeech(NPC npc)
+    {
+        var said = PlayerSpeech.TakeFor(npc?.Name2);
+        if (said == null) return;
+
+        terminal.WriteLine("");
+        string line = string.IsNullOrWhiteSpace(said.Target)
+            ? Loc.Get("ai.say_line_plain", said.Text)
+            : Loc.Get("ai.say_line", said.Target, said.Tone ?? "", said.Text);
+        terminal.WriteLine($"  {line}", "bright_white");
+
+        string? reply = currentPlayer is Player asPlayer
+            ? await AiDialogue.ReplyTo(npc!, asPlayer, said.Text, said.Tone)
+            : null;
+        if (reply != null)
+        {
+            terminal.WriteLine($"  {npc!.Name2}: {reply}", "white");
+        }
+        else
+        {
+            terminal.WriteLine($"  {Loc.Get("ai.npc_heard", npc!.Name2)}", "gray");
+        }
+        await Pacing.Wait(600);
+    }
+
     protected async Task<string> GetChoice()
     {
         string raw = await terminal.GetInput(Loc.Get("ui.your_choice"));
@@ -219,6 +249,8 @@ public abstract class BaseLocation
         string context = $"Location: {Name}. Player: {currentPlayer?.Name2 ?? currentPlayer?.Name1 ?? "?"}, " +
                          $"level {currentPlayer?.Level}, class {currentPlayer?.ClassName}.";
         string extra = "";
+        // a new action replaces anything the player said on the previous turn
+        PlayerSpeech.Clear();
 
         for (int round = 0; round < 3; round++)
         {
@@ -258,6 +290,41 @@ public abstract class BaseLocation
                     ? Loc.Get("ai.say_line_plain", result.SayText)
                     : Loc.Get("ai.say_line", result.SayTarget, result.SayTone ?? "", result.SayText);
                 terminal.WriteLine($"  {line}", "bright_white");
+
+                // v1.3.9: hold the words so the NPC answers them when the conversation opens, rather
+                // than being flattened into a notification that a conversation happened
+                PlayerSpeech.Hold(new PlayerSpeech.Said
+                {
+                    Text = result.SayText,
+                    Target = result.SayTarget,
+                    Tone = result.SayTone,
+                });
+            }
+
+            if (result.DebugCommand != null)
+            {
+                // v1.3.9: the assistant may propose a debug command but never runs one. A read is shown
+                // at once; a write is spelled out and waits for a yes from the player.
+                terminal.WriteLine("");
+                terminal.WriteLine($"  {Loc.Get("ai.debug_proposed", result.DebugCommand)}", "bright_cyan");
+                if (DebugConsole.IsReadOnly(result.DebugCommand))
+                {
+                    DebugConsole.TryRun(result.DebugCommand, currentPlayer!, out string read);
+                    terminal.WriteLine($"  {read}", "gray");
+                    return "";
+                }
+
+                string confirm = await terminal.GetInput(Loc.Get("ai.debug_confirm"));
+                if (confirm.Trim().ToUpperInvariant().StartsWith("Y"))
+                {
+                    bool changed = DebugConsole.TryRun(result.DebugCommand, currentPlayer!, out string wrote);
+                    terminal.WriteLine($"  {wrote}", changed ? "green" : "yellow");
+                }
+                else
+                {
+                    terminal.WriteLine($"  {Loc.Get("ai.debug_cancelled")}", "gray");
+                }
+                return "";
             }
 
             if (result.Answer != null)
@@ -5988,6 +6055,9 @@ public abstract class BaseLocation
                         break;
                     case "5":
                         // Full visual novel style conversation
+                        // v1.3.9: if the player already said something to this NPC through a free-form
+                        // action, they hear it and answer before the usual conversation opens.
+                        await DeliverPendingSpeech(npc);
                         await UsurperRemake.Systems.VisualNovelDialogueSystem.Instance.StartConversation(currentPlayer, npc, terminal);
                         // v0.60.0 alpha audit: track conversations + interactions.
                         // Counters were always 0 because nothing ever incremented them.

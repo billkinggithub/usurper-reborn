@@ -30990,5 +30990,10 @@
  "ai.not_understood": "没听懂。换个说法再试试。",
  "ai.say_line": "你对{0}（{1}）说：{2}",
  "ai.say_line_plain": "你说：{0}",
- "ai.you_do": "{0}"
+ "ai.you_do": "{0}",
+ "ai.npc_heard": "{0}听你把话说完。",
+ "ai.debug_proposed": "拟执行命令：{0}",
+ "ai.debug_confirm": "要执行吗？(Y/N)： ",
+ "ai.debug_cancelled": "已取消，未做任何改动。",
+ "ai.debug_readonly": "结果："
 }

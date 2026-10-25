@@ -31179,5 +31179,10 @@
  "ai.not_understood": "I could not follow that. Try saying it another way.",
  "ai.say_line": "You say to {0} ({1}): {2}",
  "ai.say_line_plain": "You say: {0}",
- "ai.you_do": "{0}"
+ "ai.you_do": "{0}",
+ "ai.npc_heard": "{0} hears you out.",
+ "ai.debug_proposed": "Proposed command: {0}",
+ "ai.debug_confirm": "Run it? (Y/N): ",
+ "ai.debug_cancelled": "Cancelled. Nothing was changed.",
+ "ai.debug_readonly": "Result:"
 }

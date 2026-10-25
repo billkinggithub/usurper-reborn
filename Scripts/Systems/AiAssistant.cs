@@ -41,10 +41,12 @@ namespace UsurperRemake.Systems
             public string? SayText { get; init; }
             public string? SayTone { get; init; }
             public string? Answer { get; init; }
+            /// <summary>v1.3.9: a debug command the assistant proposes. It never runs it.</summary>
+            public string? DebugCommand { get; init; }
             public string? Error { get; init; }
 
             public bool IsUsable => Ask != null || Choice != null || Narration != null
-                                    || SayText != null || Answer != null;
+                                    || SayText != null || Answer != null || DebugCommand != null;
         }
 
         /// <summary>True when the line is addressed to the assistant rather than acted out.</summary>
@@ -90,6 +92,7 @@ namespace UsurperRemake.Systems
                 "\"choice\":\"ONE menu key visible on screen, or null\"," +
                 "\"narration\":\"a short third-person description of what the player did\"," +
                 "\"say\":{\"target\":\"who it is said to\",\"text\":\"their exact words\",\"tone\":\"threat|warm|formal|pleading|joking|cold\"}," +
+                "\"debug\":\"a command of the form get <path> or set <path> <value>, only when they ask you to inspect or change game state\"," +
                 "\"answer\":\"only for @ai questions\"}";
 
             string user =
@@ -180,6 +183,7 @@ namespace UsurperRemake.Systems
                     SayTarget = sayTarget,
                     SayTone = sayTone,
                     Answer = Cap(ReadString("answer"), MaxAnswer),
+                    DebugCommand = Cap(ReadString("debug"), 200),
                 };
             }
             catch (JsonException)
