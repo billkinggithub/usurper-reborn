@@ -186,40 +186,10 @@ public abstract class BaseLocation
     };
 
     /// <summary>
-    /// v1.3.9: deliver what the player said through a free-form action, and let the NPC answer it.
-    /// The reply is written in this NPC's voice and reacts to both the words and the tone; if the model
-    /// is off or unreachable the player's line simply stands and the conversation carries on.
-    /// </summary>
-    private async Task DeliverPendingSpeech(NPC npc)
-    {
-        var said = PlayerSpeech.TakeFor(npc?.Name2);
-        if (said == null) return;
-
-        terminal.WriteLine("");
-        string line = string.IsNullOrWhiteSpace(said.Target)
-            ? Loc.Get("ai.say_line_plain", said.Text)
-            : Loc.Get("ai.say_line", said.Target, said.Tone ?? "", said.Text);
-        terminal.WriteLine($"  {line}", "bright_white");
-
-        string? reply = currentPlayer is Player asPlayer
-            ? await AiDialogue.ReplyTo(npc!, asPlayer, said.Text, said.Tone)
-            : null;
-        if (reply != null)
-        {
-            terminal.WriteLine($"  {npc!.Name2}: {reply}", "white");
-        }
-        else
-        {
-            terminal.WriteLine($"  {Loc.Get("ai.npc_heard", npc!.Name2)}", "gray");
-        }
-        await Pacing.Wait(600);
-    }
-
-    /// <summary>
     /// v1.3.9: edit one stored AI setting. An empty line keeps what is already saved instead of wiping
-    /// it, which is what made the address and the key have to be typed again after every visit; typing
-    /// a single dash clears it deliberately. The stored value is shown afterwards so it is obvious it
-    /// was kept, and the key is never echoed.
+    /// it, which is what made the address and the key have to be typed again after every visit; a single
+    /// dash clears it deliberately. The stored value is shown afterwards so it is obvious it was kept,
+    /// and the key is never echoed.
     /// </summary>
     private async Task EditAiText(string label, string prompt, Func<string> read, Action<string> write, bool masked)
     {
@@ -247,251 +217,15 @@ public abstract class BaseLocation
             return;
         }
 
-        // read back what was actually stored, so "saved" is never a claim without evidence
         string stored = read();
         string shown = masked ? AiSettings.MaskedKey() : stored;
         terminal.WriteLine($"  {Loc.Get("prefs.ai_saved_value", shown)}", "green");
         await Pacing.Wait(400);
     }
 
-    /// <summary>
-    /// v1.3.9: the NPC the player addressed, if they are standing here. Used so that speaking to someone
-    /// in the room opens the conversation instead of recording the words and leaving the player to find
-    /// the talk option.
-    /// </summary>
-    private NPC? FindPresentNpc(string? name)
-    {
-        if (string.IsNullOrWhiteSpace(name)) return null;
-
-        var candidates = new List<NPC>(LocationNPCs);
-        try
-        {
-            foreach (var npc in GetLiveNPCsAtLocation())
-                if (!candidates.Any(n => n.Name2 == npc.Name2)) candidates.Add(npc);
-        }
-        catch { /* a location without live NPC support simply has the static list */ }
-
-        return candidates.FirstOrDefault(n => n.IsAlive && !n.IsDead
-            && PlayerSpeech.NamesMatch(name!, n.Name2 ?? n.Name1 ?? ""));
-    }
-
     protected async Task<string> GetChoice()
     {
-        // v1.3.9: while the AI mode is on, the prompt itself says what the two prefixes do. Without
-        // this the feature is invisible: nothing on screen suggests that a line may be typed instead
-        // of a menu key.
-        string prompt = Loc.Get("ui.your_choice");
-        if (AiSettings.Enabled) prompt += Loc.Get("ai.prompt_hint");
-
-        // the free-input handler sits under GetInput itself, so a "/" or "@ai" line is already resolved
-        // to a menu key by the time it gets here
-        return await terminal.GetInput(prompt);
-    }
-
-    /// <summary>
-    /// v1.3.9: free-form input. A line beginning with <c>/</c> is what the player does; one beginning
-    /// with <c>@ai</c> is for the assistant. Anything else is a menu key and is returned untouched, so
-    /// every existing menu behaves exactly as it did before.
-    ///
-    /// An action line comes back as the menu key the game itself offers for it, which means the effect
-    /// is carried out by the location's own handler and never by anything the model wrote. When the
-    /// request is ambiguous the assistant asks, the player answers, and understanding carries on.
-    /// </summary>
-    private async Task<string> ResolveFreeInput(string? raw)
-    {
-        if (raw == null) return "";
-        bool isAction = AiAssistant.IsActionLine(raw);
-        bool isAssistant = AiAssistant.IsAssistantLine(raw);
-        if (!isAction && !isAssistant) return raw;
-
-        // v1.3.9: the menu redraws the moment this returns, which wiped everything printed here. The
-        // lines written during the turn are held and reprinted under the refreshed menu, so the result
-        // of what the player typed appears with it rather than needing an extra keypress to be seen.
-        terminal.BeginFlashCapture();
-        try
-        {
-            return await ResolveFreeInputCore(isAction, isAssistant, raw);
-        }
-        finally
-        {
-            terminal.EndFlashCapture();
-        }
-    }
-
-    private async Task<string> ResolveFreeInputCore(bool isAction, bool isAssistant, string raw)
-    {
-
-        if (!AiSettings.IsActive)
-        {
-            terminal.WriteLine("");
-            terminal.WriteLine($"  {Loc.Get("ai.needs_mode")}", "yellow");
-            return "";
-        }
-
-        string utterance = AiAssistant.Strip(raw);
-        string language = GameConfig.Language ?? "en";
-
-        // v1.3.9: a provider that needs a model id must not be called without one, or every attempt
-        // looks like the feature is broken
-        if (string.IsNullOrWhiteSpace(AiSettings.EffectiveModel))
-        {
-            terminal.WriteLine("");
-            terminal.WriteLine($"  {Loc.Get("ai.model_required")}", "yellow");
-            return "";
-        }
-        string context = $"Location: {Name}. Player: {currentPlayer?.Name2 ?? currentPlayer?.Name1 ?? "?"}, " +
-                         $"level {currentPlayer?.Level}, class {currentPlayer?.ClassName}.";
-        string extra = "";
-        string screenText = "";
-        // a new action replaces anything the player said on the previous turn
-        PlayerSpeech.Clear();
-
-        for (int round = 0; round < 3; round++)
-        {
-            AiAssistant.Resolution result;
-            try
-            {
-                // v1.3.9: say something before the request. A slow provider used to leave the screen
-                // blank for up to twenty seconds, which is indistinguishable from the feature doing
-                // nothing at all.
-                terminal.WriteLine("");
-                terminal.WriteLine($"  {Loc.Get("ai.thinking")}", "gray");
-
-                screenText = terminal.RecentScreenText();
-                result = await AiAssistant.ResolveAsync(utterance + extra, isAssistant,
-                    screenText, language, context);
-            }
-            catch (Exception ex)
-            {
-                DebugLogger.Instance.LogWarning("AI", $"assistant unavailable: {ex.Message}");
-                terminal.WriteLine("");
-                terminal.WriteLine($"  {Loc.Get("ai.not_understood")}", "yellow");
-                return "";
-            }
-
-            DebugLogger.Instance.LogInfo("AI",
-                $"resolved: choice={result.Choice ?? "none"} say={(result.SayText != null ? "yes" : "no")} " +
-                $"answer={(result.Answer != null ? "yes" : "no")} debug={(result.DebugCommand != null ? "yes" : "no")} " +
-                $"error={result.Error ?? "none"}");
-
-            if (result.Ask != null)
-            {
-                terminal.WriteLine("");
-                terminal.WriteLine($"  {result.Ask}", "bright_cyan");
-                string answer = await terminal.GetInput(Loc.Get("ui.your_choice"));
-                if (string.IsNullOrWhiteSpace(answer)) return "";
-                extra += $"\nThe player answered your question: {answer}";
-                continue;
-            }
-
-            if (result.Narration != null)
-            {
-                terminal.WriteLine("");
-                terminal.WriteLine($"  {result.Narration}", "gray");
-            }
-
-            if (result.SayText != null)
-            {
-                // hold the words so the NPC answers them rather than the game reporting that a
-                // conversation happened
-                PlayerSpeech.Hold(new PlayerSpeech.Said
-                {
-                    Text = result.SayText,
-                    Target = result.SayTarget,
-                    Tone = result.SayTone,
-                });
-
-                // v1.3.9: if the person is standing here, speaking to them opens the conversation
-                // straight away. Recording the words and telling the player to go and find the talk
-                // option is not what "I say this to him" means.
-                var present = FindPresentNpc(result.SayTarget);
-                if (present != null)
-                {
-                    await DeliverPendingSpeech(present);
-                    await UsurperRemake.Systems.VisualNovelDialogueSystem.Instance
-                        .StartConversation(currentPlayer!, present, terminal);
-                    return "";
-                }
-
-                string line = string.IsNullOrWhiteSpace(result.SayTarget)
-                    ? Loc.Get("ai.say_line_plain", result.SayText)
-                    : Loc.Get("ai.say_line", result.SayTarget, result.SayTone ?? "", result.SayText);
-                terminal.WriteLine($"  {line}", "bright_white");
-            }
-
-            if (result.DebugCommand != null)
-            {
-                // v1.3.9: the assistant may propose a debug command but never runs one. A read is shown
-                // at once; a write is spelled out and waits for a yes from the player.
-                terminal.WriteLine("");
-                terminal.WriteLine($"  {Loc.Get("ai.debug_proposed", result.DebugCommand)}", "bright_cyan");
-                if (DebugConsole.IsReadOnly(result.DebugCommand))
-                {
-                    DebugConsole.TryRun(result.DebugCommand, currentPlayer!, out string read);
-                    terminal.WriteLine($"  {read}", "gray");
-                    return "";
-                }
-
-                string confirm = await terminal.GetInput(Loc.Get("ai.debug_confirm"));
-                if (confirm.Trim().ToUpperInvariant().StartsWith("Y"))
-                {
-                    bool changed = DebugConsole.TryRun(result.DebugCommand, currentPlayer!, out string wrote);
-                    terminal.WriteLine($"  {wrote}", changed ? "green" : "yellow");
-                }
-                else
-                {
-                    terminal.WriteLine($"  {Loc.Get("ai.debug_cancelled")}", "gray");
-                }
-                return "";
-            }
-
-            if (result.Answer != null)
-            {
-                terminal.WriteLine("");
-                foreach (var para in UsurperRemake.UI.UIHelper.WordWrap(result.Answer, 78))
-                    terminal.WriteLine($"  {para}", "white");
-                return "";
-            }
-
-            if (result.Choice != null) return result.Choice;
-
-            // v1.3.9: the model sometimes answers with words but no key. Before giving up, look for the
-            // option the player's own words name ("去旅店" against "[I] 旅店"): a movement that silently
-            // did nothing is the worst outcome of the two.
-            string? namedKey = AiAssistant.MatchOptionKey(screenText, utterance);
-            if (namedKey != null)
-            {
-                DebugLogger.Instance.LogInfo("AI", $"matched the words to menu key {namedKey}");
-                return namedKey;
-            }
-
-            if (result.Error != null)
-            {
-                terminal.WriteLine("");
-                terminal.WriteLine($"  {Loc.Get("ai.error", result.Error)}", "yellow");
-                return "";
-            }
-
-            // v1.3.9: the turn can be understood perfectly and still have no menu key to run, because
-            // what the player did was say something. Answering that with "not understood" discards the
-            // fact that the words were taken, and tells the player the opposite of what happened.
-            if (result.Narration != null || result.SayText != null)
-            {
-                terminal.WriteLine("");
-                terminal.WriteLine(string.IsNullOrWhiteSpace(result.SayTarget)
-                    ? $"  {Loc.Get("ai.say_pending_named")}"
-                    : $"  {Loc.Get("ai.say_pending", result.SayTarget)}", "green");
-                return "";
-            }
-
-            terminal.WriteLine("");
-            terminal.WriteLine($"  {Loc.Get("ai.not_understood")}", "yellow");
-            return "";
-        }
-
-        terminal.WriteLine("");
-        terminal.WriteLine($"  {Loc.Get("ai.not_understood")}", "yellow");
-        return "";
+        return await terminal.GetInput(Loc.Get("ui.your_choice"));
     }
 
     /// <summary>
@@ -509,10 +243,6 @@ public abstract class BaseLocation
     {
         currentPlayer = player;
         terminal = term;
-
-        // v1.3.9: every prompt read while this location is active now understands "/" and "@ai", not
-        // just the menus that happen to go through GetChoice.
-        TerminalEmulator.FreeInputHandler = ResolveFreeInput;
 
         // Log location entry
         UsurperRemake.Systems.DebugLogger.Instance.LogInfo("LOCATION", $"Entered {Name} (ID: {LocationId})");
@@ -4793,7 +4523,6 @@ public abstract class BaseLocation
                 terminal.WriteLine($"  C. {Loc.Get("prefs.ai_endpoint")}: {(string.IsNullOrWhiteSpace(AiSettings.Endpoint) ? Loc.Get("ui.none") : AiSettings.Endpoint)}");
                 terminal.WriteLine($"  K. {Loc.Get("prefs.ai_key")}: {(string.IsNullOrWhiteSpace(AiSettings.ApiKey) ? Loc.Get("ui.none") : AiSettings.MaskedKey())}");
                 terminal.WriteLine($"  V. {Loc.Get("prefs.ai_model")}: {(string.IsNullOrWhiteSpace(AiSettings.EffectiveModel) ? Loc.Get("ui.none") : AiSettings.EffectiveModel)}");
-                terminal.WriteLine($"  {Loc.Get("ai.prefs_hint")}", "gray");
                 terminal.WriteLine(Loc.Get("base.prefs_character"));
                 terminal.WriteLine($"  3. {Loc.Get("prefs.toggle", Loc.Get("prefs.skip_intimate"))}");
                 terminal.WriteLine($"  O. {Loc.Get("prefs.orientation")}");
@@ -4890,7 +4619,6 @@ public abstract class BaseLocation
                 WriteMenuOption("C", $"{Loc.Get("prefs.ai_endpoint")}: {(string.IsNullOrWhiteSpace(AiSettings.Endpoint) ? Loc.Get("ui.none") : AiSettings.Endpoint)}");
                 WriteMenuOption("K", $"{Loc.Get("prefs.ai_key")}: {(string.IsNullOrWhiteSpace(AiSettings.ApiKey) ? Loc.Get("ui.none") : AiSettings.MaskedKey())}");
                 WriteMenuOption("V", $"{Loc.Get("prefs.ai_model")}: {(string.IsNullOrWhiteSpace(AiSettings.EffectiveModel) ? Loc.Get("ui.none") : AiSettings.EffectiveModel)}");
-                terminal.WriteLine($"  {Loc.Get("ai.prefs_hint")}", "gray");
                 terminal.WriteLine("");
 
                 // -- CHARACTER --
@@ -6213,9 +5941,6 @@ public abstract class BaseLocation
                         break;
                     case "5":
                         // Full visual novel style conversation
-                        // v1.3.9: if the player already said something to this NPC through a free-form
-                        // action, they hear it and answer before the usual conversation opens.
-                        await DeliverPendingSpeech(npc);
                         await UsurperRemake.Systems.VisualNovelDialogueSystem.Instance.StartConversation(currentPlayer, npc, terminal);
                         // v0.60.0 alpha audit: track conversations + interactions.
                         // Counters were always 0 because nothing ever incremented them.

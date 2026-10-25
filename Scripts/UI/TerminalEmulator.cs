@@ -358,85 +358,10 @@ public partial class TerminalEmulator
         // No-op in console mode
     }
     
-    /// <summary>v1.3.9: the last lines drawn, stripped of markup, so the AI assistant can be handed
-    /// exactly the menu the player is looking at without every location having to describe itself.
-    /// Cleared on a screen clear, capped so it cannot grow.</summary>
-    private readonly Queue<string> _recentLines = new();
-    private const int RecentLineLimit = 60;
-
-    /// <summary>The recent screen text, oldest first.</summary>
-    public string RecentScreenText()
-    {
-        lock (_recentLines) return string.Join("\n", _recentLines);
-    }
-
-    private void RememberLine(string? text)
-    {
-        if (string.IsNullOrWhiteSpace(text)) return;
-        string plain = ColumnMarkup.Replace(text, "");
-        lock (_recentLines)
-        {
-            _recentLines.Enqueue(plain);
-            while (_recentLines.Count > RecentLineLimit) _recentLines.Dequeue();
-        }
-    }
-
-    /// <summary>
-    /// v1.3.9: lines written while a free-form turn is being handled. They are reprinted immediately
-    /// after the next screen clear, so the result of what the player typed appears together with the
-    /// refreshed menu instead of being wiped by it. The buffer is one cycle deep: the clear consumes
-    /// it, and a new input discards anything left over.
-    /// </summary>
-    private readonly List<string> _flashLines = new();
-    private bool _capturingFlash;
-
-    public void BeginFlashCapture()
-    {
-        lock (_flashLines) _flashLines.Clear();
-        _capturingFlash = true;
-    }
-
-    public void EndFlashCapture() => _capturingFlash = false;
-
-    public void ClearFlash()
-    {
-        lock (_flashLines) _flashLines.Clear();
-    }
-
-    /// <summary>Reprint the held lines below a cleared screen, then forget them.</summary>
-    private void FlushFlash()
-    {
-        string[] lines;
-        lock (_flashLines)
-        {
-            if (_flashLines.Count == 0) return;
-            lines = _flashLines.ToArray();
-            _flashLines.Clear();
-        }
-
-        bool was = _capturingFlash;
-        _capturingFlash = false;   // the reprint itself must not be captured again
-        try
-        {
-            foreach (var line in lines) WriteLine(line, "white");
-        }
-        finally
-        {
-            _capturingFlash = was;
-        }
-    }
-
     public void WriteLine(string text, string color = "white")
     {
         Column = 0;
-        if (_partialLine.Length > 0) { text = _partialLine + (text ?? ""); _partialLine = ""; }
         RowsSinceClear += 1 + (text?.Count(c => c == '\n') ?? 0);
-        RememberLine(text);
-        if (_capturingFlash)
-        {
-            string plain = ColumnMarkup.Replace(text ?? "", "");
-            if (!string.IsNullOrWhiteSpace(plain)) { lock (_flashLines) _flashLines.Add(plain); }
-        }
         // Capture output for group combat broadcasting
         if (_captureBuffer != null)
         {
@@ -669,18 +594,8 @@ public partial class TerminalEmulator
         Column = nl >= 0 ? width : Column + width;
     }
 
-    /// <summary>v1.3.9: the line being built by Write calls. Menus often print the key with Write and the
-    /// label with WriteLine, so capturing only completed lines lost every "[I] Inn" style option and the
-    /// assistant was left with no key it was allowed to choose.</summary>
-    private string _partialLine = "";
-
     public void Write(string text, string? color = null)
     {
-        if (!string.IsNullOrEmpty(text))
-        {
-            string plain = ColumnMarkup.Replace(text, "");
-            if (!string.IsNullOrEmpty(plain)) _partialLine += plain;
-        }
         AdvanceColumn(text);
         // Use current color if no color specified
         string effectiveColor = color ?? currentColor;
@@ -976,7 +891,6 @@ public partial class TerminalEmulator
     {
         Column = 0;
         RowsSinceClear = 0;
-        lock (_recentLines) _recentLines.Clear();
         // Screen reader mode: don't clear the screen — screen readers lose their
         // reading position when the buffer is wiped. Instead, output a separator
         // so the screen reader buffer grows naturally and the user hears each new
@@ -1069,7 +983,6 @@ public partial class TerminalEmulator
         cursorX = 0;
         cursorY = 0;
         _bbsLineCount = 0; // Reset BBS pagination counter
-        FlushFlash();
     }
 
     public void SetCursorPosition(int x, int y)
@@ -1084,49 +997,7 @@ public partial class TerminalEmulator
     private string? _pendingLine;
     internal bool HasPendingLine => _pendingLine != null;
 
-    /// <summary>
-    /// v1.3.9: set by the location the player is in. A line beginning with <c>/</c> or <c>@ai</c> is
-    /// handed to it, and whatever it returns is used as the answer, which is normally the menu key the
-    /// game would have offered. This sits under every prompt rather than in one helper, because most of
-    /// the locations read their own prompts: hooking a single method left free-form input silently
-    /// doing nothing in twenty-two of the thirty-five locations.
-    /// </summary>
-    public static Func<string, Task<string>>? FreeInputHandler { get; set; }
-
-    /// <summary>Guards against the handler asking its own questions (clarifications, confirmations).</summary>
-    private static bool _handlingFreeInput;
-
-    /// <summary>Reads a line and offers it to the free-input handler when it is addressed to it.</summary>
     public async Task<string> GetInput(string prompt = "> ")
-    {
-        string line = await GetInputCore(prompt);
-        if (_handlingFreeInput || FreeInputHandler == null) return line;
-
-        string trimmed = line.TrimStart();
-        bool isFree = trimmed.StartsWith("/", StringComparison.Ordinal)
-                      || trimmed.StartsWith("@ai", StringComparison.OrdinalIgnoreCase);
-        if (!isFree)
-        {
-            ClearFlash();   // the held lines were already shown with the menu
-            return line;
-        }
-
-        _handlingFreeInput = true;
-        try
-        {
-            // v1.3.9: recorded so a player reporting "typing / does nothing" can be told apart from the
-            // handler never being reached at all
-            UsurperRemake.Systems.DebugLogger.Instance.LogInfo("AI",
-                $"free input: {trimmed[..Math.Min(40, trimmed.Length)]}");
-            return await FreeInputHandler(line);
-        }
-        finally
-        {
-            _handlingFreeInput = false;
-        }
-    }
-
-    private async Task<string> GetInputCore(string prompt = "> ")
     {
         // v1.1.13: a command typed at a pause is the answer to this prompt
         if (_pendingLine != null)

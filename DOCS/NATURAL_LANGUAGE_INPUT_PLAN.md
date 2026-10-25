@@ -1,4 +1,4 @@
-<!-- doc: proposal 2026-10-25; sources: Scripts/Locations/BaseLocation.cs, Scripts/Systems/AiDialogue.cs, Scripts/Systems/AiSettings.cs, Scripts/Editor/PlayerSaveEditor.cs -->
+<!-- doc: proposal 2026-10-25; NOT IMPLEMENTED, rolled back after testing; sources: Scripts/Locations/BaseLocation.cs, Scripts/Systems/AiDialogue.cs, Scripts/Systems/AiSettings.cs, Scripts/Editor/PlayerSaveEditor.cs -->
 # 自然语言输入：评估与方案
 
 ## 一句话结论

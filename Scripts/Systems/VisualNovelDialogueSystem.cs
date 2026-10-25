@@ -508,11 +508,7 @@ namespace UsurperRemake.Systems
                 terminal.WriteLine("");
             }
 
-            // v1.3.9: the hint belongs here too. In a conversation there is no menu of options to
-            // read, so nothing suggests that a line may be typed.
-            string conversationPrompt = Loc.Get("ui.your_choice");
-            if (AiSettings.Enabled) conversationPrompt += Loc.Get("ai.prompt_hint");
-            string choice = await terminal!.GetInput(conversationPrompt);
+            string choice = await terminal!.GetInput(Loc.Get("ui.your_choice"));
 
             if (choice == "0")
             {
