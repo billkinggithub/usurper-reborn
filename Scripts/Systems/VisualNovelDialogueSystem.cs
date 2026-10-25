@@ -658,8 +658,13 @@ namespace UsurperRemake.Systems
         {
             var memory = npc?.Brain?.Memory;
             if (memory == null || string.IsNullOrEmpty(playerName)) return false;
+
+            // v1.3.9: this used to look for a tag written into Details, which the save does not carry, so
+            // restarting the game gave the same NPC a fresh allowance. It now reads only what does survive
+            // a reload: a memory of a type conversation may create, about this player, inside the last day.
+            // Stricter than before, because an engine compliment counts too, and that is the safe side.
             return memory.GetRecentEvents(24).Any(e =>
-                e.Details.ContainsKey(AiPersuasion.MemoryTag)
+                AiPersuasion.AllowedMemories.Contains(e.Type)
                 && string.Equals(e.InvolvedCharacter, playerName, StringComparison.OrdinalIgnoreCase));
         }
 
