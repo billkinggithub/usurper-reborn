@@ -193,7 +193,7 @@ public static class NPCDialogueGenerator
 
         // Try pre-generated dialogue database first
         var dbLine = NPCDialogueDatabase.PickLine("greeting", npc, player, null, Rng);
-        if (dbLine != null) return FromDatabase(dbLine, npc, player);
+        if (dbLine != null) return WithMemoryReference(FromDatabase(dbLine, npc, player), npc, player);
 
         // Fall back to template system
         var keys = new List<string>();
@@ -216,25 +216,8 @@ public static class NPCDialogueGenerator
             greeting = ApplyPersonalityModifiers(greeting, npc.Personality, keys);
         }
 
-        // Add memory reference. v1.3.9: the chance used to be a flat 20%, so an NPC who had saved
-        // your life brought it up as often as one who once sold you a drink. It now follows the
-        // weight of what they remember, from 20% up to 55% for something that matters a lot.
-        if (npc.Memory != null)
-        {
-            double mentionChance = MemoryMentionChance(npc.Memory, player);
-            if (mentionChance > 0 && Rng.NextDouble() < mentionChance)
-            {
-                var memory = GetMemoryReference(npc.Memory, player);
-                if (memory != null)
-                {
-                    var (refKey, timeKey) = memory.Value;
-                    keys.Add(refKey);
-                    keys.Add(timeKey);
-                    var inner = greeting;
-                    greeting = () => Join(K + "join", inner(), Loc.Get(refKey, Loc.Get(timeKey)));
-                }
-            }
-        }
+        // Add memory reference, now applied at the end so both the pre-generated line and the
+        // template line can carry it (see WithMemoryReference).
 
         // Add context comment (30% chance)
         if (Rng.NextDouble() < 0.30)
@@ -254,7 +237,30 @@ public static class NPCDialogueGenerator
             greeting = AddEmotionalIndicator(greeting, npc.EmotionalState, keys);
         }
 
-        return new NpcLine(greeting, keys);
+        return WithMemoryReference(new NpcLine(greeting, keys), npc, player);
+    }
+
+    /// <summary>
+    /// v1.3.9: append what the NPC remembers about the player, on top of whichever base line was
+    /// chosen. The pre-generated database answered almost every greeting and returned before the
+    /// memory layer below could run, so an NPC who remembered you never got to say so; the chance was
+    /// also a flat 20%, worth the same for a life saved and for a drink once bought. Both are fixed
+    /// here: the weight of the heaviest memory sets the odds (20% up to 55%), and the suffix applies
+    /// to a database line and a template line alike.
+    /// </summary>
+    private static NpcLine WithMemoryReference(NpcLine line, NPC npc, Player player)
+    {
+        if (npc?.Memory == null) return line;
+
+        double chance = MemoryMentionChance(npc.Memory, player);
+        if (chance <= 0 || Rng.NextDouble() >= chance) return line;
+
+        var memory = GetMemoryReference(npc.Memory, player);
+        if (memory == null) return line;
+
+        var (refKey, timeKey) = memory.Value;
+        var keys = new List<string>(line.Keys) { refKey, timeKey };
+        return new NpcLine(() => Join(K + "join", line.Render(), Loc.Get(refKey, Loc.Get(timeKey))), keys);
     }
 
     /// <summary>
