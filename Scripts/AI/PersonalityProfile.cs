@@ -290,7 +290,43 @@ public class PersonalityProfile
         // Generate romance traits for all archetypes
         GenerateRomanceTraits(profile, npcArchetype);
 
+        // v1.3.9: two members of the same trade were nearly the same person. The switch above hands
+        // every one of them the same narrow ranges, so a thug's Aggression was always at least 0.70
+        // and any system that reads a trait got the same answer for all thugs. A little individual
+        // noise makes each NPC statistically their own person, and every system that reads a trait
+        // picks it up: greetings, flirting, grudges, marriage, pricing.
+        profile.Jitter(0.15f);
+
         return profile;
+    }
+
+    /// <summary>
+    /// v1.3.9: nudge every trait by a uniform random amount, clamped to the legal range. The mean is
+    /// unchanged, so an archetype keeps its character; only the spread between two members widens.
+    /// </summary>
+    public void Jitter(float amount)
+    {
+        if (amount <= 0f) return;
+        float Nudge() => (float)((Random.Shared.NextDouble() * 2.0 - 1.0) * amount);
+        float Clamp(float v) => v < 0f ? 0f : (v > 1f ? 1f : v);
+
+        Aggression = Clamp(Aggression + Nudge());
+        Greed = Clamp(Greed + Nudge());
+        Courage = Clamp(Courage + Nudge());
+        Loyalty = Clamp(Loyalty + Nudge());
+        Vengefulness = Clamp(Vengefulness + Nudge());
+        Impulsiveness = Clamp(Impulsiveness + Nudge());
+        Sociability = Clamp(Sociability + Nudge());
+        Ambition = Clamp(Ambition + Nudge());
+        Trustworthiness = Clamp(Trustworthiness + Nudge());
+        Caution = Clamp(Caution + Nudge());
+        Intelligence = Clamp(Intelligence + Nudge());
+        Mysticism = Clamp(Mysticism + Nudge());
+        Patience = Clamp(Patience + Nudge());
+        Romanticism = Clamp(Romanticism + Nudge());
+        Flirtatiousness = Clamp(Flirtatiousness + Nudge());
+        Passion = Clamp(Passion + Nudge());
+        Tenderness = Clamp(Tenderness + Nudge());
     }
 
     /// <summary>

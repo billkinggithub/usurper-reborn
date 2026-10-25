@@ -355,27 +355,82 @@ namespace UsurperRemake.Data
         #region State Extraction Helpers
 
         private static string GetNpcPersonalityType(NPC npc)
+            => RegisterFor(npc?.Personality, npc?.Personality?.Archetype);
+
+        /// <summary>
+        /// v1.3.9: which of the eight greeting registers an NPC speaks in.
+        ///
+        /// This used to be a chain of thresholds that returned on the first match, with the archetype
+        /// label able to short-circuit it entirely. Because archetypes carry guaranteed trait ranges
+        /// (a thug's Aggression is always 0.70 or better, a merchant's Greed always 0.70 or better),
+        /// the first threshold won nearly every time: thugs were always aggressive and merchants never
+        /// anything but cunning or cynical, whatever else they were. Two guards with opposite
+        /// personalities sounded the same, and half the traits could never influence a line.
+        ///
+        /// Every register is now scored across all the traits and the highest wins, so an unusually
+        /// sociable thug lands in charming and a patient merchant can land in scholarly. An authored
+        /// adjective archetype still counts, as a bonus rather than an override.
+        /// </summary>
+        internal static string RegisterFor(PersonalityProfile? p, string? archetype)
         {
-            // Try to get personality string from the NPC's PersonalityProfile
-            if (npc.Personality != null && !string.IsNullOrEmpty(npc.Personality.Archetype))
-            {
-                var mapped = GetPersonalityType(npc.Personality.Archetype);
-                if (mapped != "stoic") return mapped; // Found a specific match
-            }
+            string mapped = GetPersonalityType(archetype);
+            if (p == null) return mapped;
 
-            // Try personality traits to infer type
-            if (npc.Personality != null)
-            {
-                if (npc.Personality.Aggression > 0.7f) return "aggressive";
-                if (npc.Personality.Loyalty > 0.7f && npc.Personality.Courage > 0.6f) return "noble";
-                if (npc.Personality.Intelligence > 0.7f && npc.Personality.Caution > 0.6f) return "cunning";
-                if (npc.Personality.Mysticism > 0.6f && npc.Personality.Patience > 0.6f) return "pious";
-                if (npc.Personality.Intelligence > 0.7f) return "scholarly";
-                if (npc.Personality.Sociability > 0.7f) return "charming";
-                if (npc.Personality.Patience < 0.3f || npc.Personality.Greed > 0.7f) return "cynical";
-            }
+            static double Score(double weighted) => weighted;
 
-            return "stoic"; // Default fallback
+            var scores = new (string Register, double Value)[]
+            {
+                ("aggressive", Score(0.50 * p.Aggression + 0.20 * p.Impulsiveness + 0.20 * p.Courage + 0.10 * p.Vengefulness)),
+                ("noble",      Score(0.40 * p.Loyalty + 0.30 * p.Courage + 0.30 * p.Trustworthiness)),
+                ("cunning",    Score(0.35 * p.Intelligence + 0.25 * p.Caution + 0.25 * p.Ambition + 0.15 * p.Greed)),
+                ("pious",      Score(0.50 * p.Mysticism + 0.30 * p.Patience + 0.20 * p.Tenderness)),
+                ("scholarly",  Score(0.50 * p.Intelligence + 0.30 * p.Patience + 0.20 * p.Caution)),
+                ("charming",   Score(0.40 * p.Sociability + 0.25 * p.Flirtatiousness + 0.20 * p.Romanticism + 0.15 * p.Passion)),
+                ("cynical",    Score(0.40 * p.Greed + 0.25 * p.Vengefulness + 0.20 * (1.0 - p.Patience) + 0.15 * (1.0 - p.Trustworthiness))),
+                ("stoic",      Score(0.45 * (1.0 - p.Sociability) + 0.30 * p.Patience + 0.25 * p.Caution)),
+            };
+
+            // an authored adjective ("gruff", "proud", "sly") is a deliberate signal, so it is worth
+            // more than a rounding difference, but not enough to silence a strong personality
+            const double ArchetypeBonus = 0.06;
+            string prior = ArchetypePrior(mapped, archetype);
+            string best = "stoic";
+            double bestScore = double.NegativeInfinity;
+            foreach (var (register, value) in scores)
+            {
+                // stoic is the catch-all voice: it should win only when nothing else is distinctive,
+                // so it is held slightly under the specialised registers
+                double total = (register == "stoic" ? value * 0.90 : value)
+                             + (register == prior ? ArchetypeBonus : 0.0);
+                if (total > bestScore)
+                {
+                    bestScore = total;
+                    best = register;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// v1.3.9: the register an occupation leans towards. The adjective map above only covers
+        /// authoring labels ("gruff", "proud"); the archetypes the generator actually stores are
+        /// occupations ("guard", "merchant"), which fell through it and got no prior at all. Without
+        /// this, a guard's high Patience and Caution pushed him into stoic instead of noble.
+        /// </summary>
+        private static string ArchetypePrior(string mapped, string? archetype)
+        {
+            if (mapped != "stoic") return mapped;                 // an adjective label wins
+            return (archetype ?? "").ToLowerInvariant() switch
+            {
+                "thug" or "brawler" => "aggressive",
+                "merchant" or "trader" => "cunning",
+                "guard" or "soldier" => "noble",
+                "priest" or "cleric" => "pious",
+                "mage" or "mystic" => "scholarly",
+                "noble" or "aristocrat" => "noble",
+                "artisan" or "craftsman" => "scholarly",
+                _ => "stoic",
+            };
         }
 
         private static int GetRelationshipTier(NPC npc, Player player)
