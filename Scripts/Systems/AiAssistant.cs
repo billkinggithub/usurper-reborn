@@ -26,7 +26,7 @@ namespace UsurperRemake.Systems
     /// </summary>
     public static class AiAssistant
     {
-        private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(20) };
+        private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(10) };
         private const int MaxNarration = 300;
         private const int MaxSay = 300;
         private const int MaxAnswer = 1200;

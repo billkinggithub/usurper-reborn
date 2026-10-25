@@ -334,6 +334,12 @@ public abstract class BaseLocation
             AiAssistant.Resolution result;
             try
             {
+                // v1.3.9: say something before the request. A slow provider used to leave the screen
+                // blank for up to twenty seconds, which is indistinguishable from the feature doing
+                // nothing at all.
+                terminal.WriteLine("");
+                terminal.WriteLine($"  {Loc.Get("ai.thinking")}", "gray");
+
                 result = await AiAssistant.ResolveAsync(utterance + extra, isAssistant,
                     terminal.RecentScreenText(), language, context);
             }

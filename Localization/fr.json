@@ -31192,5 +31192,6 @@
  "prefs.ai_model": "Model",
  "prefs.ai_model_prompt": "Model name, empty to keep: ",
  "ai.model_required": "No model name set. Press V in Preferences and enter the provider's model id (DeepSeek now calls them flash and pro).",
- "ai.error": "AI request failed: {0}"
+ "ai.error": "AI request failed: {0}",
+ "ai.thinking": "Thinking..."
 }
