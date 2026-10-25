@@ -2,6 +2,7 @@ using UsurperRemake.Utils;
 using UsurperRemake.Systems;
 using UsurperRemake.BBS;
 using System;
+using UsurperRemake.UI;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -378,7 +379,7 @@ public partial class MainStreetLocation
                 terminal.SetColor(items[i].Color);
                 string label = MenuLabel(items[i]);
                 if (last) terminal.WriteLine(label);
-                else terminal.Write(label.PadRight(col - 4));
+                else terminal.Write(TextWidth.PadRight(label, col - 4));
             }
         }
     }

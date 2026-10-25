@@ -5,6 +5,7 @@ using UsurperRemake.Data;
 using UsurperRemake.BBS;
 using UsurperRemake.Server;
 using System;
+using UsurperRemake.UI;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -1872,7 +1873,7 @@ public class DungeonLocation : BaseLocation
         else
         {
             term.WriteLine($"╔{'═'.ToString().PadRight(58, '═')}╗");
-            term.WriteLine($"║  {title.PadRight(55)} ║");
+            term.WriteLine($"║  {TextWidth.PadRight(title, 55)} ║");
             term.WriteLine($"╚{'═'.ToString().PadRight(58, '═')}╝");
         }
         term.WriteLine("");
@@ -2629,7 +2630,7 @@ public class DungeonLocation : BaseLocation
         else
         {
             terminal.WriteLine($"╔{new string('═', 55)}╗");
-            terminal.WriteLine($"║  {room.Name.PadRight(52)} ║");
+            terminal.WriteLine($"║  {TextWidth.PadRight(room.Name, 52)} ║");
             terminal.WriteLine($"╚{new string('═', 55)}╝");
         }
 
@@ -11945,7 +11946,7 @@ public class DungeonLocation : BaseLocation
             // Slot 0 — Player
             terminal.SetColor("bright_white");
             string youLabel = "  " + Loc.Get("dungeon.xp_label_you", player.ClassName, player.Level);
-            terminal.Write(youLabel.PadRight(40));
+            terminal.Write(TextWidth.PadRight(youLabel, 40));
             terminal.SetColor("bright_green");
             terminal.WriteLine($": {shown[0],3}%");
 
@@ -11962,7 +11963,7 @@ public class DungeonLocation : BaseLocation
                         ? "  " + Loc.Get("dungeon.xp_label_companion", slotIndex, tm.DisplayName, tm.Level)
                         : "  " + Loc.Get("dungeon.xp_label_npc", slotIndex, tm.DisplayName, tm.Level, tm.ClassName);
                     terminal.SetColor("cyan");
-                    terminal.Write(tmLabel.PadRight(40));
+                    terminal.Write(TextWidth.PadRight(tmLabel, 40));
                     terminal.SetColor("bright_green");
                     terminal.WriteLine($": {pct,3}%");
                 }
@@ -11970,7 +11971,7 @@ public class DungeonLocation : BaseLocation
                 {
                     terminal.SetColor("gray");
                     string emptyLabel = "  " + Loc.Get("dungeon.xp_label_empty", slotIndex);
-                    terminal.Write(emptyLabel.PadRight(40));
+                    terminal.Write(TextWidth.PadRight(emptyLabel, 40));
                     terminal.WriteLine($": {pct,3}%");
                 }
             }
@@ -19285,7 +19286,7 @@ public class DungeonLocation : BaseLocation
                 foreach (var (slot, name, equip) in equippedList)
                 {
                     term.SetColor("gray");
-                    term.Write($"    {name.PadRight(slotWidth)}");
+                    term.Write($"    {TextWidth.PadRight(name, slotWidth)}");
                     term.SetColor("yellow");
                     term.WriteLine(FitRow(ItemNames.Display(equip), 4 + slotWidth));
                 }
