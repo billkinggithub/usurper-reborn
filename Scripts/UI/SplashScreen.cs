@@ -70,13 +70,13 @@ namespace UsurperRemake.UI
 
             // Version info and press any key
             string version = $"v{GameConfig.Version} \"{GameConfig.VersionName}\"";
-            int pad = (80 - version.Length) / 2;
+            int pad = (80 - UsurperRemake.UI.TextWidth.Width(version)) / 2;
             terminal.SetColor("gray");
             terminal.Write(new string(' ', pad) + version);
             terminal.WriteLine("");
             terminal.SetColor("bright_white");
             string prompt = UsurperRemake.Systems.Loc.Get("splash.press_any_key");
-            int promptPad = (80 - prompt.Length) / 2;
+            int promptPad = (80 - UsurperRemake.UI.TextWidth.Width(prompt)) / 2;
             terminal.Write(new string(' ', promptPad) + prompt);
             terminal.SetColor("white");
 
