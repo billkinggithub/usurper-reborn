@@ -31185,5 +31185,11 @@
  "ai.chat_you": "You: {0}",
  "ai.chat_no_reply": "(they do not answer)",
  "ai.chat_off": "(AI mode is off, so free chat is unavailable)",
- "ai.chat_thinking": "(thinking...)"
+ "ai.chat_thinking": "(thinking...)",
+ "ai.trial_header": "(trial: what the AI would change. Nothing is applied.)",
+ "ai.trial_goals": "His goals: {0}",
+ "ai.trial_nudge": "Would move \"{0}\" {1:0} -> {2:0}",
+ "ai.trial_memory": "Would record: {0} (importance {1:0.00})",
+ "ai.trial_nothing": "(the AI proposed no change)",
+ "ai.trial_no_goals": "(no goals to weigh against)"
 }

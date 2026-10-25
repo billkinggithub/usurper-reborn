@@ -578,7 +578,54 @@ namespace UsurperRemake.Systems
             {
                 terminal.WriteLine($"  {Loc.Get("ai.chat_no_reply")}", "yellow");
             }
+
+            await ShowPersuasionTrial(npc, said, relationLevel, languageName);
             await Pacing.Wait(700);
+        }
+
+        /// <summary>
+        /// v1.3.9: what the model would change about this NPC's intent, printed and not applied.
+        ///
+        /// This is how the persuasion layer is looked at without grinding: every number it proposes is
+        /// shown next to the goal it would move, at any level, and the save is untouched. The goals come
+        /// from the NPC's own GoalSystem, so what is on screen is what a tick would actually weigh.
+        /// </summary>
+        private async Task ShowPersuasionTrial(NPC npc, string said, int relationLevel, string languageName)
+        {
+            var goals = npc?.Brain?.Goals?.GetActiveGoals();
+            var candidates = (goals ?? new List<Goal>())
+                .Where(g => g.IsActive && !g.IsCompleted && !string.IsNullOrWhiteSpace(g.Name))
+                .GroupBy(g => g.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(group => (Action: group.Key, Weight: (double)group.Max(g => g.GetEffectivePriority()) * 100))
+                .OrderByDescending(c => c.Weight)
+                .ToList();
+
+            terminal.WriteLine("");
+            if (candidates.Count == 0)
+            {
+                terminal.WriteLine($"  {Loc.Get("ai.trial_no_goals")}", "gray");
+                return;
+            }
+
+            terminal.WriteLine($"  {Loc.Get("ai.trial_header")}", "darkgray");
+            terminal.WriteLine($"  {Loc.Get("ai.trial_goals", string.Join(", ", candidates.Select(c => $"{c.Action} {c.Weight:0}")))}", "gray");
+
+            var outcome = await AiPersuasion.AskAsync(
+                npc!, player, relationLevel, candidates, said, languageName, memoryAllowed: true);
+            if (outcome == null) return;
+
+            if (outcome.NudgeAction != null)
+            {
+                double before = candidates.First(c => c.Action == outcome.NudgeAction).Weight;
+                string after = Math.Max(0, before + outcome.NudgeDelta).ToString("0");
+                terminal.WriteLine($"  {Loc.Get("ai.trial_nudge", outcome.NudgeAction, before, after)}", "bright_cyan");
+            }
+
+            if (outcome.Memory != null)
+                terminal.WriteLine($"  {Loc.Get("ai.trial_memory", outcome.MemoryText, outcome.MemoryImportance)}", "bright_cyan");
+
+            if (!outcome.HasAnything)
+                terminal.WriteLine($"  {Loc.Get("ai.trial_nothing")}", "gray");
         }
 
         /// <summary>

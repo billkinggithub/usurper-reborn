@@ -30996,5 +30996,11 @@
  "ai.chat_you": "你：{0}",
  "ai.chat_no_reply": "（对方没有回应。）",
  "ai.chat_off": "（AI 模式未开启，无法自由对话。）",
- "ai.chat_thinking": "（正在回应…）"
+ "ai.chat_thinking": "（正在回应）",
+ "ai.trial_header": "（试演：下面是 AI 想改的内容，还没有应用）",
+ "ai.trial_goals": "他的目标：{0}",
+ "ai.trial_nudge": "想把「{0}」的权重从 {1:0} 调到 {2:0}",
+ "ai.trial_memory": "会记下：{0}（重要性 {1:0.00}）",
+ "ai.trial_nothing": "（AI 没有提出任何改动）",
+ "ai.trial_no_goals": "（他没有可权衡的目标）"
 }
