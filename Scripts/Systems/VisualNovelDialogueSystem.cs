@@ -613,6 +613,7 @@ namespace UsurperRemake.Systems
 
             string playerName = player?.Name2 ?? player?.DisplayName ?? "";
             bool memoryAllowed = !HasAiMemoryToday(npc, playerName);
+            float impressionBefore = npc?.Brain?.Memory?.GetCharacterImpression(playerName) ?? 0f;
 
             terminal.WriteLine($"  {Loc.Get("ai.trial_header")}", "darkgray");
             terminal.WriteLine($"  {Loc.Get("ai.trial_goals", string.Join(", ", candidates.Select(c => $"{c.Action} {c.Weight:0}")))}", "gray");
@@ -623,19 +624,27 @@ namespace UsurperRemake.Systems
 
             // v1.3.9: the weight change is deliberately never applied, so showing it only promised
             // something that would not happen. The goals line stays as context and the memory is the part
-            // that is real.
+            // that is real. The impression is printed because "did it change anything" should be a number
+            // on the screen, not a guess.
             if (outcome.Memory != null)
             {
                 bool written = RecordPersuasionMemory(npc!, playerName, outcome);
                 terminal.WriteLine(written
                     ? $"  {Loc.Get("ai.memory_written", outcome.MemoryText)}"
                     : $"  {Loc.Get("ai.trial_memory", outcome.MemoryText, outcome.MemoryImportance)}", "bright_cyan");
+
+                if (written)
+                {
+                    float impressionAfter = npc?.Brain?.Memory?.GetCharacterImpression(playerName) ?? 0f;
+                    terminal.WriteLine($"  {Loc.Get("ai.impression_after", impressionBefore, impressionAfter)}", "bright_cyan");
+                }
             }
             else if (outcome.MemoryRefusedToday)
             {
                 // the model did offer one; saying nothing made a spent allowance look like a model that
                 // had nothing to say
                 terminal.WriteLine($"  {Loc.Get("ai.memory_spent")}", "gray");
+                terminal.WriteLine($"  {Loc.Get("ai.impression_now", impressionBefore)}", "gray");
             }
             else if (!outcome.HasAnything)
             {
@@ -673,7 +682,9 @@ namespace UsurperRemake.Systems
             record.Details[AiPersuasion.MemoryTag] = true;
 
             memory.RecordEvent(record);
-            DebugLogger.Instance.LogInfo("AI", $"memory recorded: {outcome.Memory.Value} for {playerName}");
+            float impression = memory.GetCharacterImpression(playerName);
+            DebugLogger.Instance.LogInfo("AI",
+                $"memory recorded: {outcome.Memory.Value} for {playerName}, impression now {impression:0.00}");
             return true;
         }
 
