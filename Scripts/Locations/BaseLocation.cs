@@ -187,7 +187,97 @@ public abstract class BaseLocation
 
     protected async Task<string> GetChoice()
     {
-        return await terminal.GetInput(Loc.Get("ui.your_choice"));
+        string raw = await terminal.GetInput(Loc.Get("ui.your_choice"));
+        return await ResolveFreeInput(raw);
+    }
+
+    /// <summary>
+    /// v1.3.9: free-form input. A line beginning with <c>/</c> is what the player does; one beginning
+    /// with <c>@ai</c> is for the assistant. Anything else is a menu key and is returned untouched, so
+    /// every existing menu behaves exactly as it did before.
+    ///
+    /// An action line comes back as the menu key the game itself offers for it, which means the effect
+    /// is carried out by the location's own handler and never by anything the model wrote. When the
+    /// request is ambiguous the assistant asks, the player answers, and understanding carries on.
+    /// </summary>
+    private async Task<string> ResolveFreeInput(string? raw)
+    {
+        if (raw == null) return "";
+        bool isAction = AiAssistant.IsActionLine(raw);
+        bool isAssistant = AiAssistant.IsAssistantLine(raw);
+        if (!isAction && !isAssistant) return raw;
+
+        if (!AiSettings.IsActive)
+        {
+            terminal.WriteLine("");
+            terminal.WriteLine($"  {Loc.Get("ai.needs_mode")}", "yellow");
+            return "";
+        }
+
+        string utterance = AiAssistant.Strip(raw);
+        string language = GameConfig.Language ?? "en";
+        string context = $"Location: {Name}. Player: {currentPlayer?.Name2 ?? currentPlayer?.Name1 ?? "?"}, " +
+                         $"level {currentPlayer?.Level}, class {currentPlayer?.ClassName}.";
+        string extra = "";
+
+        for (int round = 0; round < 3; round++)
+        {
+            AiAssistant.Resolution result;
+            try
+            {
+                result = await AiAssistant.ResolveAsync(utterance + extra, isAssistant,
+                    terminal.RecentScreenText(), language, context);
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.Instance.LogWarning("AI", $"assistant unavailable: {ex.Message}");
+                terminal.WriteLine("");
+                terminal.WriteLine($"  {Loc.Get("ai.not_understood")}", "yellow");
+                return "";
+            }
+
+            if (result.Ask != null)
+            {
+                terminal.WriteLine("");
+                terminal.WriteLine($"  {result.Ask}", "bright_cyan");
+                string answer = await terminal.GetInput(Loc.Get("ui.your_choice"));
+                if (string.IsNullOrWhiteSpace(answer)) return "";
+                extra += $"\nThe player answered your question: {answer}";
+                continue;
+            }
+
+            if (result.Narration != null)
+            {
+                terminal.WriteLine("");
+                terminal.WriteLine($"  {result.Narration}", "gray");
+            }
+
+            if (result.SayText != null)
+            {
+                string line = string.IsNullOrWhiteSpace(result.SayTarget)
+                    ? Loc.Get("ai.say_line_plain", result.SayText)
+                    : Loc.Get("ai.say_line", result.SayTarget, result.SayTone ?? "", result.SayText);
+                terminal.WriteLine($"  {line}", "bright_white");
+            }
+
+            if (result.Answer != null)
+            {
+                terminal.WriteLine("");
+                foreach (var para in UsurperRemake.UI.UIHelper.WordWrap(result.Answer, 78))
+                    terminal.WriteLine($"  {para}", "white");
+                return "";
+            }
+
+            if (result.Choice != null) return result.Choice;
+
+            terminal.WriteLine("");
+            terminal.WriteLine($"  {Loc.Get("ai.not_understood")}", "yellow");
+            return "";
+        }
+
+        terminal.WriteLine("");
+        terminal.WriteLine($"  {Loc.Get("ai.not_understood")}", "yellow");
+        return "";
     }
 
     /// <summary>

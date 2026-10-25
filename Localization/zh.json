@@ -30985,5 +30985,10 @@
  "prefs.ai_endpoint_prompt": "API 地址，留空则清除： ",
  "prefs.ai_key_prompt": "API 密钥，留空则清除： ",
  "prefs.ai_saved": "已保存。",
- "prefs.ai_needs_endpoint": "请先填写 API 地址。"
+ "prefs.ai_needs_endpoint": "请先填写 API 地址。",
+ "ai.needs_mode": "AI 模式未开启。请在偏好设置里按 I 打开，再按 C 填写地址。",
+ "ai.not_understood": "没听懂。换个说法再试试。",
+ "ai.say_line": "你对{0}（{1}）说：{2}",
+ "ai.say_line_plain": "你说：{0}",
+ "ai.you_do": "{0}"
 }

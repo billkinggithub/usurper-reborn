@@ -358,10 +358,34 @@ public partial class TerminalEmulator
         // No-op in console mode
     }
     
+    /// <summary>v1.3.9: the last lines drawn, stripped of markup, so the AI assistant can be handed
+    /// exactly the menu the player is looking at without every location having to describe itself.
+    /// Cleared on a screen clear, capped so it cannot grow.</summary>
+    private readonly Queue<string> _recentLines = new();
+    private const int RecentLineLimit = 60;
+
+    /// <summary>The recent screen text, oldest first.</summary>
+    public string RecentScreenText()
+    {
+        lock (_recentLines) return string.Join("\n", _recentLines);
+    }
+
+    private void RememberLine(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+        string plain = ColumnMarkup.Replace(text, "");
+        lock (_recentLines)
+        {
+            _recentLines.Enqueue(plain);
+            while (_recentLines.Count > RecentLineLimit) _recentLines.Dequeue();
+        }
+    }
+
     public void WriteLine(string text, string color = "white")
     {
         Column = 0;
         RowsSinceClear += 1 + (text?.Count(c => c == '\n') ?? 0);
+        RememberLine(text);
         // Capture output for group combat broadcasting
         if (_captureBuffer != null)
         {
@@ -891,6 +915,7 @@ public partial class TerminalEmulator
     {
         Column = 0;
         RowsSinceClear = 0;
+        lock (_recentLines) _recentLines.Clear();
         // Screen reader mode: don't clear the screen — screen readers lose their
         // reading position when the buffer is wiped. Instead, output a separator
         // so the screen reader buffer grows naturally and the user hears each new

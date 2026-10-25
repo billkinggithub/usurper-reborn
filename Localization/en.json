@@ -31174,5 +31174,10 @@
  "prefs.ai_endpoint_prompt": "API address, empty to clear: ",
  "prefs.ai_key_prompt": "API key, empty to clear: ",
  "prefs.ai_saved": "Saved.",
- "prefs.ai_needs_endpoint": "Set an API address first."
+ "prefs.ai_needs_endpoint": "Set an API address first.",
+ "ai.needs_mode": "AI mode is off. Turn it on in Preferences (I), then set the address (C).",
+ "ai.not_understood": "I could not follow that. Try saying it another way.",
+ "ai.say_line": "You say to {0} ({1}): {2}",
+ "ai.say_line_plain": "You say: {0}",
+ "ai.you_do": "{0}"
 }
