@@ -422,6 +422,18 @@ public abstract class BaseLocation
                 return "";
             }
 
+            // v1.3.9: the turn can be understood perfectly and still have no menu key to run, because
+            // what the player did was say something. Answering that with "not understood" discards the
+            // fact that the words were taken, and tells the player the opposite of what happened.
+            if (result.Narration != null || result.SayText != null)
+            {
+                terminal.WriteLine("");
+                terminal.WriteLine(string.IsNullOrWhiteSpace(result.SayTarget)
+                    ? $"  {Loc.Get("ai.say_pending_named")}"
+                    : $"  {Loc.Get("ai.say_pending", result.SayTarget)}", "green");
+                return "";
+            }
+
             terminal.WriteLine("");
             terminal.WriteLine($"  {Loc.Get("ai.not_understood")}", "yellow");
             return "";

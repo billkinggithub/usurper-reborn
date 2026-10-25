@@ -31006,5 +31006,7 @@
  "prefs.ai_model_prompt": "模型名，留空则保留： ",
  "ai.model_required": "没有设置模型名。请在偏好设置里按 V 填入服务商的模型标识（DeepSeek 现在叫 flash / pro 之类）。",
  "ai.error": "AI 请求失败：{0}",
- "ai.thinking": "正在理解…"
+ "ai.thinking": "正在理解…",
+ "ai.say_pending": "记下了。去和{0}交谈，他会回应你刚才说的话。",
+ "ai.say_pending_named": "记下了。"
 }
