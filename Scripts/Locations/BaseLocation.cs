@@ -4480,6 +4480,10 @@ public abstract class BaseLocation
                 terminal.WriteLine(Loc.Get("base.prefs_accessibility"));
                 terminal.WriteLine($"  4. {Loc.Get("prefs.toggle", Loc.Get("prefs.screen_reader"))}");
                 terminal.WriteLine($"  B. {Loc.Get("prefs.language")} ({UsurperRemake.Systems.Loc.GetLanguageName(currentPlayer.Language)})");
+                terminal.WriteLine(Loc.Get("base.prefs_ai_header"));
+                terminal.WriteLine($"  I. {Loc.Get("prefs.ai_mode")}: {(AiSettings.Enabled ? Loc.Get("prefs.ai_mode.on") : Loc.Get("prefs.ai_mode.off"))}");
+                terminal.WriteLine($"  C. {Loc.Get("prefs.ai_endpoint")}: {(string.IsNullOrWhiteSpace(AiSettings.Endpoint) ? Loc.Get("ui.none") : AiSettings.Endpoint)}");
+                terminal.WriteLine($"  K. {Loc.Get("prefs.ai_key")}: {(string.IsNullOrWhiteSpace(AiSettings.ApiKey) ? Loc.Get("ui.none") : AiSettings.MaskedKey())}");
                 terminal.WriteLine(Loc.Get("base.prefs_character"));
                 terminal.WriteLine($"  3. {Loc.Get("prefs.toggle", Loc.Get("prefs.skip_intimate"))}");
                 terminal.WriteLine($"  O. {Loc.Get("prefs.orientation")}");
@@ -4573,7 +4577,7 @@ public abstract class BaseLocation
                 terminal.WriteLine($"  {Loc.Get("base.prefs_ai_header")}");
                 terminal.SetColor("white");
                 WriteMenuOption("I", $"{Loc.Get("prefs.ai_mode")}: {(AiSettings.Enabled ? Loc.Get("prefs.ai_mode.on") : Loc.Get("prefs.ai_mode.off"))}");
-                WriteMenuOption("E", $"{Loc.Get("prefs.ai_endpoint")}: {(string.IsNullOrWhiteSpace(AiSettings.Endpoint) ? Loc.Get("ui.none") : AiSettings.Endpoint)}");
+                WriteMenuOption("C", $"{Loc.Get("prefs.ai_endpoint")}: {(string.IsNullOrWhiteSpace(AiSettings.Endpoint) ? Loc.Get("ui.none") : AiSettings.Endpoint)}");
                 WriteMenuOption("K", $"{Loc.Get("prefs.ai_key")}: {(string.IsNullOrWhiteSpace(AiSettings.ApiKey) ? Loc.Get("ui.none") : AiSettings.MaskedKey())}");
                 terminal.WriteLine("");
 
@@ -4848,7 +4852,7 @@ public abstract class BaseLocation
                     await Pacing.Wait(600);
                     break;
 
-                case "E":
+                case "C":
                     terminal.WriteLine("");
                     var newEndpoint = await terminal.GetInput(Loc.Get("prefs.ai_endpoint_prompt"));
                     if (newEndpoint != null)
