@@ -23,11 +23,15 @@ namespace UsurperRemake.Systems
     public static class AiDialogue
     {
         private const string PlayerPlaceholder = "{player}";
-        private static readonly TimeSpan RequestTimeout = TimeSpan.FromMilliseconds(1500);
+        // v1.3.9: one shared timeout meant either a slow greeting or a chat that always gave up. A
+        // greeting is a rewrite that must not stall the walk-up, so it stays short; a reply to what the
+        // player typed is awaited deliberately and gets a real budget.
+        private const int GreetingTimeoutMs = 8000;
+        private const int ChatTimeoutMs = 25000;
         private const int MaxCachedLines = 500;
         private const int MaxLineLength = 400;
 
-        private static readonly HttpClient Http = new() { Timeout = RequestTimeout };
+        private static readonly HttpClient Http = new() { Timeout = Timeout.InfiniteTimeSpan };
 
         /// <summary>Re-voiced lines already received, keyed by NPC, language and the authored line.
         /// A hit costs nothing and keeps the same NPC saying the same thing the same way.</summary>
@@ -56,10 +60,8 @@ namespace UsurperRemake.Systems
             {
                 string? rewritten = RequestAsync(npc, authored, language, playerName, player)
                     .GetAwaiter().GetResult();
-                if (string.IsNullOrWhiteSpace(rewritten)) return authored;
-
-                rewritten = rewritten.Trim();
-                if (!IsUsable(rewritten)) return authored;
+                rewritten = Tidy(rewritten);
+                if (rewritten.Length == 0) return authored;
 
                 if (Cache.Count >= MaxCachedLines) Cache.Clear();
                 Cache[key] = rewritten;
@@ -90,11 +92,10 @@ namespace UsurperRemake.Systems
             {
                 string? reply = ChatReplyAsync(npc, playerSaid, relationLevel, languageName)
                     .GetAwaiter().GetResult();
-                if (string.IsNullOrWhiteSpace(reply)) return null;
-                reply = reply.Trim();
-                if (!IsUsable(reply))
+                reply = Tidy(reply);
+                if (reply.Length == 0)
                 {
-                    DebugLogger.Instance.LogWarning("AI", "chat reply rejected: unusable text");
+                    DebugLogger.Instance.LogWarning("AI", "chat reply was empty after tidying");
                     return null;
                 }
                 return reply;
@@ -153,7 +154,8 @@ namespace UsurperRemake.Systems
             if (!string.IsNullOrWhiteSpace(AiSettings.ApiKey))
                 request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + AiSettings.ApiKey);
 
-            using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseContentRead);
+            using var cts = new CancellationTokenSource(ChatTimeoutMs);
+            using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseContentRead, cts.Token);
             if (!response.IsSuccessStatusCode)
             {
                 string detail = "";
@@ -189,8 +191,19 @@ namespace UsurperRemake.Systems
         private static string Restore(string text, string playerName)
             => string.IsNullOrEmpty(playerName) ? text : text.Replace(PlayerPlaceholder, playerName);
 
-        private static bool IsUsable(string text)
-            => text.Length > 0 && text.Length <= MaxLineLength && !text.Contains('\n') && !text.Contains('\r');
+        /// <summary>
+        /// v1.3.9: fit a model's answer onto one line instead of throwing it away. Rejecting anything that
+        /// contained a newline discarded perfectly good answers over a formatting detail, and the player
+        /// saw that as the character refusing to answer. Wrapping quotes are stripped for the same reason.
+        /// </summary>
+        private static string Tidy(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return "";
+            string one = System.Text.RegularExpressions.Regex.Replace(text.Trim(), @"\s+", " ");
+            one = one.Trim('"', '\u201c', '\u201d', '\u300c', '\u300d', ' ');
+            if (one.Length > MaxLineLength) one = one[..MaxLineLength].TrimEnd() + "...";
+            return one;
+        }
 
         private static async Task<string?> RequestAsync(
             NPC npc, string authored, string language, string playerName, Player? player)
@@ -251,7 +264,8 @@ namespace UsurperRemake.Systems
             if (!string.IsNullOrWhiteSpace(AiSettings.ApiKey))
                 request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + AiSettings.ApiKey);
 
-            using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseContentRead);
+            using var cts = new CancellationTokenSource(GreetingTimeoutMs);
+            using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseContentRead, cts.Token);
             if (!response.IsSuccessStatusCode) return null;
 
             string body = await response.Content.ReadAsStringAsync();
