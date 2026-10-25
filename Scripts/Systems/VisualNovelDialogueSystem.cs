@@ -646,6 +646,12 @@ namespace UsurperRemake.Systems
                 terminal.WriteLine($"  {Loc.Get("ai.memory_spent")}", "gray");
                 terminal.WriteLine($"  {Loc.Get("ai.impression_now", impressionBefore)}", "gray");
             }
+            else if (outcome.MemoryRefusedThin)
+            {
+                // a greeting is not something to remember; saying so is better than a silent nothing
+                terminal.WriteLine($"  {Loc.Get("ai.memory_thin")}", "gray");
+                terminal.WriteLine($"  {Loc.Get("ai.impression_now", impressionBefore)}", "gray");
+            }
             else if (!outcome.HasAnything)
             {
                 terminal.WriteLine($"  {Loc.Get("ai.trial_nothing")}", "gray");

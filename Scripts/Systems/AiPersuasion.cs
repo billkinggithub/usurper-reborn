@@ -38,6 +38,11 @@ namespace UsurperRemake.Systems
         /// spent. Surfaced so the screen can say so instead of silently showing nothing.</summary>
         public bool MemoryRefusedToday { get; set; }
 
+        /// <summary>True when a memory was offered but not substantial enough: a type this may not create,
+        /// or no text at all. Distinguished from an empty answer so the screen can say why nothing
+        /// happened.</summary>
+        public bool MemoryRefusedThin { get; set; }
+
         /// <summary>Why parts of the answer were thrown away, in the order they were checked.</summary>
         public List<string> Notes { get; } = new();
 
@@ -75,20 +80,22 @@ namespace UsurperRemake.Systems
         public const int MaxMemoryChars = 120;
 
         /// <summary>
-        /// The only memory types a conversation may create. Each one already carries a small, fixed
-        /// impression change in MemorySystem.ImpressionChangeFor, which is what makes a type whitelist a
-        /// value limit as well: nothing here is worth more than 0.4 of the -1..1 scale. Attacked,
-        /// Betrayed, Defeated, Saved, Defended, Abandoned and Murdered are absent on purpose; those are
-        /// settled by what the engine did, never by what someone said.
+        /// The only memory types a conversation may create. Each carries a fixed impression change in
+        /// MemorySystem.ImpressionChangeFor, so this list is also the value limit.
+        ///
+        /// v1.3.9: Complimented and SocialInteraction are deliberately absent. Their changes, 0.2 and 0.3,
+        /// are large next to how little they ask of the player, and a model asked to summarise any polite
+        /// line reaches for them: "good to see you again" was earning the same as a promise of help, which
+        /// made affection rise from small talk. What is left has to name something that happened between
+        /// the two of them, or a threat. Attacked, Betrayed, Defeated, Saved, Defended, Abandoned and
+        /// Murdered stay out: those are settled by what the engine did, never by what someone said.
         /// </summary>
         public static readonly IReadOnlyList<MemoryType> AllowedMemories = new[]
         {
-            MemoryType.Complimented,
-            MemoryType.Insulted,
-            MemoryType.Threatened,
             MemoryType.Helped,
             MemoryType.Traded,
-            MemoryType.SocialInteraction,
+            MemoryType.Insulted,
+            MemoryType.Threatened,
         };
 
         /// <summary>Fit a model's text onto one line, within a length. Quotes around a spoken line are
@@ -220,6 +227,7 @@ namespace UsurperRemake.Systems
 
             if (text.Length == 0)
             {
+                outcome.MemoryRefusedThin = true;
                 outcome.Notes.Add("dropped memory: no text");
                 return;
             }
@@ -230,6 +238,7 @@ namespace UsurperRemake.Systems
                                      && parsed == t);
             if (allowed == null)
             {
+                outcome.MemoryRefusedThin = true;
                 outcome.Notes.Add($"dropped memory: type '{OneLine(typeName, 30)}' is not allowed from conversation");
                 return;
             }
