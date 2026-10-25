@@ -31180,5 +31180,10 @@
  "prefs.ai_unchanged": "Unchanged. (Type - to clear it.)",
  "prefs.ai_cleared": "Cleared.",
  "prefs.ai_model": "Model",
- "prefs.ai_model_prompt": "Model name, empty to keep: "
+ "prefs.ai_model_prompt": "Model name, empty to keep: ",
+ "ai.chat_hint": "  [/ say it in your own words]",
+ "ai.chat_you": "You: {0}",
+ "ai.chat_no_reply": "(they do not answer)",
+ "ai.chat_off": "(AI mode is off, so free chat is unavailable)",
+ "ai.chat_thinking": "(thinking...)"
 }

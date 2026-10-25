@@ -508,7 +508,17 @@ namespace UsurperRemake.Systems
                 terminal.WriteLine("");
             }
 
-            string choice = await terminal!.GetInput(Loc.Get("ui.your_choice"));
+            // v1.3.9: a line beginning with a slash is the player speaking in their own words rather
+            // than picking an option. Nothing else about the conversation changes.
+            string conversationPrompt = Loc.Get("ui.your_choice");
+            if (AiSettings.Enabled) conversationPrompt += Loc.Get("ai.chat_hint");
+            string choice = await terminal!.GetInput(conversationPrompt);
+
+            if (choice.StartsWith("/", StringComparison.Ordinal))
+            {
+                await SayInOwnWords(npc, choice[1..].Trim(), relationLevel);
+                return true;
+            }
 
             if (choice == "0")
             {
@@ -532,7 +542,46 @@ namespace UsurperRemake.Systems
         }
 
         /// <summary>
-        /// Emit the current NPC dialogue state to the Electron overlay: speaker
+        /// v1.3.9: the player says something in their own words during a conversation and the NPC answers
+        /// it in theirs. Only this screen understands the slash, and nothing here moves the player or runs
+        /// a command, so the rest of the game is untouched.
+        /// </summary>
+        private async Task SayInOwnWords(NPC npc, string said, int relationLevel)
+        {
+            if (string.IsNullOrWhiteSpace(said)) return;
+            if (npc == null)
+            {
+                terminal.WriteLine($"  {Loc.Get("ai.chat_off")}", "yellow");
+                await Pacing.Wait(800);
+                return;
+            }
+
+            terminal.WriteLine("");
+            terminal.WriteLine($"  {Loc.Get("ai.chat_you", said)}", "bright_white");
+
+            if (!AiSettings.IsActive)
+            {
+                terminal.WriteLine($"  {Loc.Get("ai.chat_off")}", "yellow");
+                await Pacing.Wait(900);
+                return;
+            }
+
+            terminal.WriteLine($"  {Loc.Get("ai.chat_thinking")}", "gray");
+            string languageName = UsurperRemake.Systems.Loc.GetLanguageName(GameConfig.Language ?? "en");
+            string? reply = AiDialogue.ChatReply(npc, said, relationLevel, languageName);
+
+            if (reply != null)
+            {
+                terminal.WriteLine($"  {npc.Name2}: {reply}", "white");
+            }
+            else
+            {
+                terminal.WriteLine($"  {Loc.Get("ai.chat_no_reply")}", "yellow");
+            }
+            await Pacing.Wait(700);
+        }
+
+        /// <summary>
         /// portrait, last narration text, and the available player choices. The
         /// graphical client renders this as a side-panel with the NPC portrait,
         /// the body text in a speech bubble, and choice buttons below. Input

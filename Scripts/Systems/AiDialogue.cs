@@ -75,6 +75,109 @@ namespace UsurperRemake.Systems
             }
         }
 
+        /// <summary>
+        /// v1.3.9: one exchange inside an already-open conversation. The player typed what they want to
+        /// say; this returns what the NPC says back, in their own voice, reacting to the words and to how
+        /// they feel about the player. Null when the mode is off or the call fails, so the conversation
+        /// simply carries on with the menu.
+        /// </summary>
+        public static string? ChatReply(NPC npc, string playerSaid, int relationLevel, string languageName)
+        {
+            if (!AiSettings.IsActive || string.IsNullOrWhiteSpace(playerSaid)) return null;
+            if (!IsSinglePlayer()) return null;
+
+            try
+            {
+                string? reply = ChatReplyAsync(npc, playerSaid, relationLevel, languageName)
+                    .GetAwaiter().GetResult();
+                if (string.IsNullOrWhiteSpace(reply)) return null;
+                reply = reply.Trim();
+                if (!IsUsable(reply))
+                {
+                    DebugLogger.Instance.LogWarning("AI", "chat reply rejected: unusable text");
+                    return null;
+                }
+                return reply;
+            }
+            catch (Exception ex)
+            {
+                if (Interlocked.Increment(ref _failuresLogged) == 1)
+                    DebugLogger.Instance.LogWarning("AI", $"chat reply unavailable: {ex.GetType().Name}: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static async Task<string?> ChatReplyAsync(NPC npc, string playerSaid, int relationLevel, string languageName)
+        {
+            var p = npc?.Personality;
+            string standing = relationLevel switch
+            {
+                >= 80 => "devoted to them",
+                >= 50 => "fond of them",
+                >= 20 => "civil towards them",
+                >= -20 => "neutral towards them",
+                >= -50 => "wary of them",
+                _ => "hostile towards them",
+            };
+
+            string system =
+                "You are role playing one character in a text adventure. Answer the player in that " +
+                "character's own voice, reacting to what was just said to you. " +
+                $"Write in {languageName}. Reply with the spoken line alone: no quotes, no stage " +
+                $"directions, one or two sentences, at most {MaxLineLength} characters.";
+
+            string user =
+                $"You are {npc?.Name2 ?? "someone"}" + (string.IsNullOrEmpty(npc?.Archetype) ? "" : $", a {npc!.Archetype}") + ".\n" +
+                (p == null ? "" :
+                    $"Your nature: aggressive {p.Aggression:0.0}, loyal {p.Loyalty:0.0}, clever {p.Intelligence:0.0}, " +
+                    $"sociable {p.Sociability:0.0}, cautious {p.Caution:0.0}, vengeful {p.Vengefulness:0.0}.\n") +
+                $"You are {standing}.\n" +
+                $"The player says to you:\n{playerSaid}";
+
+            var payload = new
+            {
+                model = string.IsNullOrWhiteSpace(AiSettings.EffectiveModel) ? null : AiSettings.EffectiveModel,
+                messages = new object[]
+                {
+                    new { role = "system", content = system },
+                    new { role = "user", content = user },
+                },
+                max_tokens = 150,
+                temperature = 0.8,
+            };
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, AiSettings.Endpoint)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json"),
+            };
+            if (!string.IsNullOrWhiteSpace(AiSettings.ApiKey))
+                request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + AiSettings.ApiKey);
+
+            using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseContentRead);
+            if (!response.IsSuccessStatusCode)
+            {
+                string detail = "";
+                try
+                {
+                    string errorBody = await response.Content.ReadAsStringAsync();
+                    using var errorDoc = JsonDocument.Parse(errorBody);
+                    if (errorDoc.RootElement.TryGetProperty("error", out var err)
+                        && err.TryGetProperty("message", out var msg))
+                        detail = msg.GetString() ?? "";
+                }
+                catch { }
+                DebugLogger.Instance.LogWarning("AI",
+                    $"chat reply failed: HTTP {(int)response.StatusCode}" + (detail.Length > 0 ? $": {detail}" : ""));
+                return null;
+            }
+
+            string body = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(body);
+            var choices = doc.RootElement.GetProperty("choices");
+            if (choices.GetArrayLength() == 0) return null;
+            return choices[0].GetProperty("message").GetProperty("content").GetString();
+        }
+
         /// <summary>The model is only for solo play for now; a door session, a MUD client or an online
         /// save must never depend on a request going out.</summary>
         private static bool IsSinglePlayer()
