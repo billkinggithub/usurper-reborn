@@ -88,11 +88,26 @@ namespace UsurperRemake.Systems
             [JsonPropertyName("model")] public string? Model { get; set; }
         }
 
+        /// <summary>
+        /// v1.3.9: complete a bare host into the endpoint the service actually answers on. Providers
+        /// document a base URL (https://api.deepseek.com) and let their SDK append the route, so a
+        /// player who pastes exactly what the docs say would otherwise POST to the website root and
+        /// fail. A full path is left alone.
+        /// </summary>
+        private static string NormalizeEndpoint(string? url)
+        {
+            string trimmed = (url ?? "").Trim().TrimEnd('/');
+            if (trimmed.Length == 0) return "";
+            if (trimmed.EndsWith("/chat/completions", StringComparison.OrdinalIgnoreCase)) return trimmed;
+            if (trimmed.EndsWith("/v1", StringComparison.OrdinalIgnoreCase)) return trimmed + "/chat/completions";
+            return trimmed + "/v1/chat/completions";
+        }
+
         /// <summary>Trim what a paste usually brings with it. A key with a trailing newline becomes an
         /// invalid HTTP header, and a padded endpoint stops matching the provider's route.</summary>
         private static void Normalize()
         {
-            Endpoint = (Endpoint ?? "").Trim();
+            Endpoint = NormalizeEndpoint(Endpoint);
             ApiKey = (ApiKey ?? "").Trim();
             Model = (Model ?? "").Trim();
         }
