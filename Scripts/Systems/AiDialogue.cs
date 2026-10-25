@@ -128,7 +128,7 @@ namespace UsurperRemake.Systems
 
             var payload = new
             {
-                model = string.IsNullOrWhiteSpace(AiSettings.Model) ? null : AiSettings.Model,
+                model = string.IsNullOrWhiteSpace(AiSettings.EffectiveModel) ? null : AiSettings.EffectiveModel,
                 messages = new object[]
                 {
                     new { role = "system", content = system },
@@ -205,7 +205,7 @@ namespace UsurperRemake.Systems
 
             var payload = new
             {
-                model = string.IsNullOrWhiteSpace(AiSettings.Model) ? null : AiSettings.Model,
+                model = string.IsNullOrWhiteSpace(AiSettings.EffectiveModel) ? null : AiSettings.EffectiveModel,
                 messages = new object[]
                 {
                     new { role = "system", content = system },

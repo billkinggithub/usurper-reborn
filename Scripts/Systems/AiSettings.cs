@@ -41,7 +41,26 @@ namespace UsurperRemake.Systems
         /// <summary>True when the player has filled in enough to be worth trying.</summary>
         public static bool IsConfigured => !string.IsNullOrWhiteSpace(Endpoint);
 
-        public static string FilePath => Path.Combine(UserDataPaths.Get(), FileName);
+        /// <summary>
+        /// v1.3.9: the model to send. Most OpenAI-compatible services require one, and the address
+        /// already says which service this is, so a known provider fills the gap instead of making the
+        /// player look the name up. An explicit value always wins, and USURPER_LLM_MODEL overrides both.
+        /// </summary>
+        public static string EffectiveModel
+        {
+            get
+            {
+                if (!string.IsNullOrWhiteSpace(Model)) return Model.Trim();
+                string e = Endpoint ?? "";
+                if (e.Contains("deepseek", StringComparison.OrdinalIgnoreCase)) return "deepseek-chat";
+                if (e.Contains("11434", StringComparison.Ordinal) || e.Contains("localhost", StringComparison.OrdinalIgnoreCase))
+                    return "llama3.1";
+                if (e.Contains("openai.com", StringComparison.OrdinalIgnoreCase)) return "gpt-4o-mini";
+                return "";   // let the provider pick
+            }
+        }
+
+        public static string FilePath => Path.Combine(UserDataPaths.Writable(), FileName);
 
         /// <summary>What the preferences screen shows next to the toggle.</summary>
         public static string DescribeState()

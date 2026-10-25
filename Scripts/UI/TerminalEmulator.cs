@@ -1048,6 +1048,10 @@ public partial class TerminalEmulator
         _handlingFreeInput = true;
         try
         {
+            // v1.3.9: recorded so a player reporting "typing / does nothing" can be told apart from the
+            // handler never being reached at all
+            UsurperRemake.Systems.DebugLogger.Instance.LogInfo("AI",
+                $"free input: {trimmed[..Math.Min(40, trimmed.Length)]}");
             return await FreeInputHandler(line);
         }
         finally
