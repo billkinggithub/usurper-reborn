@@ -342,6 +342,7 @@ public abstract class BaseLocation
         string context = $"Location: {Name}. Player: {currentPlayer?.Name2 ?? currentPlayer?.Name1 ?? "?"}, " +
                          $"level {currentPlayer?.Level}, class {currentPlayer?.ClassName}.";
         string extra = "";
+        string screenText = "";
         // a new action replaces anything the player said on the previous turn
         PlayerSpeech.Clear();
 
@@ -356,8 +357,9 @@ public abstract class BaseLocation
                 terminal.WriteLine("");
                 terminal.WriteLine($"  {Loc.Get("ai.thinking")}", "gray");
 
+                screenText = terminal.RecentScreenText();
                 result = await AiAssistant.ResolveAsync(utterance + extra, isAssistant,
-                    terminal.RecentScreenText(), language, context);
+                    screenText, language, context);
             }
             catch (Exception ex)
             {
@@ -452,6 +454,16 @@ public abstract class BaseLocation
             }
 
             if (result.Choice != null) return result.Choice;
+
+            // v1.3.9: the model sometimes answers with words but no key. Before giving up, look for the
+            // option the player's own words name ("去旅店" against "[I] 旅店"): a movement that silently
+            // did nothing is the worst outcome of the two.
+            string? namedKey = AiAssistant.MatchOptionKey(screenText, utterance);
+            if (namedKey != null)
+            {
+                DebugLogger.Instance.LogInfo("AI", $"matched the words to menu key {namedKey}");
+                return namedKey;
+            }
 
             if (result.Error != null)
             {

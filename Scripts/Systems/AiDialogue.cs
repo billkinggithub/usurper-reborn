@@ -23,7 +23,9 @@ namespace UsurperRemake.Systems
     public static class AiDialogue
     {
         private const string PlayerPlaceholder = "{player}";
-        private static readonly TimeSpan RequestTimeout = TimeSpan.FromMilliseconds(1500);
+        // v1.3.9: 1.5s was tuned for a cached greeting, but an NPC answering what the player said is a
+        // full generation and timed out every time against a hosted provider.
+        private static readonly TimeSpan RequestTimeout = TimeSpan.FromMilliseconds(8000);
         private const int MaxCachedLines = 500;
         private const int MaxLineLength = 400;
 

@@ -210,6 +210,50 @@ namespace UsurperRemake.Systems
             }
         }
 
+        /// <summary>
+        /// v1.3.9: the options on screen, as key and label. Used for a fallback that does not depend on
+        /// the model at all: if the player's words name something the menu offers ("去旅店" and
+        /// "[I] 旅店"), the key can be chosen locally. A model that answers with no key then no longer
+        /// means the action is lost.
+        /// </summary>
+        public static List<(string Key, string Label)> MenuOptions(string? screen)
+        {
+            var options = new List<(string, string)>();
+            if (string.IsNullOrEmpty(screen)) return options;
+            foreach (Match m in Regex.Matches(screen,
+                @"(?m)^[\s\u2500-\u257F]{0,6}(?:\[([A-Za-z0-9])\]|([A-Za-z0-9])[.)])\s*(.+)$"))
+            {
+                string key = (m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value).ToUpperInvariant();
+                string label = m.Groups[3].Value.Trim();
+                if (key.Length == 1 && label.Length > 0) options.Add((key, label));
+            }
+            return options;
+        }
+
+        /// <summary>
+        /// v1.3.9: the option the player's words point at, if any: the longest label that appears in
+        /// what they typed. Two characters is the floor so "go" does not match everything.
+        /// </summary>
+        public static string? MatchOptionKey(string? screen, string? utterance)
+        {
+            if (string.IsNullOrWhiteSpace(screen) || string.IsNullOrWhiteSpace(utterance)) return null;
+            string said = utterance.Trim();
+
+            string? bestKey = null;
+            int bestLength = 0;
+            foreach (var (key, label) in MenuOptions(screen))
+            {
+                string text = label.Split('(')[0].Trim();
+                if (text.Length < 2 || text.Length <= bestLength) continue;
+                if (said.Contains(text, StringComparison.OrdinalIgnoreCase))
+                {
+                    bestKey = key;
+                    bestLength = text.Length;
+                }
+            }
+            return bestKey;
+        }
+
         /// <summary>Find the menu keys offered by the screen text, e.g. " 3. Buy a sword".</summary>
         public static List<string> MenuKeys(string? screen)
         {
