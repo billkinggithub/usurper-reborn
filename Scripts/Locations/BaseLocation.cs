@@ -254,6 +254,27 @@ public abstract class BaseLocation
         await Pacing.Wait(400);
     }
 
+    /// <summary>
+    /// v1.3.9: the NPC the player addressed, if they are standing here. Used so that speaking to someone
+    /// in the room opens the conversation instead of recording the words and leaving the player to find
+    /// the talk option.
+    /// </summary>
+    private NPC? FindPresentNpc(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return null;
+
+        var candidates = new List<NPC>(LocationNPCs);
+        try
+        {
+            foreach (var npc in GetLiveNPCsAtLocation())
+                if (!candidates.Any(n => n.Name2 == npc.Name2)) candidates.Add(npc);
+        }
+        catch { /* a location without live NPC support simply has the static list */ }
+
+        return candidates.FirstOrDefault(n => n.IsAlive && !n.IsDead
+            && PlayerSpeech.NamesMatch(name!, n.Name2 ?? n.Name1 ?? ""));
+    }
+
     protected async Task<string> GetChoice()
     {
         // v1.3.9: while the AI mode is on, the prompt itself says what the two prefixes do. Without
@@ -364,19 +385,31 @@ public abstract class BaseLocation
 
             if (result.SayText != null)
             {
-                string line = string.IsNullOrWhiteSpace(result.SayTarget)
-                    ? Loc.Get("ai.say_line_plain", result.SayText)
-                    : Loc.Get("ai.say_line", result.SayTarget, result.SayTone ?? "", result.SayText);
-                terminal.WriteLine($"  {line}", "bright_white");
-
-                // v1.3.9: hold the words so the NPC answers them when the conversation opens, rather
-                // than being flattened into a notification that a conversation happened
+                // hold the words so the NPC answers them rather than the game reporting that a
+                // conversation happened
                 PlayerSpeech.Hold(new PlayerSpeech.Said
                 {
                     Text = result.SayText,
                     Target = result.SayTarget,
                     Tone = result.SayTone,
                 });
+
+                // v1.3.9: if the person is standing here, speaking to them opens the conversation
+                // straight away. Recording the words and telling the player to go and find the talk
+                // option is not what "I say this to him" means.
+                var present = FindPresentNpc(result.SayTarget);
+                if (present != null)
+                {
+                    await DeliverPendingSpeech(present);
+                    await UsurperRemake.Systems.VisualNovelDialogueSystem.Instance
+                        .StartConversation(currentPlayer!, present, terminal);
+                    return "";
+                }
+
+                string line = string.IsNullOrWhiteSpace(result.SayTarget)
+                    ? Loc.Get("ai.say_line_plain", result.SayText)
+                    : Loc.Get("ai.say_line", result.SayTarget, result.SayTone ?? "", result.SayText);
+                terminal.WriteLine($"  {line}", "bright_white");
             }
 
             if (result.DebugCommand != null)
