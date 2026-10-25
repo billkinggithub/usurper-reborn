@@ -1516,7 +1516,10 @@ public partial class MainStreetLocation : BaseLocation
             terminal.WriteLine(Loc.Get("main_street.menu_cancel"));
             terminal.WriteLine("");
 
-            var choice = (await terminal.GetInput($"  {Loc.Get("ui.your_choice")} ")).Trim().ToUpperInvariant();
+            // v1.3.9: through GetChoice so a line beginning with / or @ai is understood here too. This
+            // loop read the prompt itself, which is why free-form input did nothing on the main street
+            // while it worked in the locations that already went through GetChoice.
+            var choice = (await GetChoice()).Trim().ToUpperInvariant();
 
             if (choice == "C" || string.IsNullOrEmpty(choice))
                 return false; // Back to Main Street

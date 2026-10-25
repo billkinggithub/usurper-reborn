@@ -262,8 +262,9 @@ public abstract class BaseLocation
         string prompt = Loc.Get("ui.your_choice");
         if (AiSettings.Enabled) prompt += Loc.Get("ai.prompt_hint");
 
-        string raw = await terminal.GetInput(prompt);
-        return await ResolveFreeInput(raw);
+        // the free-input handler sits under GetInput itself, so a "/" or "@ai" line is already resolved
+        // to a menu key by the time it gets here
+        return await terminal.GetInput(prompt);
     }
 
     /// <summary>
@@ -407,6 +408,10 @@ public abstract class BaseLocation
     {
         currentPlayer = player;
         terminal = term;
+
+        // v1.3.9: every prompt read while this location is active now understands "/" and "@ai", not
+        // just the menus that happen to go through GetChoice.
+        TerminalEmulator.FreeInputHandler = ResolveFreeInput;
 
         // Log location entry
         UsurperRemake.Systems.DebugLogger.Instance.LogInfo("LOCATION", $"Entered {Name} (ID: {LocationId})");

@@ -1022,7 +1022,41 @@ public partial class TerminalEmulator
     private string? _pendingLine;
     internal bool HasPendingLine => _pendingLine != null;
 
+    /// <summary>
+    /// v1.3.9: set by the location the player is in. A line beginning with <c>/</c> or <c>@ai</c> is
+    /// handed to it, and whatever it returns is used as the answer, which is normally the menu key the
+    /// game would have offered. This sits under every prompt rather than in one helper, because most of
+    /// the locations read their own prompts: hooking a single method left free-form input silently
+    /// doing nothing in twenty-two of the thirty-five locations.
+    /// </summary>
+    public static Func<string, Task<string>>? FreeInputHandler { get; set; }
+
+    /// <summary>Guards against the handler asking its own questions (clarifications, confirmations).</summary>
+    private static bool _handlingFreeInput;
+
+    /// <summary>Reads a line and offers it to the free-input handler when it is addressed to it.</summary>
     public async Task<string> GetInput(string prompt = "> ")
+    {
+        string line = await GetInputCore(prompt);
+        if (_handlingFreeInput || FreeInputHandler == null) return line;
+
+        string trimmed = line.TrimStart();
+        bool isFree = trimmed.StartsWith("/", StringComparison.Ordinal)
+                      || trimmed.StartsWith("@ai", StringComparison.OrdinalIgnoreCase);
+        if (!isFree) return line;
+
+        _handlingFreeInput = true;
+        try
+        {
+            return await FreeInputHandler(line);
+        }
+        finally
+        {
+            _handlingFreeInput = false;
+        }
+    }
+
+    private async Task<string> GetInputCore(string prompt = "> ")
     {
         // v1.1.13: a command typed at a pause is the answer to this prompt
         if (_pendingLine != null)
