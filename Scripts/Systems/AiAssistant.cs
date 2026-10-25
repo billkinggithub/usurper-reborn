@@ -215,10 +215,13 @@ namespace UsurperRemake.Systems
         {
             var keys = new List<string>();
             if (string.IsNullOrEmpty(screen)) return keys;
-            foreach (Match m in Regex.Matches(screen, @"(?m)^\s{0,4}([A-Za-z0-9])\.\s"))
+            // v1.3.9: menus are written as "[I] Inn" as often as "I. Inn", and some use a
+            // parenthesis. Only the first form was recognised, so on the main street the legal key
+            // list came back empty and every movement the assistant proposed was discarded.
+            foreach (Match m in Regex.Matches(screen, @"(?m)^[\s\u2500-\u257F]{0,6}(?:\[([A-Za-z0-9])\]|([A-Za-z0-9])[.)])\s?"))
             {
-                string k = m.Groups[1].Value.ToUpperInvariant();
-                if (!keys.Contains(k)) keys.Add(k);
+                string k = (m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value).ToUpperInvariant();
+                if (k.Length == 1 && !keys.Contains(k)) keys.Add(k);
             }
             return keys;
         }

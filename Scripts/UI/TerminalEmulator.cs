@@ -429,6 +429,7 @@ public partial class TerminalEmulator
     public void WriteLine(string text, string color = "white")
     {
         Column = 0;
+        if (_partialLine.Length > 0) { text = _partialLine + (text ?? ""); _partialLine = ""; }
         RowsSinceClear += 1 + (text?.Count(c => c == '\n') ?? 0);
         RememberLine(text);
         if (_capturingFlash)
@@ -668,8 +669,18 @@ public partial class TerminalEmulator
         Column = nl >= 0 ? width : Column + width;
     }
 
+    /// <summary>v1.3.9: the line being built by Write calls. Menus often print the key with Write and the
+    /// label with WriteLine, so capturing only completed lines lost every "[I] Inn" style option and the
+    /// assistant was left with no key it was allowed to choose.</summary>
+    private string _partialLine = "";
+
     public void Write(string text, string? color = null)
     {
+        if (!string.IsNullOrEmpty(text))
+        {
+            string plain = ColumnMarkup.Replace(text, "");
+            if (!string.IsNullOrEmpty(plain)) _partialLine += plain;
+        }
         AdvanceColumn(text);
         // Use current color if no color specified
         string effectiveColor = color ?? currentColor;

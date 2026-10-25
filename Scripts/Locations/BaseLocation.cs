@@ -367,6 +367,11 @@ public abstract class BaseLocation
                 return "";
             }
 
+            DebugLogger.Instance.LogInfo("AI",
+                $"resolved: choice={result.Choice ?? "none"} say={(result.SayText != null ? "yes" : "no")} " +
+                $"answer={(result.Answer != null ? "yes" : "no")} debug={(result.DebugCommand != null ? "yes" : "no")} " +
+                $"error={result.Error ?? "none"}");
+
             if (result.Ask != null)
             {
                 terminal.WriteLine("");
