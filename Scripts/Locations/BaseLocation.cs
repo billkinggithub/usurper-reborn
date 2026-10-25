@@ -187,7 +187,7 @@ public abstract class BaseLocation
 
     protected async Task<string> GetChoice()
     {
-        return await GetChoice();
+        return await terminal.GetInput(Loc.Get("ui.your_choice"));
     }
 
     /// <summary>
