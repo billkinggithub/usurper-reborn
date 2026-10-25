@@ -381,11 +381,61 @@ public partial class TerminalEmulator
         }
     }
 
+    /// <summary>
+    /// v1.3.9: lines written while a free-form turn is being handled. They are reprinted immediately
+    /// after the next screen clear, so the result of what the player typed appears together with the
+    /// refreshed menu instead of being wiped by it. The buffer is one cycle deep: the clear consumes
+    /// it, and a new input discards anything left over.
+    /// </summary>
+    private readonly List<string> _flashLines = new();
+    private bool _capturingFlash;
+
+    public void BeginFlashCapture()
+    {
+        lock (_flashLines) _flashLines.Clear();
+        _capturingFlash = true;
+    }
+
+    public void EndFlashCapture() => _capturingFlash = false;
+
+    public void ClearFlash()
+    {
+        lock (_flashLines) _flashLines.Clear();
+    }
+
+    /// <summary>Reprint the held lines below a cleared screen, then forget them.</summary>
+    private void FlushFlash()
+    {
+        string[] lines;
+        lock (_flashLines)
+        {
+            if (_flashLines.Count == 0) return;
+            lines = _flashLines.ToArray();
+            _flashLines.Clear();
+        }
+
+        bool was = _capturingFlash;
+        _capturingFlash = false;   // the reprint itself must not be captured again
+        try
+        {
+            foreach (var line in lines) WriteLine(line, "white");
+        }
+        finally
+        {
+            _capturingFlash = was;
+        }
+    }
+
     public void WriteLine(string text, string color = "white")
     {
         Column = 0;
         RowsSinceClear += 1 + (text?.Count(c => c == '\n') ?? 0);
         RememberLine(text);
+        if (_capturingFlash)
+        {
+            string plain = ColumnMarkup.Replace(text ?? "", "");
+            if (!string.IsNullOrWhiteSpace(plain)) { lock (_flashLines) _flashLines.Add(plain); }
+        }
         // Capture output for group combat broadcasting
         if (_captureBuffer != null)
         {
@@ -1008,6 +1058,7 @@ public partial class TerminalEmulator
         cursorX = 0;
         cursorY = 0;
         _bbsLineCount = 0; // Reset BBS pagination counter
+        FlushFlash();
     }
 
     public void SetCursorPosition(int x, int y)
@@ -1043,7 +1094,11 @@ public partial class TerminalEmulator
         string trimmed = line.TrimStart();
         bool isFree = trimmed.StartsWith("/", StringComparison.Ordinal)
                       || trimmed.StartsWith("@ai", StringComparison.OrdinalIgnoreCase);
-        if (!isFree) return line;
+        if (!isFree)
+        {
+            ClearFlash();   // the held lines were already shown with the menu
+            return line;
+        }
 
         _handlingFreeInput = true;
         try

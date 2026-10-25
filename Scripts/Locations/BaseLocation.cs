@@ -254,16 +254,6 @@ public abstract class BaseLocation
         await Pacing.Wait(400);
     }
 
-    /// <summary>
-    /// v1.3.9: hold the screen after a free-form turn. The location redraws its menu the moment GetInput
-    /// returns, which wiped the narration, the player's own words and the assistant's answer before they
-    /// could be read: the feature worked and looked like it did nothing.
-    /// </summary>
-    private async Task WaitForReader()
-    {
-        await terminal.GetInput(Loc.Get("ui.press_enter"));
-    }
-
     protected async Task<string> GetChoice()
     {
         // v1.3.9: while the AI mode is on, the prompt itself says what the two prefixes do. Without
@@ -293,13 +283,18 @@ public abstract class BaseLocation
         bool isAssistant = AiAssistant.IsAssistantLine(raw);
         if (!isAction && !isAssistant) return raw;
 
-        // v1.3.9: whatever this turn printed would be wiped by the menu redraw that follows the return,
-        // so the player saw nothing at all. Compare the screen before and after and hold it open when
-        // something was said.
-        string before = terminal.RecentScreenText();
-        string result = await ResolveFreeInputCore(isAction, isAssistant, raw);
-        if (terminal.RecentScreenText() != before) await WaitForReader();
-        return result;
+        // v1.3.9: the menu redraws the moment this returns, which wiped everything printed here. The
+        // lines written during the turn are held and reprinted under the refreshed menu, so the result
+        // of what the player typed appears with it rather than needing an extra keypress to be seen.
+        terminal.BeginFlashCapture();
+        try
+        {
+            return await ResolveFreeInputCore(isAction, isAssistant, raw);
+        }
+        finally
+        {
+            terminal.EndFlashCapture();
+        }
     }
 
     private async Task<string> ResolveFreeInputCore(bool isAction, bool isAssistant, string raw)
