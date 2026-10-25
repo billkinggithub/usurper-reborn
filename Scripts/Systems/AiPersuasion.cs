@@ -176,6 +176,17 @@ namespace UsurperRemake.Systems
             double clamped = Math.Clamp(delta, -MaxNudge, MaxNudge);
             if (clamped != delta) outcome.Notes.Add($"nudge clamped from {delta:0.#} to {clamped:0.#}");
 
+            // v1.3.9: words may only dampen an impulse in this version. A trial had a character talk
+            // about avenging a family and the model answered by raising "Find Better Weapons" from 80 to
+            // 95, which would send him shopping instead of listening. Raising a drive is the direction
+            // that changes what the world tick does, so it stays closed until there is evidence it is
+            // wanted and a way to check it.
+            if (clamped > 0)
+            {
+                outcome.Notes.Add($"dropped nudge: raising is not allowed ({clamped:0.#})");
+                return;
+            }
+
             outcome.NudgeAction = offered;
             outcome.NudgeDelta = clamped;
         }
@@ -273,7 +284,8 @@ namespace UsurperRemake.Systems
                 "\"memory\":{\"type\":\"<one allowed type>\", \"text\":\"<one short sentence>\", " +
                 "\"importance\":<0 to 0.35>, \"impact\":<-0.3 to 0.3>}}\n" +
                 "Omit nudge or memory entirely if nothing changed. " +
-                $"nudge.delta must be between -{MaxNudge} and {MaxNudge}. " +
+                $"nudge.delta must be between -{MaxNudge} and 0: your words can make you less inclined to " +
+                "do something, never more. Raising a drive is refused. " +
                 $"memory.type must be one of: {allowedTypes}. " +
                 "Never invent events that did not happen.";
 
