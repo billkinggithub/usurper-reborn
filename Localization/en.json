@@ -31184,5 +31184,7 @@
  "ai.debug_proposed": "Proposed command: {0}",
  "ai.debug_confirm": "Run it? (Y/N): ",
  "ai.debug_cancelled": "Cancelled. Nothing was changed.",
- "ai.debug_readonly": "Result:"
+ "ai.debug_readonly": "Result:",
+ "ai.prompt_hint": "  [/ action  @ai assistant]",
+ "ai.prefs_hint": "In game: / then what you do, @ai to ask or to give a debug command."
 }

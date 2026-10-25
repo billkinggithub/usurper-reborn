@@ -217,7 +217,13 @@ public abstract class BaseLocation
 
     protected async Task<string> GetChoice()
     {
-        string raw = await terminal.GetInput(Loc.Get("ui.your_choice"));
+        // v1.3.9: while the AI mode is on, the prompt itself says what the two prefixes do. Without
+        // this the feature is invisible: nothing on screen suggests that a line may be typed instead
+        // of a menu key.
+        string prompt = Loc.Get("ui.your_choice");
+        if (AiSettings.Enabled) prompt += Loc.Get("ai.prompt_hint");
+
+        string raw = await terminal.GetInput(prompt);
         return await ResolveFreeInput(raw);
     }
 
@@ -4641,6 +4647,7 @@ public abstract class BaseLocation
                 terminal.WriteLine($"  I. {Loc.Get("prefs.ai_mode")}: {(AiSettings.Enabled ? Loc.Get("prefs.ai_mode.on") : Loc.Get("prefs.ai_mode.off"))}");
                 terminal.WriteLine($"  C. {Loc.Get("prefs.ai_endpoint")}: {(string.IsNullOrWhiteSpace(AiSettings.Endpoint) ? Loc.Get("ui.none") : AiSettings.Endpoint)}");
                 terminal.WriteLine($"  K. {Loc.Get("prefs.ai_key")}: {(string.IsNullOrWhiteSpace(AiSettings.ApiKey) ? Loc.Get("ui.none") : AiSettings.MaskedKey())}");
+                terminal.WriteLine($"  {Loc.Get("ai.prefs_hint")}", "gray");
                 terminal.WriteLine(Loc.Get("base.prefs_character"));
                 terminal.WriteLine($"  3. {Loc.Get("prefs.toggle", Loc.Get("prefs.skip_intimate"))}");
                 terminal.WriteLine($"  O. {Loc.Get("prefs.orientation")}");
@@ -4736,6 +4743,7 @@ public abstract class BaseLocation
                 WriteMenuOption("I", $"{Loc.Get("prefs.ai_mode")}: {(AiSettings.Enabled ? Loc.Get("prefs.ai_mode.on") : Loc.Get("prefs.ai_mode.off"))}");
                 WriteMenuOption("C", $"{Loc.Get("prefs.ai_endpoint")}: {(string.IsNullOrWhiteSpace(AiSettings.Endpoint) ? Loc.Get("ui.none") : AiSettings.Endpoint)}");
                 WriteMenuOption("K", $"{Loc.Get("prefs.ai_key")}: {(string.IsNullOrWhiteSpace(AiSettings.ApiKey) ? Loc.Get("ui.none") : AiSettings.MaskedKey())}");
+                terminal.WriteLine($"  {Loc.Get("ai.prefs_hint")}", "gray");
                 terminal.WriteLine("");
 
                 // -- CHARACTER --

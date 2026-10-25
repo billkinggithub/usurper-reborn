@@ -30995,5 +30995,7 @@
  "ai.debug_proposed": "拟执行命令：{0}",
  "ai.debug_confirm": "要执行吗？(Y/N)： ",
  "ai.debug_cancelled": "已取消，未做任何改动。",
- "ai.debug_readonly": "结果："
+ "ai.debug_readonly": "结果：",
+ "ai.prompt_hint": "  [/ 行动  @ai 问AI]",
+ "ai.prefs_hint": "游戏中：/ 后面写你想做的动作；@ai 用来提问或下达调试命令。"
 }
