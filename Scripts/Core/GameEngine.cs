@@ -4737,6 +4737,16 @@ public partial class GameEngine
             return;
         }
 
+        // v1.3.9: the saved language has to be in place before anything below prints or simulates. The
+        // world catch-up further down generates its news with Loc.Get, which reads GameConfig.Language at
+        // the moment of the call, so a fresh process still on the startup default wrote an English news
+        // feed into a Chinese save. A language chosen on the main menu this session wins over the saved one.
+        if (!string.IsNullOrEmpty(saveData.Player?.Language))
+        {
+            if (_languageSetThisSession.Value) saveData.Player!.Language = GameConfig.Language;
+            else GameConfig.Language = saveData.Player!.Language;
+        }
+
         // Restore player from save data
         currentPlayer = RestorePlayerFromSaveData(saveData.Player);
 
