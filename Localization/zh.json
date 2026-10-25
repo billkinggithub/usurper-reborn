@@ -30997,5 +30997,9 @@
  "ai.debug_cancelled": "已取消，未做任何改动。",
  "ai.debug_readonly": "结果：",
  "ai.prompt_hint": "  [/ 行动  @ai 问AI]",
- "ai.prefs_hint": "游戏中：/ 后面写你想做的动作；@ai 用来提问或下达调试命令。"
+ "ai.prefs_hint": "游戏中：/ 后面写你想做的动作；@ai 用来提问或下达调试命令。",
+ "prefs.ai_current": "当前：{0}",
+ "prefs.ai_saved_value": "已保存：{0}",
+ "prefs.ai_unchanged": "未改动。（输入 - 可清除。）",
+ "prefs.ai_cleared": "已清除。"
 }

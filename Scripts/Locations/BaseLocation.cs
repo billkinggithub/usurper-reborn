@@ -215,6 +215,45 @@ public abstract class BaseLocation
         await Pacing.Wait(600);
     }
 
+    /// <summary>
+    /// v1.3.9: edit one stored AI setting. An empty line keeps what is already saved instead of wiping
+    /// it, which is what made the address and the key have to be typed again after every visit; typing
+    /// a single dash clears it deliberately. The stored value is shown afterwards so it is obvious it
+    /// was kept, and the key is never echoed.
+    /// </summary>
+    private async Task EditAiText(string label, string prompt, Func<string> read, Action<string> write, bool masked)
+    {
+        terminal.WriteLine("");
+        string current = read();
+        terminal.WriteLine($"  {label}: {Loc.Get("prefs.ai_current", string.IsNullOrWhiteSpace(current) ? Loc.Get("ui.none") : (masked ? AiSettings.MaskedKey() : current))}", "gray");
+
+        string? entered = masked ? await terminal.GetMaskedInput(prompt) : await terminal.GetInput(prompt);
+        var (value, outcome) = AiSettings.ApplyEdit(read(), entered);
+
+        if (outcome == AiSettings.EditOutcome.Unchanged)
+        {
+            terminal.WriteLine($"  {Loc.Get("prefs.ai_unchanged")}", "gray");
+            await Pacing.Wait(400);
+            return;
+        }
+
+        write(value);
+        AiSettings.Save();
+
+        if (outcome == AiSettings.EditOutcome.Cleared)
+        {
+            terminal.WriteLine($"  {Loc.Get("prefs.ai_cleared")}", "yellow");
+            await Pacing.Wait(400);
+            return;
+        }
+
+        // read back what was actually stored, so "saved" is never a claim without evidence
+        string stored = read();
+        string shown = masked ? AiSettings.MaskedKey() : stored;
+        terminal.WriteLine($"  {Loc.Get("prefs.ai_saved_value", shown)}", "green");
+        await Pacing.Wait(400);
+    }
+
     protected async Task<string> GetChoice()
     {
         // v1.3.9: while the AI mode is on, the prompt itself says what the two prefixes do. Without
@@ -5018,27 +5057,21 @@ public abstract class BaseLocation
                     break;
 
                 case "C":
-                    terminal.WriteLine("");
-                    var newEndpoint = await terminal.GetInput(Loc.Get("prefs.ai_endpoint_prompt"));
-                    if (newEndpoint != null)
-                    {
-                        AiSettings.Endpoint = newEndpoint.Trim();
-                        AiSettings.Save();
-                        terminal.WriteLine(Loc.Get("prefs.ai_saved"), "green");
-                        await Pacing.Wait(400);
-                    }
+                    await EditAiText(
+                        Loc.Get("prefs.ai_endpoint"),
+                        Loc.Get("prefs.ai_endpoint_prompt"),
+                        () => AiSettings.Endpoint,
+                        v => AiSettings.Endpoint = v,
+                        masked: false);
                     break;
 
                 case "K":
-                    terminal.WriteLine("");
-                    var newKey = await terminal.GetMaskedInput(Loc.Get("prefs.ai_key_prompt"));
-                    if (newKey != null)
-                    {
-                        AiSettings.ApiKey = newKey.Trim();
-                        AiSettings.Save();
-                        terminal.WriteLine(Loc.Get("prefs.ai_saved"), "green");
-                        await Pacing.Wait(400);
-                    }
+                    await EditAiText(
+                        Loc.Get("prefs.ai_key"),
+                        Loc.Get("prefs.ai_key_prompt"),
+                        () => AiSettings.ApiKey,
+                        v => AiSettings.ApiKey = v,
+                        masked: true);
                     break;
 
                 case "B":

@@ -108,6 +108,30 @@ namespace UsurperRemake.Systems
             if (!string.IsNullOrWhiteSpace(envModel)) Model = envModel;
 
             Normalize();
+
+            // v1.3.9: say what was found, never the values themselves. Without this, "it asks me again
+            // every time" cannot be told apart from a file that was simply never loaded.
+            DebugLogger.Instance.LogInfo("AI",
+                $"settings: enabled={Enabled}, endpoint={(string.IsNullOrEmpty(Endpoint) ? "none" : "set")}, " +
+                $"key={(string.IsNullOrEmpty(ApiKey) ? "none" : "set")}, " +
+                $"model={(string.IsNullOrEmpty(Model) ? "default" : Model)}");
+        }
+
+        /// <summary>What an edit did, so the screen can say so.</summary>
+        public enum EditOutcome { Unchanged, Cleared, Stored }
+
+        /// <summary>
+        /// v1.3.9: apply one edited text setting. An empty line keeps what is already stored, because a
+        /// player who opens the prompt and presses Enter means "never mind", not "delete it"; a single
+        /// dash clears it on purpose. This is the rule that made the address and key have to be typed
+        /// again on every visit, so it is a pure function that can be tested on its own.
+        /// </summary>
+        public static (string Value, EditOutcome Outcome) ApplyEdit(string current, string? entered)
+        {
+            string value = (entered ?? "").Trim();
+            if (value.Length == 0) return (current ?? "", EditOutcome.Unchanged);
+            if (value == "-") return ("", EditOutcome.Cleared);
+            return (value, EditOutcome.Stored);
         }
 
         /// <summary>Write the current values back. Failing to write is logged and ignored: the mode

@@ -31186,5 +31186,9 @@
  "ai.debug_cancelled": "Cancelled. Nothing was changed.",
  "ai.debug_readonly": "Result:",
  "ai.prompt_hint": "  [/ action  @ai assistant]",
- "ai.prefs_hint": "In game: / then what you do, @ai to ask or to give a debug command."
+ "ai.prefs_hint": "In game: / then what you do, @ai to ask or to give a debug command.",
+ "prefs.ai_current": "Current: {0}",
+ "prefs.ai_saved_value": "Saved: {0}",
+ "prefs.ai_unchanged": "Unchanged. (Type - to clear it.)",
+ "prefs.ai_cleared": "Cleared."
 }
