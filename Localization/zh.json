@@ -31008,5 +31008,18 @@
  "ai.impression_now": "他对你的印象：{0:0.00}",
  "ai.impression_after": "他对你的印象：{0:0.00} → {1:0.00}",
  "ai.memory_thin": "（这句话还不足以让他改变看法）",
- "ai.memory_unearned": "（她并不记得帮过你，这话不算数）"
+ "ai.memory_unearned": "（她并不记得帮过你，这话不算数）",
+ "combat.memory_saw_ally_finished": "亲眼看着{0}在我身边被{1}击倒",
+ "combat.memory_saw_ally_left": "看着{0}袖手旁观，任{1}倒下",
+ "companion.history_saw_ally_left": "看着你丢下{0}等死",
+ "dungeon.wait_call_any": "叫回一名队友",
+ "dungeon.wait_call_option": "叫回{0}",
+ "dungeon.wait_call_pick": "要叫回谁？",
+ "dungeon.wait_called_back": "{0}听到你的呼唤，重新归队。",
+ "dungeon.wait_catches_up": "{0}追上了队伍。",
+ "dungeon.wait_option": "让一名队友在此等候",
+ "dungeon.wait_order": "{0}在此等候。",
+ "dungeon.wait_pick": "让谁在此等候？",
+ "dungeon.wait_rejoins": "{0}等到你们回来，重新归队。",
+ "dungeon.wait_tag": "（等候中）"
 }

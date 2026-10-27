@@ -31195,5 +31195,18 @@
  "ai.impression_now": "His impression of you: {0:0.00}",
  "ai.impression_after": "His impression of you: {0:0.00} -> {1:0.00}",
  "ai.memory_thin": "(not enough here to change how they see you)",
- "ai.memory_unearned": "(she does not remember helping you, so that is not worth anything)"
+ "ai.memory_unearned": "(she does not remember helping you, so that is not worth anything)",
+ "companion.history_saw_ally_left": "Vio cómo dejabas morir a {0}",
+ "dungeon.wait_option": "Pedir a un aliado que espere aquí",
+ "dungeon.wait_pick": "¿Quién debe esperar aquí?",
+ "dungeon.wait_order": "{0} espera aquí.",
+ "dungeon.wait_call_option": "Llamar a {0} de vuelta",
+ "dungeon.wait_call_any": "Llamar de vuelta a un aliado",
+ "dungeon.wait_call_pick": "¿A quién llamas de vuelta?",
+ "dungeon.wait_called_back": "{0} oye tu llamada y vuelve al grupo.",
+ "dungeon.wait_rejoins": "{0} te esperaba aquí y vuelve al grupo.",
+ "dungeon.wait_catches_up": "{0} alcanza al grupo.",
+ "dungeon.wait_tag": "(esperando)",
+ "combat.memory_saw_ally_finished": "Vi a {0} caer ante {1} a mi lado",
+ "combat.memory_saw_ally_left": "Vi a {0} dejar caer a {1} cuando podía ayudar"
 }

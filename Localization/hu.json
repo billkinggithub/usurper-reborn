@@ -31197,5 +31197,18 @@
  "ai.impression_now": "His impression of you: {0:0.00}",
  "ai.impression_after": "His impression of you: {0:0.00} -> {1:0.00}",
  "ai.memory_thin": "(not enough here to change how they see you)",
- "ai.memory_unearned": "(she does not remember helping you, so that is not worth anything)"
+ "ai.memory_unearned": "(she does not remember helping you, so that is not worth anything)",
+ "companion.history_saw_ally_left": "Látta, hogy hagytad meghalni: {0}",
+ "dungeon.wait_option": "Szólj egy szövetségesnek, hogy várjon itt",
+ "dungeon.wait_pick": "Ki várjon itt?",
+ "dungeon.wait_order": "{0} itt vár.",
+ "dungeon.wait_call_option": "{0} visszahívása",
+ "dungeon.wait_call_any": "Szövetséges visszahívása",
+ "dungeon.wait_call_pick": "Kit hívsz vissza?",
+ "dungeon.wait_called_back": "{0} meghallja a hívásodat, és visszatér a csapatba.",
+ "dungeon.wait_rejoins": "{0} itt várt rád, és visszatér a csapatba.",
+ "dungeon.wait_catches_up": "{0} utoléri a csapatot.",
+ "dungeon.wait_tag": "(vár)",
+ "combat.memory_saw_ally_finished": "Láttam, ahogy {0} elesik {1} ellen mellettem",
+ "combat.memory_saw_ally_left": "Láttam, hogy {0} nem segített, és {1} elesett, pedig segíthetett volna"
 }

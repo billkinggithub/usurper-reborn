@@ -31195,5 +31195,18 @@
  "ai.impression_now": "His impression of you: {0:0.00}",
  "ai.impression_after": "His impression of you: {0:0.00} -> {1:0.00}",
  "ai.memory_thin": "(not enough here to change how they see you)",
- "ai.memory_unearned": "(she does not remember helping you, so that is not worth anything)"
+ "ai.memory_unearned": "(she does not remember helping you, so that is not worth anything)",
+ "companion.history_saw_ally_left": "Vous a vu laisser mourir {0}",
+ "dungeon.wait_option": "Demander à un allié d'attendre ici",
+ "dungeon.wait_pick": "Qui doit attendre ici ?",
+ "dungeon.wait_order": "{0} attend ici.",
+ "dungeon.wait_call_option": "Rappeler {0}",
+ "dungeon.wait_call_any": "Rappeler un allié",
+ "dungeon.wait_call_pick": "Qui rappeler ?",
+ "dungeon.wait_called_back": "{0} entend votre appel et rejoint le groupe.",
+ "dungeon.wait_rejoins": "{0} vous attendait ici et rejoint le groupe.",
+ "dungeon.wait_catches_up": "{0} rattrape le groupe.",
+ "dungeon.wait_tag": "(en attente)",
+ "combat.memory_saw_ally_finished": "J'ai vu {0} tomber face à {1} à mes côtés",
+ "combat.memory_saw_ally_left": "J'ai vu {0} laisser tomber {1} sans l'aider, alors que c'était possible"
 }
