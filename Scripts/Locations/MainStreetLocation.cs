@@ -263,7 +263,7 @@ public partial class MainStreetLocation : BaseLocation
         bool hintShown = false;
         if (currentPlayer.HP < currentPlayer.MaxHP * 0.25)
         {
-            hintShown = HintSystem.Instance.TryShowHint(HintSystem.HINT_LOW_HP, terminal, currentPlayer.HintsShown);
+            hintShown = HintSystem.Instance.TryShowHint(HintSystem.HINT_LOW_HP, terminal, currentPlayer);
         }
 
         // v1.0.5: three hints that were defined and localized when the hint system shipped but
@@ -273,7 +273,7 @@ public partial class MainStreetLocation : BaseLocation
         if (!hintShown && !currentPlayer.AutoLevelUp && currentPlayer.Level < GameConfig.MaxLevel
             && currentPlayer.Experience >= GameConfig.GetExperienceForLevel(currentPlayer.Level + 1))
         {
-            hintShown = HintSystem.Instance.TryShowHint(HintSystem.HINT_FIRST_LEVEL_UP, terminal, currentPlayer.HintsShown);
+            hintShown = HintSystem.Instance.TryShowHint(HintSystem.HINT_FIRST_LEVEL_UP, terminal, currentPlayer);
         }
         if (!hintShown && currentPlayer.Inventory.Count > 0)
         {
@@ -289,13 +289,13 @@ public partial class MainStreetLocation : BaseLocation
         if (!hintShown && currentPlayer.MaxMana > 0 && currentPlayer.Class != CharacterClass.MysticShaman
             && SpellSystem.GetAvailableSpells(currentPlayer).Count == 0)
         {
-            hintShown = HintSystem.Instance.TryShowHint(HintSystem.HINT_MANA_SPELLS, terminal, currentPlayer.HintsShown);
+            hintShown = HintSystem.Instance.TryShowHint(HintSystem.HINT_MANA_SPELLS, terminal, currentPlayer);
         }
 
         // Show quest system hint for early players who have started fighting
         if (!hintShown && currentPlayer.Level <= 3 && currentPlayer.Statistics.TotalMonstersKilled >= 1)
         {
-            HintSystem.Instance.TryShowHint(HintSystem.HINT_QUEST_SYSTEM, terminal, currentPlayer.HintsShown);
+            HintSystem.Instance.TryShowHint(HintSystem.HINT_QUEST_SYSTEM, terminal, currentPlayer);
         }
 
         // NPC story notification — hint about NPCs with available story content (v0.49.3)
@@ -378,7 +378,7 @@ public partial class MainStreetLocation : BaseLocation
                 && tickerStep.LocKey != "journal.next_delve_resume")
             {
                 terminal.SetColor("bright_yellow");
-                terminal.WriteLine($"  {Loc.Get("journal.ticker", Loc.Get(tickerStep.LocKey, tickerStep.Args))}");
+                terminal.WriteLine($"  {Loc.Get("journal.ticker", tickerStep.Text(currentPlayer))}");
                 terminal.SetColor("white");
             }
         }
@@ -465,6 +465,7 @@ public partial class MainStreetLocation : BaseLocation
             if (IsScreenReader) WriteStreetMenuPlain(streetLines);
             else WriteStreetMenuCompact(streetLines);
         }
+        EmitWebMenu(); // 2.0: Client.Menu, web client only
 
         // Blank line
         terminal.WriteLine("");
@@ -722,6 +723,7 @@ public partial class MainStreetLocation : BaseLocation
         {
             if (currentPlayer.ScreenReaderMode) ShowClassicLayoutScreenReaderMenu();
             else ShowClassicLayoutMenu();
+            EmitWebMenu(); // 2.0: Client.Menu, web client only
             return;
         }
         if (currentPlayer.ScreenReaderMode)
@@ -732,6 +734,7 @@ public partial class MainStreetLocation : BaseLocation
         {
             ShowClassicMenu();
         }
+        EmitWebMenu(); // 2.0: Client.Menu, web client only
     }
 
     /// <summary>
@@ -829,7 +832,7 @@ public partial class MainStreetLocation : BaseLocation
         if (currentPlayer.ChivNr > 0)
         {
             terminal.WriteLine(Loc.Get("main_street.available_deeds"));
-            terminal.WriteLine(Loc.Get("main_street.deed_give_gold"));
+            terminal.WriteLine(Loc.Get("main_street.deed_give_gold", AlmsCost(currentPlayer).ToString("N0")));
             terminal.WriteLine(Loc.Get("main_street.deed_help_temple"));
             terminal.WriteLine(Loc.Get("main_street.deed_orphanage"));
             terminal.WriteLine("");
@@ -1745,10 +1748,10 @@ public partial class MainStreetLocation : BaseLocation
     }
 
     // Helper methods
-    private string GetTownName()
-    {
-        return "Usurper"; // Could be configurable
-    }
+    /// <summary>1.3.10 (play test B17): the town the opening story names (opening_story.goal_dorashire); it said Usurper.</summary>
+    internal const string TownName = "Dorashire";
+
+    private string GetTownName() => TownName;
     
     private string GetTimeOfDay()
     {
@@ -1796,10 +1799,25 @@ public partial class MainStreetLocation : BaseLocation
         return rank;
     }
     
+    /// <summary>1.3.10 (P13): giving gold to the poor costs the player's level times 20 gold (it cost nothing).</summary>
+    internal static long AlmsCost(Character player) => (long)Math.Max(1, player.Level) * GameConfig.GoodDeedAlmsGoldPerLevel;
+
     private async Task ProcessGoodDeed(string choice)
     {
         if (int.TryParse(choice, out int deed) && deed >= 1 && deed <= 3)
         {
+            if (deed == 1)
+            {
+                // 1.3.10 (P13): the alms are paid, or the deed is refused and not spent
+                long alms = AlmsCost(currentPlayer);
+                if (currentPlayer.Gold < alms)
+                {
+                    terminal.WriteLine(Loc.Get("ui.not_enough_gold"), "red");
+                    return;
+                }
+                currentPlayer.Gold -= alms;
+                currentPlayer.Statistics?.RecordGoldSpent(alms);
+            }
             currentPlayer.ChivNr--;
             AlignmentSystem.Instance.ChangeAlignment(currentPlayer, 10, isGood: true, "main_street.good_deed"); // v0.57.12: paired movement
             

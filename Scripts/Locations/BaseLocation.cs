@@ -860,7 +860,7 @@ public abstract class BaseLocation
 
                     terminal.SetColor("yellow");
                     if (currentPlayer.TrainingPoints > 0)
-                        terminal.WriteLine($"  {Loc.Get("base.training_points_hint")}");
+                        terminal.WriteLine($"  {Loc.Get(MainStreetLocation.StreetTextKey("base.training_points_hint", currentPlayer))}");
                     // v1.1.13: level 10 is a milestone worth a line of its own
                     if (ReachedLevelTenWithPoints(fromLevel, currentPlayer.Level, currentPlayer.TrainingPoints))
                     {
@@ -871,7 +871,7 @@ public abstract class BaseLocation
                     terminal.WriteLine("");
 
                     // Show Level Master hint on first level-up
-                    HintSystem.Instance.TryShowHint(HintSystem.HINT_LEVEL_MASTER, terminal, currentPlayer.HintsShown);
+                    HintSystem.Instance.TryShowHint(HintSystem.HINT_LEVEL_MASTER, terminal, currentPlayer);
 
                     // v0.60.3: GMCP Char.Skills.List re-emit on level-up so MUD clients
                     // see newly-unlocked abilities and spells without manual refresh.
@@ -2424,17 +2424,8 @@ public abstract class BaseLocation
                 ? $"{Loc.Get("status.mana")}: {currentPlayer.Mana}/{currentPlayer.MaxMana}"
                 : $"{Loc.Get("status.stamina")}: {currentPlayer.CurrentCombatStamina}/{currentPlayer.MaxCombatStamina}";
             string xpInfo = "";
-            if (currentPlayer.Level < GameConfig.MaxLevel)
-            {
-                long currentXP = currentPlayer.Experience;
-                long nextLevelXP = GameConfig.GetExperienceForLevel(currentPlayer.Level + 1);
-                long prevLevelXP = GameConfig.GetExperienceForLevel(currentPlayer.Level);
-                long xpIntoLevel = currentXP - prevLevelXP;
-                long xpNeeded = nextLevelXP - prevLevelXP;
-                int xpPercent = xpNeeded > 0 ? (int)((xpIntoLevel * 100) / xpNeeded) : 0;
-                xpPercent = Math.Clamp(xpPercent, 0, 100);
+            if (StatusLineXpPercent(currentPlayer) is int xpPercent)
                 xpInfo = $", {Loc.Get("status.xp_to_next", xpPercent)}";
-            }
             // v0.65.6: show remaining lives in online permadeath mode so the
             // stake is always visible, not just on death screens.
             // v1.0.5: single-player consumes the same counter (free revive at the death
@@ -2446,10 +2437,9 @@ public abstract class BaseLocation
             // reflects the last character loaded. permadeathLives short-circuits it there
             // while online permadeath is on, and the same global already drives the
             // XP/gold multipliers, so this is no worse than the existing behaviour.)
-            bool permadeathLives = UsurperRemake.BBS.DoorMode.IsOnlineMode && GameConfig.OnlinePermadeathEnabled;
-            bool showLives = permadeathLives || !DifficultySystem.IsPermadeath();
-            string livesInfo = showLives
-                ? $", {Loc.Get(permadeathLives ? "status.lives" : "status.revives")}: {Math.Max(0, currentPlayer.Resurrections)}/{Math.Max(1, currentPlayer.MaxResurrections)}"
+            // 2.0 phase 3a: the rule is StatusLineLives, which Client.Footer reads too.
+            string livesInfo = StatusLineLives(currentPlayer) is { } lives
+                ? $", {Loc.Get(lives.Permadeath ? "status.lives" : "status.revives")}: {lives.Left}/{lives.Max}"
                 : "";
             terminal.SetColor("white");
             terminal.WriteLine($"{Loc.Get("status.hp")}: {currentPlayer.HP}/{currentPlayer.MaxHP}, {Loc.Get("status.gold_label")}: {currentPlayer.Gold:N0}, {resource}, {Loc.Get("ui.level")} {currentPlayer.Level}{xpInfo}{livesInfo}");
@@ -2503,30 +2493,21 @@ public abstract class BaseLocation
             // v1.0.5: also shown in single-player under a "Revives" label, except on
             // Nightmare where no resurrection is offered; see the screen-reader branch
             // above for why the label differs.
-            bool permadeathLives = UsurperRemake.BBS.DoorMode.IsOnlineMode && GameConfig.OnlinePermadeathEnabled;
-            if (permadeathLives || !DifficultySystem.IsPermadeath())
+            if (StatusLineLives(currentPlayer) is { } lives)
             {
-                int livesLeft = Math.Max(0, currentPlayer.Resurrections);
-                int livesMax = Math.Max(1, currentPlayer.MaxResurrections);
+                int livesLeft = lives.Left;
+                int livesMax = lives.Max;
                 segments.Add(new List<ChromeRun>
                 {
-                    new("gray", $" | {Loc.Get(permadeathLives ? "status.lives" : "status.revives")}: "),
+                    new("gray", $" | {Loc.Get(lives.Permadeath ? "status.lives" : "status.revives")}: "),
                     new(livesLeft == 0 ? "bright_red" : livesLeft == 1 ? "yellow" : "bright_green", $"{livesLeft}"),
                     new("gray", $"/{livesMax}"),
                 });
             }
 
             // XP progress to next level; it is drawn after the segment before it and never starts a row
-            if (currentPlayer.Level < GameConfig.MaxLevel)
+            if (StatusLineXpPercent(currentPlayer) is int xpPercent)
             {
-                long currentXP = currentPlayer.Experience;
-                long nextLevelXP = GameConfig.GetExperienceForLevel(currentPlayer.Level + 1);
-                long prevLevelXP = GameConfig.GetExperienceForLevel(currentPlayer.Level);
-                long xpIntoLevel = currentXP - prevLevelXP;
-                long xpNeeded = nextLevelXP - prevLevelXP;
-                int xpPercent = xpNeeded > 0 ? (int)((xpIntoLevel * 100) / xpNeeded) : 0;
-                xpPercent = Math.Clamp(xpPercent, 0, 100);
-
                 segments[^1].AddRange(new ChromeRun[]
                 {
                     new("gray", " ("), new(xpPercent >= 90 ? "bright_green" : "white", $"{xpPercent}%"), new("gray", ")"),
@@ -2539,8 +2520,57 @@ public abstract class BaseLocation
             terminal.WriteLine("");
         } // end else (non-SR status line)
 
+        EmitWebFooter();   // 2.0 phase 3a: web client sessions only
+
         // Quick command bar
         ShowQuickCommandBar();
+    }
+
+    /// <summary>
+    /// 2.0 phase 3a: the XP percent the status line prints after its last segment, or null where it prints none (at
+    /// the level cap). One rule for both forms of the line and for Client.Footer.
+    /// </summary>
+    internal static int? StatusLineXpPercent(Character p)
+    {
+        if (p.Level >= GameConfig.MaxLevel) return null;
+        long currentXP = p.Experience;
+        long nextLevelXP = GameConfig.GetExperienceForLevel(p.Level + 1);
+        long prevLevelXP = GameConfig.GetExperienceForLevel(p.Level);
+        long xpIntoLevel = currentXP - prevLevelXP;
+        long xpNeeded = nextLevelXP - prevLevelXP;
+        int xpPercent = xpNeeded > 0 ? (int)((xpIntoLevel * 100) / xpNeeded) : 0;
+        return Math.Clamp(xpPercent, 0, 100);
+    }
+
+    /// <summary>
+    /// 2.0 phase 3a: the lives counter the status line prints, or null where it prints none (permadeath difficulty
+    /// with online permadeath off). Permadeath picks the "Lives" label over "Revives". One rule for both forms of the
+    /// line and for Client.Footer.
+    /// </summary>
+    internal static (int Left, int Max, bool Permadeath)? StatusLineLives(Character p)
+    {
+        bool permadeathLives = UsurperRemake.BBS.DoorMode.IsOnlineMode && GameConfig.OnlinePermadeathEnabled;
+        if (!permadeathLives && DifficultySystem.IsPermadeath()) return null;
+        return (Math.Max(0, p.Resurrections), Math.Max(1, p.MaxResurrections), permadeathLives);
+    }
+
+    /// <summary>
+    /// 2.0 phase 3a: Client.Footer for the status line just drawn: potions as the potion line prints them (Healing out
+    /// of MaxPotions), and the lives counter and XP percent only where the line printed them. Sent only to a web client
+    /// session, only for the character that session plays, and only when a value changed.
+    /// </summary>
+    private void EmitWebFooter() => EmitWebFooterFor(currentPlayer);
+
+    /// <summary>
+    /// 2.0 phase 3a: Client.Footer for <paramref name="p"/>, with the values the status line would print. Sent by the
+    /// status line draw and (1.3.9) before each prompt (GmcpBridge.EmitWebRefreshIfChanged).
+    /// </summary>
+    internal static void EmitWebFooterFor(Character? p)
+    {
+        if (p == null || !UsurperRemake.Server.GmcpBridge.IsWebClientActive || !UsurperRemake.Server.GmcpBridge.IsSessionsOwnCharacter(p)) return;
+        var lives = StatusLineLives(p);
+        UsurperRemake.Server.GmcpBridge.EmitWebFooterIfChanged(p.Healing, p.MaxPotions,
+            lives?.Left, lives?.Max, lives == null ? null : lives.Value.Permadeath ? "lives" : "revives", StatusLineXpPercent(p));
     }
 
     /// <summary>
@@ -2963,7 +2993,7 @@ public abstract class BaseLocation
             await NavigateToLocation(GameLocation.Master); // throws LocationExitException, like a menu exit
             return;
         }
-        terminal.WriteLine($"  {Loc.Get("base.train_how")}", "yellow");
+        terminal.WriteLine($"  {Loc.Get(MainStreetLocation.StreetTextKey("base.train_how", currentPlayer))}", "yellow");
         await Pacing.Wait(1500);
     }
 
@@ -3713,7 +3743,7 @@ public abstract class BaseLocation
 
         // NEXT STEP (always shown)
         var next = JournalSystem.GetNextStep(player);
-        string nextText = Loc.Get(next.LocKey, next.Args);
+        string nextText = next.Text(player);
         terminal.SetColor("bright_yellow");
         if (sr)
             terminal.WriteLine($"{Loc.Get("journal.section_next")}: {nextText}");
@@ -4446,6 +4476,13 @@ public abstract class BaseLocation
     /// </summary>
     internal static bool MenuKeysSettingShown => !UsurperRemake.BBS.DoorMode.ShouldUseAnsiOutput && !UsurperRemake.BBS.DoorMode.IsMudServerMode;
 
+    /// <summary>
+    /// 1.3.9 (play test C1, his pick 4): Settings E on a web client session is the web preference
+    /// (Character.WebMenuKeysNeedEnter), not the console one. A screen reader session never gets one-key menus, so
+    /// it is not offered there; telnet, SSH and door sessions are not web client sessions and see no change.
+    /// </summary>
+    internal static bool WebMenuKeysSettingShown => UsurperRemake.Server.GmcpBridge.IsWebClientActive && !GameConfig.ScreenReaderMode;
+
     protected virtual async Task ShowPreferencesMenu()
     {
         bool exitPrefs = false;
@@ -4487,7 +4524,7 @@ public abstract class BaseLocation
                     terminal.WriteLine($"  {Loc.Get("prefs.auto_look")}: {(currentPlayer.AutoLook ? Loc.Get("prefs.enabled") : Loc.Get("prefs.disabled"))}");
                 terminal.WriteLine($"  {Loc.Get("prefs.auto_equip")}: {(currentPlayer.AutoEquipDisabled ? Loc.Get("prefs.disabled") : Loc.Get("prefs.enabled"))}");
                 terminal.WriteLine($"  {Loc.Get("prefs.auto_combat_heal")}: {currentPlayer.AutoCombatHealPercent}%"); // v1.1.13: heal threshold
-                terminal.WriteLine($"  {Loc.Get("prefs.main_street_layout")}: {MainStreetLayoutName(currentPlayer.ClassicMainStreet)}"); // v1.1.14
+                terminal.WriteLine($"  {Loc.Get("prefs.main_street_layout")}: {MainStreetLayoutName(!currentPlayer.DistrictsMainStreet)}"); // v1.1.14
                 if (MenuKeysSettingShown)
                     terminal.WriteLine($"  {Loc.Get("prefs.menu_keys_need_enter")}: {(currentPlayer.MenuKeysNeedEnter ? Loc.Get("prefs.enabled") : Loc.Get("prefs.disabled"))}"); // v1.1.15
                 terminal.WriteLine("");
@@ -4511,7 +4548,7 @@ public abstract class BaseLocation
                     terminal.WriteLine($"  L. {Loc.Get("prefs.toggle", Loc.Get("prefs.auto_look"))}");
                 terminal.WriteLine($"  M. {Loc.Get("prefs.toggle", Loc.Get("prefs.dungeon_automap"))}");
                 terminal.WriteLine($"  D. {Loc.Get("base.prefs_date_format")} ({srDateFormat})");
-                terminal.WriteLine($"  S. {Loc.Get("prefs.main_street_layout")} ({MainStreetLayoutName(currentPlayer.ClassicMainStreet)})"); // v1.1.14
+                terminal.WriteLine($"  S. {Loc.Get("prefs.main_street_layout")} ({MainStreetLayoutName(!currentPlayer.DistrictsMainStreet)})"); // v1.1.14
                 if (MenuKeysSettingShown)
                     terminal.WriteLine($"  E. {Loc.Get("prefs.toggle", Loc.Get("prefs.menu_keys_need_enter"))}"); // v1.1.15
                 if (IsRunningInWezTerm())
@@ -4595,8 +4632,10 @@ public abstract class BaseLocation
                 if (!IsBBSSession && !GameConfig.ScreenReaderMode)
                     WriteMenuOption("M", $"{Loc.Get("prefs.dungeon_automap")}: {onOff(currentPlayer.DungeonAutoMap)}");
                 WriteMenuOption("D", $"{Loc.Get("base.prefs_date_format")}: {dateFormatName}");
-                WriteMenuOption("S", $"{Loc.Get("prefs.main_street_layout")}: {MainStreetLayoutName(currentPlayer.ClassicMainStreet)}"); // v1.1.14
-                if (MenuKeysSettingShown)
+                WriteMenuOption("S", $"{Loc.Get("prefs.main_street_layout")}: {MainStreetLayoutName(!currentPlayer.DistrictsMainStreet)}"); // v1.1.14
+                if (WebMenuKeysSettingShown)
+                    WriteMenuOption("E", $"{Loc.Get("prefs.web_menu_keys_need_enter")}: {onOff(currentPlayer.WebMenuKeysNeedEnter)}"); // 1.3.9
+                else if (MenuKeysSettingShown)
                     WriteMenuOption("E", $"{Loc.Get("prefs.menu_keys_need_enter")}: {onOff(currentPlayer.MenuKeysNeedEnter)}"); // v1.1.15
                 if (IsRunningInWezTerm())
                     WriteMenuOption("7", $"{Loc.Get("prefs.terminal_font")}: {ReadCurrentFont()}");
@@ -4771,14 +4810,22 @@ public abstract class BaseLocation
                     break;
 
                 case "S":
-                    // v1.1.14: Main Street layout, the districts (default) or the classic pre-1.1.13 menu
-                    currentPlayer.ClassicMainStreet = !currentPlayer.ClassicMainStreet;
-                    terminal.WriteLine(Loc.Get("base.pref_main_street_layout_set", MainStreetLayoutName(currentPlayer.ClassicMainStreet)), "green");
+                    // 2.0: Main Street layout, the classic menu (default) or the districts
+                    currentPlayer.DistrictsMainStreet = !currentPlayer.DistrictsMainStreet;
+                    terminal.WriteLine(Loc.Get("base.pref_main_street_layout_set", MainStreetLayoutName(!currentPlayer.DistrictsMainStreet)), "green");
                     await GameEngine.Instance.SaveCurrentGame();
                     await Pacing.Wait(800);
                     break;
 
-                case "E" when MenuKeysSettingShown:
+                case "E" when WebMenuKeysSettingShown:
+                    // 1.3.9: the web client's menus act on one key (default) or wait for Enter; the next Client.Menu says which
+                    currentPlayer.WebMenuKeysNeedEnter = !currentPlayer.WebMenuKeysNeedEnter;
+                    terminal.WriteLine(Loc.Get("base.pref_web_menu_keys_need_enter_set", Loc.Get(currentPlayer.WebMenuKeysNeedEnter ? "prefs.on" : "prefs.off")), "green");
+                    await GameEngine.Instance.SaveCurrentGame();
+                    await Pacing.Wait(800);
+                    break;
+
+                case "E" when MenuKeysSettingShown && !WebMenuKeysSettingShown:
                     // v1.1.15: single-player console menus wait for Enter (default) or act on one key
                     currentPlayer.MenuKeysNeedEnter = !currentPlayer.MenuKeysNeedEnter;
                     GameConfig.MenuKeysNeedEnter = currentPlayer.MenuKeysNeedEnter;
@@ -5382,6 +5429,32 @@ public abstract class BaseLocation
     /// Write a centered box header (╔═══╗ / ║ TITLE ║ / ╚═══╝).
     /// In screen reader mode, outputs plain text title only.
     /// </summary>
+    /// <summary>
+    /// 1.3.11 (K3): menu rows as " [K] Label" cells laid out by HealerLocation.MenuGridRows, so a label never runs into
+    /// the next key and no row passes 79 columns in any language. Labels come through Loc with their own leading space.
+    /// </summary>
+    internal static List<List<(string Key, string Label)>> MenuCells(params (string Key, string Label)[][] rows)
+        => rows.Select(r => r.Select(c => (c.Key, c.Label.Trim())).ToList()).ToList();
+
+    protected void WriteMenuCells(List<List<(string Key, string Label)>> rows, Func<string, string> keyColor = null)
+    {
+        foreach (var row in HealerLocation.MenuGridRows(rows, 79))
+        {
+            foreach (var (key, label, pad) in row)
+            {
+                terminal.SetColor("darkgray");
+                terminal.Write(" [");
+                terminal.SetColor(keyColor?.Invoke(key) ?? "bright_yellow");
+                terminal.Write(key);
+                terminal.SetColor("darkgray");
+                terminal.Write("]");
+                terminal.SetColor("white");
+                terminal.Write(" " + label + new string(' ', pad));
+            }
+            terminal.WriteLine("");
+        }
+    }
+
     protected void WriteBoxHeader(string title, string color = "bright_cyan", int width = 78)
     {
         if (IsScreenReader)
@@ -5732,12 +5805,15 @@ public abstract class BaseLocation
                 terminal.ClearScreen();
                 WriteBoxHeader(Loc.Get("base.talking_to", headerName), "bright_cyan");
                 terminal.WriteLine("");
+                // 1.3.11 (K17): a dying wish message still reaches them, on this screen, after the clear; the refusal stands
+                bool messageDelivered = NPCPetitionSystem.DeliverDyingMessages(currentPlayer, npc, terminal);
                 terminal.SetColor("bright_red");
                 terminal.WriteLine($"  {Loc.Get("family.grudge_refuse_talk", npc.Name2)}");
                 terminal.WriteLine("");
                 terminal.SetColor("gray");
                 terminal.WriteLine($"  {Loc.Get("family.grudge_refuse_talk_sub")}");
-                await Pacing.Wait(1500);
+                if (messageDelivered) await terminal.PressAnyKey();   // the savings and the refusal both stay until Enter
+                else await Pacing.Wait(1500);
                 return;
             }
 
@@ -5808,6 +5884,7 @@ public abstract class BaseLocation
                     // Update talk-to-NPC quest objectives
                     QuestSystem.OnNPCTalkedTo(currentPlayer, npc.Name);
                     QuestSystem.OnNPCTalkedTo(currentPlayer, npc.Name2);
+                    NPCPetitionSystem.DeliverDyingMessages(currentPlayer, npc, terminal);   // 1.3.10: a dying wish message
 
                     string greeting = npc.GetGreeting(currentPlayer);
                     terminal.SetColor("yellow");
@@ -6952,6 +7029,7 @@ public abstract class BaseLocation
         }
 
         terminal.ClearScreen();
+        EmitWebSheet();   // 2.0 phase 3a: web client sessions only
 
         // Header
         WriteBoxHeader(Loc.Get("base.character_status"), "bright_cyan");
@@ -7246,7 +7324,7 @@ public abstract class BaseLocation
             || currentPlayer.ArenaChampionTier >= (int)UsurperRemake.Data.GauntletChampionData.ArenaTier.GrandChampion
             || currentPlayer.HasActiveShrineAttunement
             || currentPlayer.WellRestedCombats > 0 || currentPlayer.HasGodSlayerBuff
-            || currentPlayer.HasDarkPactBuff || currentPlayer.HasSettlementBuff
+            || currentPlayer.HasDarkPactBuff || currentPlayer.HasSettlementBuff || currentPlayer.SmugglersCachePurchases > 0   // 1.3.10 (P6)
             || currentPlayer.HasActiveSongBuff || currentPlayer.HasActiveHerbBuff
             || currentPlayer.LoversBlissCombats > 0 || currentPlayer.DivineBlessingCombats > 0
             || currentPlayer.Class == CharacterClass.Alchemist
@@ -7408,7 +7486,12 @@ public abstract class BaseLocation
                 terminal.SetColor("dark_red");
                 WriteBuff(Loc.Get("base.buff_dark_pact", (int)(currentPlayer.DarkPactDamageBonus * 100), currentPlayer.DarkPactCombats));
             }
-            if (currentPlayer.HasSettlementBuff)
+            if (currentPlayer.HasSettlementBuff && currentPlayer.SettlementBuffType == (int)UsurperRemake.Systems.SettlementBuffType.Militia)
+            {
+                terminal.SetColor("bright_green");   // 1.3.10 (P6): the Barracks militia is an ally, not a percent
+                WriteBuff(Loc.Get("base.buff_settlement_militia", currentPlayer.SettlementBuffCombats));
+            }
+            else if (currentPlayer.HasSettlementBuff)
             {
                 string buffName = ((UsurperRemake.Systems.SettlementBuffType)currentPlayer.SettlementBuffType) switch
                 {
@@ -7422,6 +7505,11 @@ public abstract class BaseLocation
                 };
                 terminal.SetColor("bright_green");
                 WriteBuff(Loc.Get("base.buff_settlement", buffName, (int)(currentPlayer.SettlementBuffValue * 100), currentPlayer.SettlementBuffCombats));
+            }
+            if (currentPlayer.SmugglersCachePurchases > 0)
+            {
+                terminal.SetColor("bright_green");   // 1.3.10 (P6): the Smugglers' Cache, purchases not fights
+                WriteBuff(Loc.Get("base.buff_smugglers_cache", $"{GameConfig.SmugglersCacheDiscount * 100:F0}", currentPlayer.SmugglersCachePurchases));
             }
             if (currentPlayer.WellRestedCombats > 0)
             {
@@ -7527,9 +7615,12 @@ public abstract class BaseLocation
                 terminal.WriteLine($"  {Loc.Get("ocean.journal_boons", string.Join(", ", awakeningBoons))}");
             }
             terminal.SetColor("gray");
-            terminal.WriteLine($"  {Loc.Get("base.stat_awakening_hint")}"); // v1.1.12
+            terminal.WriteLine($"  {Loc.Get(MainStreetLocation.AwakeningTextKey("base.stat_awakening_hint", currentPlayer))}"); // v1.1.12; 1.3.10: says when Progress opens
             terminal.SetColor("white");
-            HintSystem.Instance.TryShowHint(HintSystem.HINT_AWAKENING, terminal, currentPlayer?.HintsShown); // v1.1.12
+            // 1.3.10: a districts player below the full menu tier is told from which level Progress opens
+            string awakeningHint = MainStreetLocation.AwakeningTextKey("hint.awakening.msg", currentPlayer);
+            if (awakeningHint.EndsWith(".early")) HintSystem.Instance.TryShowHintWithMessage(HintSystem.HINT_AWAKENING, awakeningHint, terminal, currentPlayer.HintsShown);
+            else HintSystem.Instance.TryShowHint(HintSystem.HINT_AWAKENING, terminal, currentPlayer); // v1.1.12; 2.0: the player picks the layout text
             terminal.WriteLine("");
         }
 
@@ -8536,6 +8627,150 @@ public abstract class BaseLocation
         }
 
         terminal.WriteLine("");
+    }
+
+    /// <summary>2.0 phase 3a: the equipment slots in the order the status sheet prints them, with their label keys.</summary>
+    internal static readonly (EquipmentSlot Slot, string LabelKey)[] SheetSlots =
+    {
+        (EquipmentSlot.MainHand, "base.slot_main_hand"), (EquipmentSlot.OffHand, "base.slot_off_hand"),
+        (EquipmentSlot.Head, "base.slot_head"), (EquipmentSlot.Body, "base.slot_body"), (EquipmentSlot.Arms, "base.slot_arms"),
+        (EquipmentSlot.Hands, "base.slot_hands"), (EquipmentSlot.Legs, "base.slot_legs"), (EquipmentSlot.Feet, "base.slot_feet"),
+        (EquipmentSlot.Waist, "base.slot_waist"), (EquipmentSlot.Face, "base.slot_face"), (EquipmentSlot.Cloak, "base.slot_cloak"),
+        (EquipmentSlot.Neck, "base.slot_neck"), (EquipmentSlot.LFinger, "base.slot_left_ring"), (EquipmentSlot.RFinger, "base.slot_right_ring"),
+    };
+
+    /// <summary>2.0 phase 3a: a label as the sheet prints it, without the padding, the "|" separator and the colon around it.</summary>
+    internal static string SheetLabel(string printed) => printed.Trim().TrimStart('|').Trim().TrimEnd(':').Trim();
+
+    /// <summary>
+    /// 2.0 phase 3a: GMCP Client.Sheet for the web client, sent as ShowStatus draws: the sections of the Character Status
+    /// sheet the G2 layout shows (basic information, level and experience, combat statistics, the equipment with each
+    /// slot's item name and stats as printed, the equipment totals). Every label is the Loc string the text prints,
+    /// without its padding and colon, and every value is the text's own string. Rows the text prints only in some
+    /// cases (Mana, Royal Authority, fatigue and difficulty, the dual wield line, the bonuses) are in the frame only
+    /// then. Sent only to a web client session, and only for the character that session plays.
+    /// </summary>
+    private void EmitWebSheet()
+    {
+        if (!UsurperRemake.Server.GmcpBridge.IsWebClientActive || !UsurperRemake.Server.GmcpBridge.IsSessionsOwnCharacter(currentPlayer)) return;
+        var p = currentPlayer;
+        object Row(string labelKey, string value, string? extra = null) => new { label = SheetLabel(Loc.Get(labelKey)), value, extra };
+
+        var basic = new List<object>
+        {
+            Row("base.stat_name", p.DisplayName),
+            Row("base.stat_class", $"{p.ClassName}"),
+            Row("base.stat_race", $"{p.Race}"),
+            Row("base.stat_sex", p.Sex == CharacterSex.Male ? Loc.Get("base.male") : Loc.Get("base.female")),
+            Row("base.stat_age", $"{p.Age}"),
+            Row("base.stat_height", Loc.Get("base.height_cm", p.Height)),
+            Row("base.stat_weight", Loc.Get("base.weight_kg", p.Weight)),
+        };
+
+        long nextLevelXP = GameConfig.GetExperienceForLevel(p.Level + 1);
+        long xpNeeded = nextLevelXP - p.Experience;
+
+        var stats = new List<object>
+        {
+            Row("ui.stat_strength", $"{p.Strength}"), Row("ui.stat_defense", $"{p.Defence}"), Row("ui.stat_agility", $"{p.Agility}"),
+            Row("ui.stat_dexterity", $"{p.Dexterity}"), Row("ui.stat_stamina", $"{p.Stamina}"), Row("ui.stat_wisdom", $"{p.Wisdom}"),
+            Row("ui.stat_intelligence", $"{p.Intelligence}"), Row("ui.stat_charisma", $"{p.Charisma}"), Row("ui.stat_constitution", $"{p.Constitution}"),
+        };
+        var more = new List<object>();
+        if (!UsurperRemake.BBS.DoorMode.IsOnlineMode)
+        {
+            var (fatigueLabel, _) = p.GetFatigueTier();
+            if (string.IsNullOrEmpty(fatigueLabel)) fatigueLabel = Loc.Get("status.fatigue_normal");
+            more.Add(Row("status.fatigue", fatigueLabel, $"({p.Fatigue}/100)"));
+            more.Add(Row("status.difficulty", DifficultySystem.GetLocalizedName(p.Difficulty)));
+        }
+
+        string style = p.IsTwoHanding ? Loc.Get("base.style_two_handed")
+            : p.IsDualWielding ? Loc.Get("base.style_dual_wield")
+            : p.HasShieldEquipped ? Loc.Get("base.style_sword_board")
+            : Loc.Get("base.style_one_handed");
+        string? hands = p.IsTwoHanding || !p.IsDualWielding ? null
+            : Loc.Get("base.style_dual_wield_hands", p.SwingWeapPow(offHand: false), p.SwingWeapPow(offHand: true));
+
+        var slots = SheetSlots.Select(s =>
+        {
+            var item = p.GetEquipment(s.Slot);
+            string? stats = item == null ? null : GetEquipmentStatSummary(item);
+            string text = item != null ? ItemNames.Display(item)
+                : s.Slot == EquipmentSlot.OffHand && p.GetEquipment(EquipmentSlot.MainHand)?.Handedness == WeaponHandedness.TwoHanded
+                    ? Loc.Get("base.using_2h_weapon") : Loc.Get("ui.empty");
+            return new
+            {
+                slot = s.Slot.ToString(),
+                label = SheetLabel(Loc.Get(s.LabelKey)),
+                item = text,
+                stats = string.IsNullOrEmpty(stats) ? null : $"({stats})",
+                empty = item == null,
+            };
+        }).ToList();
+
+        // The totals as DisplayEquipmentTotals adds them up and prints them
+        int totalWeapPow = 0, totalArmPow = 0;
+        var sums = new long[11];
+        foreach (var slot in Enum.GetValues<EquipmentSlot>())
+        {
+            var item = p.GetEquipment(slot);
+            if (item == null) continue;
+            totalWeapPow += item.WeaponPower;
+            totalArmPow += item.ArmorClass + item.ShieldBonus;
+            sums[0] += item.StrengthBonus; sums[1] += item.DexterityBonus; sums[2] += item.AgilityBonus; sums[3] += item.ConstitutionBonus;
+            sums[4] += item.IntelligenceBonus; sums[5] += item.WisdomBonus; sums[6] += item.CharismaBonus; sums[7] += item.MaxHPBonus;
+            sums[8] += item.MaxManaBonus; sums[9] += item.DefenceBonus; sums[10] += item.StaminaBonus;
+        }
+        string[] bonusLabels =
+        {
+            Loc.Get("ui.stat_str"), Loc.Get("ui.stat_dex"), Loc.Get("ui.stat_agi"), Loc.Get("ui.stat_con"), Loc.Get("ui.stat_int"),
+            Loc.Get("ui.stat_wis"), Loc.Get("ui.stat_cha"), Loc.Get("base.bonus_maxhp"), Loc.Get("base.bonus_maxmp"),
+            Loc.Get("ui.stat_def"), Loc.Get("ui.stat_sta"),
+        };
+        var bonuses = sums.Select((v, i) => (v, i)).Where(b => b.v != 0)
+            .Select(b => new { label = bonusLabels[b.i], value = $"{(int)b.v:+#;-#;0}" }).ToList();
+
+        UsurperRemake.Server.GmcpBridge.EmitWebClient("Client.Sheet", new
+        {
+            title = Loc.Get("base.character_status"),
+            name = p.DisplayName,
+            classId = p.Class.ToString(),
+            basic = new { heading = Loc.Get("base.basic_information"), rows = basic, note = p.King ? Loc.Get("base.stat_royal_authority").Trim() : null },
+            level = new
+            {
+                heading = Loc.Get("base.level_experience"),
+                rows = new List<object>
+                {
+                    Row("base.stat_current_level", $"{p.Level}"),
+                    new { label = Loc.Get("ui.experience"), value = $"{p.Experience:N0}", extra = (string?)null },
+                    Row("base.stat_xp_next", $"{xpNeeded:N0}", Loc.Get("base.stat_xp_need_total", nextLevelXP).Trim()),
+                },
+                xp = p.Experience,
+                xpNext = nextLevelXP,
+            },
+            combat = new
+            {
+                heading = Loc.Get("base.combat_statistics"),
+                hp = new { label = Loc.Get("combat.bar_hp"), value = $"{p.HP}/{p.MaxHP}", now = p.HP, max = p.MaxHP },
+                mana = p.MaxMana > 0 ? new { label = Loc.Get("ui.mana_label"), value = $"{p.Mana}/{p.MaxMana}", now = p.Mana, max = p.MaxMana } : null,
+                stats,
+                more,
+            },
+            equipment = new
+            {
+                heading = Loc.Get("base.equipment"),
+                style = new { label = SheetLabel(Loc.Get("base.stat_combat_style")), value = style, extra = hands },
+                slots,
+            },
+            totals = new
+            {
+                heading = SheetLabel(Loc.Get("base.equipment_totals")),
+                rows = new List<object> { Row("base.weapon_power", $"{totalWeapPow}"), Row("base.armor_class", $"{totalArmPow}") },
+                bonusLabel = bonuses.Count > 0 ? SheetLabel(Loc.Get("base.bonuses")) : null,
+                bonuses,
+            },
+        });
     }
 
     /// <summary>

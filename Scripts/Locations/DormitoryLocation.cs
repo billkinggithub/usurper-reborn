@@ -60,132 +60,8 @@ public class DormitoryLocation : BaseLocation
         terminal.WriteLine(Loc.Get("dormitory.what_to_do"));
         terminal.WriteLine("");
 
-        if (DoorMode.IsOnlineMode)
-        {
-            // Row 1
-            terminal.SetColor("darkgray");
-            terminal.Write(" [");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("L");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.Write(Loc.Get("dormitory.list_sleepers"));
-
-            terminal.SetColor("darkgray");
-            terminal.Write("[");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("E");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.Write(Loc.Get("dormitory.examine_menu"));
-
-            terminal.SetColor("darkgray");
-            terminal.Write("[");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("G");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.WriteLine(Loc.Get("dormitory.go_sleep_online", GameConfig.DormitorySleepCost));
-
-            // Row 2
-            terminal.SetColor("darkgray");
-            terminal.Write(" [");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("K");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.Write(Loc.Get("dormitory.kill_sleeper"));
-
-            terminal.SetColor("darkgray");
-            terminal.Write("[");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("W");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.Write(Loc.Get("dormitory.wake_guests"));
-
-            terminal.SetColor("darkgray");
-            terminal.Write("[");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("S");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.WriteLine(Loc.Get("dormitory.status_menu"));
-
-            // Row 3
-            terminal.SetColor("darkgray");
-            terminal.Write(" [");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("R");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.WriteLine(Loc.Get("dormitory.return_main"));
-        }
-        else
-        {
-            // Row 1
-            terminal.SetColor("darkgray");
-            terminal.Write(" [");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("L");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.Write(Loc.Get("dormitory.list_sleepers"));
-
-            terminal.SetColor("darkgray");
-            terminal.Write("[");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("E");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.Write(Loc.Get("dormitory.examine_menu"));
-
-            terminal.SetColor("darkgray");
-            terminal.Write("[");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("G");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.WriteLine(Loc.Get("dormitory.go_sleep"));
-
-            // Row 2
-            terminal.SetColor("darkgray");
-            terminal.Write(" [");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("W");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.Write(Loc.Get("dormitory.wake_guests_sp"));
-
-            terminal.SetColor("darkgray");
-            terminal.Write("[");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("S");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.Write(Loc.Get("dormitory.status_menu_sp"));
-
-            terminal.SetColor("darkgray");
-            terminal.Write("[");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("R");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.WriteLine(Loc.Get("dormitory.return_short"));
-        }
+        // 1.3.11 (K3): cells laid out by MenuGridRows (no label touches the next key, no row passes 79 columns)
+        WriteMenuCells(MenuRows(DoorMode.IsOnlineMode));
         terminal.WriteLine("");
 
         if (DoorMode.IsOnlineMode)
@@ -197,6 +73,16 @@ public class DormitoryLocation : BaseLocation
 
         ShowStatusLine();
     }
+
+    /// <summary>1.3.11 (K3): the dormitory menu as cells for MenuGridRows, the online one or the single player one.</summary>
+    internal static List<List<(string Key, string Label)>> MenuRows(bool online) => online
+        ? MenuCells(
+            new[] { ("L", Loc.Get("dormitory.list_sleepers")), ("E", Loc.Get("dormitory.examine_menu")), ("G", Loc.Get("dormitory.go_sleep_online", GameConfig.DormitorySleepCost)) },
+            new[] { ("K", Loc.Get("dormitory.kill_sleeper")), ("W", Loc.Get("dormitory.wake_guests")), ("S", Loc.Get("dormitory.status_menu")) },
+            new[] { ("R", Loc.Get("dormitory.return_main")) })
+        : MenuCells(
+            new[] { ("L", Loc.Get("dormitory.list_sleepers")), ("E", Loc.Get("dormitory.examine_menu")), ("G", Loc.Get("dormitory.go_sleep")) },
+            new[] { ("W", Loc.Get("dormitory.wake_guests_sp")), ("S", Loc.Get("dormitory.status_menu_sp")), ("R", Loc.Get("dormitory.return_short")) });
 
     protected override async Task<bool> ProcessChoice(string choice)
     {
@@ -215,8 +101,10 @@ public class DormitoryLocation : BaseLocation
                 await ExamineSleeper();
                 return false;
             case 'G':
+                // 1.3.10: every sleep that happens leaves by an exception (Main Street, or logout online); a no or
+                // too little gold stays in the Dormitory instead of ending the location loop and the session
                 await GoToSleep();
-                return true;
+                return false;
             case 'K':
                 if (DoorMode.IsOnlineMode)
                     await AttackSleeper();
@@ -367,7 +255,16 @@ public class DormitoryLocation : BaseLocation
             return;
         }
 
-        // Single-player: classic behavior
+        // Single-player. 1.3.10: like the Inn and Home, a night's sleep only once it is late enough, and the night
+        // passes (world ticks to morning) instead of a new day at any hour
+        if (!DailySystemManager.CanRestForNight(currentPlayer))
+        {
+            terminal.SetColor("gray");
+            terminal.WriteLine(Loc.Get("inn.sleep_not_late"));
+            await terminal.WaitForKey();
+            return;
+        }
+
         var confirm = await terminal.GetInput(Loc.Get("dormitory.stay_night"));
         if (!confirm.Equals("Y", StringComparison.OrdinalIgnoreCase))
             return;
@@ -381,10 +278,7 @@ public class DormitoryLocation : BaseLocation
         currentPlayer.HP = currentPlayer.MaxHP;
         currentPlayer.Mana = currentPlayer.MaxMana;
 
-        if (!UsurperRemake.BBS.DoorMode.IsOnlineMode)
-        {
-            await DailySystemManager.Instance.ForceDailyReset();
-        }
+        await DailySystemManager.Instance.RestAndAdvanceToMorning(currentPlayer);
 
         terminal.WriteLine(Loc.Get("dormitory.awaken_refreshed"), "green");
         await terminal.PressAnyKey();

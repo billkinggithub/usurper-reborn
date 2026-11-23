@@ -1,8 +1,14 @@
 ---
 title: The Dark Alley
 path: /wiki/en/world/dark-alley/
-checked: 1.3.8
-sources: Scripts/Locations/DarkAlleyLocation.cs, Scripts/Locations/InnLocation.cs, Scripts/Systems/FactionSystem.cs, Scripts/Systems/GodDeedSystem.cs, Scripts/Systems/MentalSystem.cs, Scripts/Systems/AlignmentSystem.cs, Scripts/Core/GameConfig.cs, Scripts/Core/Character.cs, Scripts/Systems/DailySystemManager.cs, Scripts/Systems/MonsterGenerator.cs
+checked: 1.3.14
+sources: Scripts/Locations/DarkAlleyLocation.cs, Scripts/Locations/InnLocation.cs, Scripts/Systems/FactionSystem.cs, Scripts/Systems/GodDeedSystem.cs, Scripts/Systems/MentalSystem.cs, Scripts/Systems/AlignmentSystem.cs, Scripts/Core/GameConfig.cs, Scripts/Core/Character.cs, Scripts/Systems/DailySystemManager.cs, Scripts/Systems/MonsterGenerator.cs, Scripts/Locations/MainStreetClassic.cs, Scripts/Locations/MainStreetDistricts.cs
+history: 1.3.14 | none
+history: 1.3.13 | none
+history: 1.3.12 | none
+history: 1.3.11 | none
+history: 1.3.10 | On cycle 2 or later, the New Game+ shop discount takes 10 percent off Dark Alley prices.
+history: 1.3.9 | Main Street opens in the classic layout by default, where Y opens the Dark Alley; with the districts layout, chosen in Settings, it is A.
 history: 1.3.8 | none
 history: 1.3.7 | none
 history: 1.3.6 | none
@@ -14,7 +20,7 @@ history: 1.3.0 | The Pit's reckless side bet is labelled 2.5x, the amount it pay
 history: 1.2.5 | The Pit monster, the street mugger and the Loan Shark enforcer are stored in English and shown in each player's language.
 history: 1.2.4 | In English, the Shadows standing line in the Dark Alley says "use" instead of "access".
 ---
-The Dark Alley combines underground commerce, risky training, drugs, pickpocketing, gambling, the Pit, loans and Shadows faction services. Open it from Main Street with A once the full town menu unlocks. Access and available services depend on your character and faction standing. Martial law can close the alley, and a stranger may approach you on the way in.
+The Dark Alley combines underground commerce, risky training, drugs, pickpocketing, gambling, the Pit, loans and Shadows faction services. From Main Street press Y for the Dark Alley once the full town menu unlocks. With the district layout, press A on Main Street. Access and available services depend on your character and faction standing. Martial law can close the alley, and a stranger may approach you on the way in.
 
 ## Shops
 
@@ -29,7 +35,7 @@ The Dark Alley combines underground commerce, risky training, drugs, pickpocketi
 
 Base prices, before the alignment modifier: Steroid Shop 1,000 gold; Orbs Health Club level x 50 + 100 gold for a full heal; Groggo's information 100, fortune 250 and shadow blessing 500; Bob's beer 10; Alchemist's Heaven 300.
 
-Dark Alley prices reverse the honest shops: Holy x1.5, Good x1.25, Neutral x1.0, Balanced x0.95, Dark x0.9, Evil x0.75. A Dark or Evil character with 250 Darkness or more pays a further x0.95, x0.90 at 450, x0.85 at 650 and x0.80 at 800. World events change these prices too, and Shadows members pay 10 percent less. The shop shows the adjustment. The alignment bands are in [shops](/wiki/en/items/shops/).
+Dark Alley prices reverse the honest shops: Holy x1.5, Good x1.25, Neutral x1.0, Balanced x0.95, Dark x0.9, Evil x0.75. A Dark or Evil character with 250 Darkness or more pays a further x0.95, x0.90 at 450, x0.85 at 650 and x0.80 at 800. World events change these prices too, Shadows members pay 10 percent less, and on cycle 2 or later the New Game+ shop discount from a Savior ending takes 10 percent off. The shop shows the adjustment. The alignment bands are in [shops](/wiki/en/items/shops/).
 
 ### Steroid Shop
 
@@ -87,7 +93,7 @@ Pickpocketing, the Gambling Den, the Pit, the Loan Shark and the safe house clos
 
 The Black Market sells forged papers that remove Darkness for 1,000 + level x 100 gold, poison vials for 300 + level x 20 (you can hold {{balance:MaxPoisonVials}}) and smoke bombs for 500 + level x 30. Each Shadows rank takes {{percent:BlackMarketRankDiscount}} percent off.
 
-Gear appears there with Dread: 2 items at 250 Darkness, 3 at 450, 4 at 650 and 5 at 800, with a better lowest rarity as Dread rises. Gear costs its value x {{balance:BlackMarketGearMarkup}} x a rarity factor (Common and Uncommon 1.0, Rare 1.35, Epic 1.8, Legendary 2.5, Artifact 3.0) x the Dark Alley alignment modifier, less the rank discount. A dark character who is not in the Shadows but is let in on Dread pays 10 percent more.
+Gear appears there with Dread: 2 items at 250 Darkness, 3 at 450, 4 at 650 and 5 at 800, with a better lowest rarity as Dread rises. Gear costs its value x {{balance:BlackMarketGearMarkup}} x a rarity factor (Common and Uncommon 1.0, Rare 1.35, Epic 1.8, Legendary 2.5, Artifact 3.0) x the Dark Alley alignment modifier, less the rank discount. A dark character who is not in the Shadows but is let in on Dread pays 10 percent more. On cycle 2 or later the New Game+ shop discount from a Savior ending takes 10 percent off.
 
 ## Costs beyond gold
 

@@ -193,207 +193,37 @@ public class CastleLocation : BaseLocation
             WriteSRMenuOption("U", Loc.Get("castle.court"));
             WriteSRMenuOption("E", Loc.Get("castle.estate"));
             WriteSRMenuOption("B", Loc.Get("castle.bodyguards"));
+            // 1.3.10: the keys the visual menu shows and the handler takes
+            WriteSRMenuOption("V", Loc.Get("castle.bbs_courtyard_statues"));
+            WriteSRMenuOption("Y", Loc.Get("castle.bbs_sponsor_heir"));
+            WriteSRMenuOption("Z", Loc.Get("castle.bbs_bloodlines"));
             terminal.WriteLine("");
             WriteSRMenuOption("R", Loc.Get("castle.return"));
             terminal.WriteLine("");
         }
         else
         {
-            // Row 1
-            terminal.SetColor("darkgray");
-            terminal.Write(" [");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("P");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.Write(Loc.Get("castle.menu_prison_cells"));
-
-            terminal.SetColor("darkgray");
-            terminal.Write("[");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("O");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.Write(Loc.Get("castle.menu_orders"));
-
-            terminal.SetColor("darkgray");
-            terminal.Write("[");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("1");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.WriteLine(Loc.Get("castle.menu_royal_mail"));
-
-            // Row 2
-            terminal.SetColor("darkgray");
-            terminal.Write(" [");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("G");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.Write(Loc.Get("castle.menu_go_sleep"));
-
-            terminal.SetColor("darkgray");
-            terminal.Write("[");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("C");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.Write(Loc.Get("castle.menu_check_security"));
-
-            terminal.SetColor("darkgray");
-            terminal.Write("[");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("H");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.WriteLine(Loc.Get("castle.menu_history"));
-
-            // Row 3
-            terminal.SetColor("darkgray");
-            terminal.Write(" [");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("A");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.Write(Loc.Get("castle.menu_abdicate"));
-
-            terminal.SetColor("darkgray");
-            terminal.Write("[");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("M");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.Write(Loc.Get("castle.menu_magic"));
-
-            terminal.SetColor("darkgray");
-            terminal.Write("[");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("F");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.WriteLine(Loc.Get("castle.menu_fiscal"));
-
-            // Row 4
-            terminal.SetColor("darkgray");
-            terminal.Write(" [");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("S");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.Write(Loc.Get("castle.menu_status"));
-
-            terminal.SetColor("darkgray");
-            terminal.Write("[");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("Q");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.Write(Loc.Get("castle.menu_quests"));
-
-            terminal.SetColor("darkgray");
-            terminal.Write("[");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("T");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.WriteLine(Loc.Get("castle.menu_orphanage"));
-
-            // Row 5 - Political systems
-            terminal.SetColor("darkgray");
-            terminal.Write(" [");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("W");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.Write(Loc.Get("castle.menu_wedding"));
-
-            terminal.SetColor("darkgray");
-            terminal.Write("[");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("U");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.Write(Loc.Get("castle.menu_court"));
-
-            terminal.SetColor("darkgray");
-            terminal.Write("[");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("E");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.WriteLine(Loc.Get("castle.menu_estate"));
-
-            // Row 6 - Royal Bodyguards
-            terminal.SetColor("darkgray");
-            terminal.Write(" [");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("B");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.WriteLine(Loc.Get("castle.menu_bodyguards"));
-
-            terminal.SetColor("darkgray");
-            terminal.Write(" [");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("V");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.WriteLine(Loc.Get("castle.menu_statues"));
-
-            // v0.63.0 slice 5 D3: Sponsor adult child to court (king-only)
-            terminal.SetColor("darkgray");
-            terminal.Write(" [");
-            terminal.SetColor("bright_magenta");
-            terminal.Write("Y");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.WriteLine(Loc.Get("castle.menu_d3_sponsor"));
-
-            // v0.63.0 Bloodlines of the Realm (read-only family-tree records).
-            terminal.SetColor("darkgray");
-            terminal.Write(" [");
-            terminal.SetColor("bright_magenta");
-            terminal.Write("Z");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.WriteLine(Loc.Get("castle.menu_e3_bloodlines"));
-
+            // 1.3.11 (K3): cells laid out by MenuGridRows (no label touches the next key, no row passes 79 columns)
+            WriteMenuCells(RoyalMenuRows(), k => k is "Y" or "Z" ? "bright_magenta" : "bright_yellow");
             terminal.WriteLine("");
-
-            // Navigation
-            terminal.SetColor("darkgray");
-            terminal.Write(" [");
-            terminal.SetColor("bright_yellow");
-            terminal.Write("R");
-            terminal.SetColor("darkgray");
-            terminal.Write("]");
-            terminal.SetColor("white");
-            terminal.WriteLine(Loc.Get("castle.menu_return_town"));
+            WriteMenuCells(MenuCells(new[] { ("R", Loc.Get("castle.menu_return_town")) }));
             terminal.WriteLine("");
         }
 
         ShowStatusLine();
     }
+
+    /// <summary>1.3.11 (K3): the throne room menu as cells for MenuGridRows.</summary>
+    internal static List<List<(string Key, string Label)>> RoyalMenuRows() => MenuCells(
+        new[] { ("P", Loc.Get("castle.menu_prison_cells")), ("O", Loc.Get("castle.menu_orders")), ("1", Loc.Get("castle.menu_royal_mail")) },
+        new[] { ("G", Loc.Get("castle.menu_go_sleep")), ("C", Loc.Get("castle.menu_check_security")), ("H", Loc.Get("castle.menu_history")) },
+        new[] { ("A", Loc.Get("castle.menu_abdicate")), ("M", Loc.Get("castle.menu_magic")), ("F", Loc.Get("castle.menu_fiscal")) },
+        new[] { ("S", Loc.Get("castle.menu_status")), ("Q", Loc.Get("castle.menu_quests")), ("T", Loc.Get("castle.menu_orphanage")) },
+        new[] { ("W", Loc.Get("castle.menu_wedding")), ("U", Loc.Get("castle.menu_court")), ("E", Loc.Get("castle.menu_estate")) },
+        new[] { ("B", Loc.Get("castle.menu_bodyguards")) },
+        new[] { ("V", Loc.Get("castle.menu_statues")) },
+        new[] { ("Y", Loc.Get("castle.menu_d3_sponsor")) },
+        new[] { ("Z", Loc.Get("castle.menu_e3_bloodlines")) });
 
     /// <summary>
     /// Show castle exterior menu for commoners
@@ -438,6 +268,9 @@ public class CastleLocation : BaseLocation
             if (FactionSystem.Instance?.HasCastleAccess() == true)
                 WriteSRMenuOption("L", Loc.Get("castle.armory"));
 
+            // 1.3.10: the keys the visual menu shows and the handler takes
+            WriteSRMenuOption("V", Loc.Get("castle.bbs_courtyard_statues"));
+            WriteSRMenuOption("Z", Loc.Get("castle.bbs_bloodlines"));
             WriteSRMenuOption("R", Loc.Get("castle.return"));
             terminal.WriteLine("");
         }
@@ -1736,6 +1569,18 @@ public class CastleLocation : BaseLocation
         // v1.1.15: yesno-convert-a, strict (Y/N)
         if (await terminal.AskYesNoAsync(""))
         {
+            // 1.3.10: an NPC already freed (rescued, or released by a path that left the record) is not executed;
+            // its stale record is cleared
+            var listed = NPCSpawnSystem.Instance?.GetNPCByName(name);
+            if (listed != null && listed.DaysInPrison <= 0)
+            {
+                await CourtChangeAsync(court => court.Prisoners.RemoveAll(p => p.CharacterName == name) > 0);
+                terminal.SetColor("red");
+                terminal.WriteLine(Loc.Get("castle.not_in_dungeon"));
+                await Pacing.Wait(1500);
+                return;
+            }
+
             // v1.1.13: one guarded court change; the execution follows only once it is written
             if (!await CourtChangeAsync(court => court.Prisoners.RemoveAll(p => p.CharacterName == name) > 0))
             {
@@ -1748,10 +1593,12 @@ public class CastleLocation : BaseLocation
             var npc = NPCSpawnSystem.Instance?.GetNPCByName(name);
             if (npc != null)
             {
+                WorldSnapshotCounters.CountNpcDeath(npc);   // O2: an execution for the hourly world snapshot
                 npc.IsDead = true;
                 // npc.IsPermaDead = true;  // Disabled — NPCs now respawn after death
                 npc.DaysInPrison = 0;
                 npc.HP = 0;
+                WorldSimulator.RecordFamilyDeath(npc, currentPlayer.Name2);   // 1.3.10: the executed NPC's kin remember
             }
 
             // Release player from prison (execution just frees them with a penalty)
@@ -3189,6 +3036,25 @@ public class CastleLocation : BaseLocation
         await Pacing.Wait(2500);
     }
 
+    /// <summary>1.3.10: the roll of a Detect Threats cast (0 to 1); a test sets it.</summary>
+    internal static Func<double> DetectThreatsRoll = () => Random.Shared.NextDouble();
+
+    /// <summary>
+    /// 1.3.10: Detect Threats uncovers the most advanced plot still secret, as the spymaster's discovery does
+    /// (WorldSimulator.AdvancePlot): the plot is marked discovered (its 7 day lapse starts) and its conspirators
+    /// leave the court. Returns the plot, or null when none is secret.
+    /// </summary>
+    internal static CourtIntrigueSaveData? UncoverPlot(RoyalCourtSaveData court)
+    {
+        var plot = court.ActivePlots.Where(p => !p.IsDiscovered).OrderByDescending(p => p.Progress).FirstOrDefault();
+        if (plot == null) return null;
+        plot.IsDiscovered = true;
+        plot.DaysDiscovered = 0;
+        var conspirators = plot.Conspirators ?? new List<string>();
+        court.CourtMembers.RemoveAll(m => conspirators.Contains(m.Name));
+        return plot;
+    }
+
     private async Task CastDetectThreats()
     {
         if (currentKing.MagicBudget < 500)
@@ -3199,8 +3065,20 @@ public class CastleLocation : BaseLocation
             return;
         }
 
+        // 1.3.10: one roll a cast (outside the change, which a conflict retries) uncovers an active plot
+        bool uncover = DetectThreatsRoll() < GameConfig.DetectThreatsPlotChance;
+        CourtIntrigueSaveData? uncovered = null;
+        bool secretPlots = false;
+
         // v1.1.13: the spell's cost leaves the stored magic budget in one guarded court change
-        if (!await CourtChangeAsync(court => { if (court.MagicBudget < 500) return false; court.MagicBudget -= 500; return true; }))
+        if (!await CourtChangeAsync(court =>
+            {
+                if (court.MagicBudget < 500) return false;
+                court.MagicBudget -= 500;
+                uncovered = uncover ? UncoverPlot(court) : null;
+                secretPlots = court.ActivePlots.Any(p => !p.IsDiscovered);
+                return true;
+            }))
         {
             await ShowCourtChangeFailed();
             return;
@@ -3210,6 +3088,31 @@ public class CastleLocation : BaseLocation
         terminal.WriteLine("");
         terminal.WriteLine(Loc.Get("castle.wizard_gazes"));
         await Pacing.Wait(1500);
+
+        if (uncovered != null)
+        {
+            terminal.SetColor("bright_red");
+            terminal.WriteLine(Loc.Get("castle.detect_plot_found", PlotTypeLabel(uncovered.PlotType)));
+            terminal.WriteLine(Loc.Get("castle.detect_plotters", string.Join(", ", uncovered.Conspirators)));
+            terminal.SetColor("yellow");
+            terminal.WriteLine(Loc.Get("castle.detect_plot_arrest"));
+            terminal.WriteLine("");
+            string plotKey = uncovered.PlotType switch
+            {
+                "Assassination" => "worldsim.court.plot_discovered.assassination",
+                "Coup" => "worldsim.court.plot_discovered.coup",
+                "Scandal" => "worldsim.court.plot_discovered.scandal",
+                "Sabotage" => "worldsim.court.plot_discovered.sabotage",
+                _ => "worldsim.court.plot_discovered"
+            };
+            NewsSystem.Instance?.Newsy(true, Loc.Get(plotKey, KingTitle(), currentKing.Name));
+        }
+        else if (secretPlots)
+        {
+            terminal.SetColor("gray");
+            terminal.WriteLine(Loc.Get("castle.detect_plot_hidden"));
+            terminal.WriteLine("");
+        }
 
         // Get potential threats (high darkness NPCs)
         var threats = NPCSpawnSystem.Instance.ActiveNPCs
@@ -4746,6 +4649,7 @@ public class CastleLocation : BaseLocation
             candidate.IsMarried = true;
             candidate.SpouseName = currentPlayer.Name2; // v1.1.1: identity key, see RelationshipSystem
             candidate.MarriedTimes++;
+            WorldSnapshotCounters.AddMarriage();   // O2: the royal wedding for the hourly world snapshot
 
             // Register with marriage registry and romance tracker
             NPCMarriageRegistry.Instance.RegisterMarriage(currentPlayer.ID, candidate.ID, currentPlayer.DisplayName, candidate.DisplayName);
@@ -5189,7 +5093,8 @@ public class CastleLocation : BaseLocation
             }
 
             terminal.SetColor("bright_green");
-            terminal.WriteLine(Loc.Get("castle.arrested", GameConfig.ArrestTrialCost.ToString("N0")));
+            // 1.3.11 (K6): only a real NPC goes to jail; a plot of court titles alone is thrown out of court
+            terminal.WriteLine(Loc.Get(npcConspirators.Count > 0 ? "castle.arrested" : "castle.arrested_dismissed", GameConfig.ArrestTrialCost.ToString("N0")));
             NewsSystem.Instance?.Newsy(true, Loc.Get("castle.news_plot_crushed", KingTitle(), currentKing.Name, PlotTypeLabel(plot.PlotType)));
         }
         terminal.WriteLine("");
@@ -6180,7 +6085,7 @@ public class CastleLocation : BaseLocation
 
         terminal.WriteLine("");
         terminal.SetColor("cyan");
-        terminal.WriteLine(Loc.Get("castle.visit_quest_hall"));
+        terminal.WriteLine(Loc.Get(MainStreetLocation.StreetTextKey("castle.visit_quest_hall", currentPlayer)));
         terminal.WriteLine("");
         terminal.SetColor("darkgray");
         await terminal.PressAnyKey();
@@ -7237,9 +7142,15 @@ public class CastleLocation : BaseLocation
                         terminal.WriteLine(Loc.Get("castle.quest_objective", Loc.Get($"castle.quest_type_{questType}")));   // the objective holds the English description
                         if (quest.Objectives[0].RequiredProgress > 1)
                         {
-                            terminal.WriteLine(Loc.Get("castle.quest_target", QuestTargetLabel(quest.Objectives[0].TargetName), quest.Objectives[0].RequiredProgress));
+                            // 1.3.10: a monster quest counts any monster (its objective names no target); the named
+                            // monster was often one the player could not reach
+                            terminal.WriteLine(quest.Objectives[0].ObjectiveType == QuestObjectiveType.KillMonsters
+                                ? Loc.Get("castle.quest_target_any", quest.Objectives[0].RequiredProgress)
+                                : Loc.Get("castle.quest_target", QuestTargetLabel(quest.Objectives[0].TargetName), quest.Objectives[0].RequiredProgress));
                         }
                     }
+
+                    QuestSystem.WritePlacedTargetLines(terminal, quest);   // 1.3.10: the artifact thief's floor
 
                     NewsSystem.Instance?.Newsy(true, Loc.Get("castle.news_royal_quest", currentPlayer.DisplayName, KingTitle(), currentKing.Name));
                 }
@@ -9688,7 +9599,7 @@ public class CastleLocation : BaseLocation
             terminal.SetColor("yellow");
             terminal.WriteLine(Loc.Get("castle.siege_team_retreats"));
             terminal.SetColor("gray");
-            terminal.WriteLine(Loc.Get("castle.siege_guards_defeated", guardsDefeated, Math.Max(1, totalGuards)));
+            terminal.WriteLine(Loc.Get("castle.siege_guards_beaten", guardsDefeated, Math.Max(1, totalGuards)));   // 1.3.10: the tally, not the success line
             currentPlayer.HP = Math.Max(1, currentPlayer.HP / 2);
             terminal.SetColor("red");
             terminal.WriteLine(Loc.Get("castle.siege_lost_half_hp"));

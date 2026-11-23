@@ -1,8 +1,11 @@
 ---
 title: Shopping, magic services and auctions
 path: /wiki/en/items/shops/
-checked: 1.3.7
+checked: 1.3.11
 sources: Scripts/Locations/WeaponShopLocation.cs, Scripts/Locations/ArmorShopLocation.cs, Scripts/Locations/MagicShopLocation.cs, Scripts/Locations/MainStreetDistricts.cs, Scripts/Systems/ShopItemGenerator.cs, Scripts/Systems/HagglingEngine.cs, Scripts/Systems/AlignmentSystem.cs, Scripts/Systems/FactionSystem.cs, Scripts/Systems/DifficultySystem.cs, Scripts/Systems/CityControlSystem.cs, Scripts/Core/King.cs, Scripts/Locations/BaseLocation.cs, Scripts/Systems/MarketplaceSystem.cs
+history: 1.3.11 | The Magic Shop's identify, curse removal and dungeon reset scroll pages open on a clear screen instead of under the shop menu.
+history: 1.3.10 | Armor auto-buy shows every piece and the total with tax and asks once, auto-buy and the shop list charge the price of a direct buy, the Smugglers' Cache takes 10 percent off your next 5 purchases, and the offline Auction House lets you take a listing back (W) and returns an unsold listing after 30 days.
+history: 1.3.9 | none
 history: 1.3.7 | The Magic Shop says when an item's name is too long to carry the enchant's tag; the enchant is applied all the same.
 history: 1.3.6 | none
 history: 1.3.5 | Enchant removal lists enchanted items in your backpack, a failed 4th or 5th enchant destroys one random enchant whole, and items sold at the auction keep their loot effects, such as fire, frost and life steal.
@@ -31,7 +34,7 @@ The Weapon and Armor shops build their stock from the same templates as dungeon 
 
 A shop item's list price is its level to the power 1.5, times {{balance:ShopPriceMultiplier}}, times a slot factor, and at least 10 gold. Slot factors: main hand and body 1.0, off hand 0.8, head 0.7, legs 0.65, neck and rings 0.6, arms, hands and feet 0.5, cloak 0.45, waist and face 0.4. A level 20 main hand weapon lists at 26,832 gold, a level 20 helm at 18,782.
 
-The price you pay at the Weapon and Armor shops is the list price times your alignment modifier and any world event modifier, then less a city controller's discount, a Crown member's discount and a god's shop discount, then times the difficulty modifier, and then the sales tax is added.
+The price you pay at the Weapon and Armor shops is the list price times your alignment modifier and any world event modifier, then less a city controller's discount, a Smugglers' Cache discount, a Crown member's discount and a god's shop discount, then times the difficulty modifier (with the New Game+ shop discount, 10 percent off on cycle 2 or later after a Savior ending, in the same step), and then the sales tax is added.
 
 ### Alignment prices
 
@@ -43,6 +46,7 @@ You are Holy at 800 Chivalry or more with Darkness under 100, and Evil at 800 Da
 
 - Crown faction members pay 5 percent less at rank 0, rising to 15 percent less at rank 8.
 - The member of the team that controls the city pays 10 percent less.
+- With the Outskirts [Smugglers' Cache](/wiki/en/world/settlement/) service, your next 5 purchases in the Weapon, Armor and Magic shops cost 10 percent less, taken after the city controller's discount. Each purchase uses one, a quantity of potions bought at once is one, and auto-buy prices only as many items with it as you have purchases left.
 - Difficulty: Easy x0.85, Normal x1.0, Hard x1.15, Nightmare x1.25.
 - A Troll pays 10 percent less for a weapon at the Weapon Shop, after every other modifier and before the tax, and the Weapon Shop does not haggle with a Troll.
 
@@ -83,6 +87,6 @@ Enchant costs, limits, failure chances and the materials each enchant needs are 
 
 ## Auctions
 
-Offline, the Auction House lists items at your own price beside listings from NPCs. A listing expires 30 real days after it is posted. An NPC prices its item at 100 to 150 percent of the item's value by its greed, then plus or minus 5 percent.
+Offline, the Auction House lists items at your own price beside listings from NPCs. W takes one of your listings back. A listing unsold 30 real days after it is posted comes back to you when you next visit the Auction House (it waits there while your pack is full); an NPC's goes back to its stock. An NPC prices its item at 100 to 150 percent of the item's value by its greed, then plus or minus 5 percent.
 
 Online, a listing runs 12, 24, 48 or 72 hours for a fee of 5, 4, 3 or 2 percent of your asking price, plus the king's tax percent, at least 1 gold. You can have 5 listings active at once. Check the actual lot before bidding or selling; a template in this wiki is not a promise that it is listed.

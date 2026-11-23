@@ -4,6 +4,7 @@ using UsurperRemake.Systems;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 /// <summary>
@@ -93,6 +94,9 @@ public partial class QuestSystem
                         foundQuest.OccupierSex = (byte)((int)player.Sex);
         foundQuest.OccupiedDays = 0;
         
+        // 1.3.10: a champion or Crown bounty's named target is placed on a floor in this player's range
+        PlaceTargets(foundQuest, player);
+
         // Track in player list
         player.ActiveQuests.Add(foundQuest);
 
@@ -126,6 +130,9 @@ public partial class QuestSystem
         if (!string.Equals(quest.Occupier, player.Name2, StringComparison.OrdinalIgnoreCase))
             return QuestCompletionResult.NotYourQuest;
         if (quest.Deleted) return QuestCompletionResult.QuestDeleted;
+        // 1.3.10: a Sellsword contract is paid by CompleteMercContract at the Sellsword Hall (its rate, rank and
+        // standing), never at Quest Hall rates
+        if (quest.IsMercContract) return QuestCompletionResult.QuestNotFound;
         
         // Check if player completed all quest requirements
         if (!ValidateQuestCompletion(player, quest))
@@ -211,6 +218,7 @@ public partial class QuestSystem
 
         return questDatabase.Where(q =>
             !q.Deleted &&
+            !q.IsMercContract &&   // 1.3.10: Sellsword contracts are taken and paid at the Sellsword Hall only
             string.IsNullOrEmpty(q.Occupier) &&
             !player.King &&
             q.Initiator != player.Name2 &&
@@ -264,6 +272,60 @@ public partial class QuestSystem
         // GD.Print($"[QuestSystem] Quest offered to {playerName}: {quest.Id}");
     }
     
+    /// <summary>
+    /// 1.3.10: true in the MUD, where the world reset and every session share one quest list. The world reset ages
+    /// each claimed quest once a day there, and a player's own daily reset does not. Elsewhere (single player, a door
+    /// session in its own process) the player's reset ages the quests as before.
+    /// </summary>
+    internal static bool WorldResetAgesQuests =>
+        UsurperRemake.BBS.DoorMode.IsOnlineMode && UsurperRemake.Server.MudServer.Instance != null;
+
+    // 1.3.11 (K4): the ids of the quests the world reset failed, with the time it failed them, so a server restart does
+    // not hand one back from the player's save before that player's next login. The shared quest list is in memory and
+    // the world_state quest record drops a quest once it is past its limit, so neither remembers. The sim keeps this
+    // list in world_state under EndedByWorldKey, loaded at start and written after each daily maintenance.
+    internal const string EndedByWorldKey = "quest_ended";
+    internal const int EndedByWorldKeepDays = 30;   // the same 30 days CleanupOldQuests keeps a deleted quest
+    private static readonly Dictionary<string, DateTime> endedByWorld = new();
+
+    internal static void RecordEndedByWorld(string id)
+    {
+        if (string.IsNullOrEmpty(id)) return;
+        lock (endedByWorld) endedByWorld[id] = DateTime.Now;
+    }
+
+    internal static bool IsEndedByWorld(string id)
+    {
+        if (string.IsNullOrEmpty(id)) return false;
+        lock (endedByWorld) return endedByWorld.ContainsKey(id);
+    }
+
+    /// <summary>The record as JSON (quest id to the time it was failed), without the ones older than the keep days.</summary>
+    internal static string SerializeEndedByWorld(DateTime now)
+    {
+        lock (endedByWorld)
+        {
+            foreach (var old in endedByWorld.Where(kv => kv.Value < now.AddDays(-EndedByWorldKeepDays)).Select(kv => kv.Key).ToList())
+                endedByWorld.Remove(old);
+            return JsonSerializer.Serialize(endedByWorld);
+        }
+    }
+
+    /// <summary>Adds the stored record at start. A missing or unreadable record adds nothing (world state from before this loads).</summary>
+    internal static void LoadEndedByWorld(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return;
+        try
+        {
+            var stored = JsonSerializer.Deserialize<Dictionary<string, DateTime>>(json);
+            if (stored == null) return;
+            lock (endedByWorld)
+                foreach (var kv in stored)
+                    if (!string.IsNullOrEmpty(kv.Key) && !endedByWorld.ContainsKey(kv.Key)) endedByWorld[kv.Key] = kv.Value;
+        }
+        catch (JsonException) { }
+    }
+
     /// <summary>
     /// Process daily quest maintenance (Pascal: Quest aging and failure)
     /// </summary>
@@ -524,8 +586,10 @@ public partial class QuestSystem
         // Remove old unclaimed bounty board quests
         questDatabase.RemoveAll(q => q.Initiator == BountyBoardInitiator && string.IsNullOrEmpty(q.Occupier) && q.Date < DateTime.Now.AddDays(-3));
 
-        // Count existing bounty board quests
-        var existingCount = questDatabase.Count(q => q.Initiator == BountyBoardInitiator && !q.Deleted && string.IsNullOrEmpty(q.Occupier));
+        // Count existing bounty board quests. 1.3.10: only those this level can take; online the board is shared,
+        // and quests filled for a much higher level left a low level player's board empty
+        var existingCount = questDatabase.Count(q => q.Initiator == BountyBoardInitiator && !q.Deleted && string.IsNullOrEmpty(q.Occupier)
+            && playerLevel >= q.MinLevel && playerLevel <= q.MaxLevel);
 
         // Add quests until we have 5 available
         var targetCount = 5;
@@ -625,11 +689,14 @@ public partial class QuestSystem
                                         UsurperRemake.Systems.Faction.TheShadows,
                                         UsurperRemake.Systems.Faction.TheFaith })
         {
+            // 1.3.10: only contracts this player can take count; online the board is shared, and contracts filled
+            // for a much higher level left a low level player's board bare
             int existing = questDatabase.Count(q => q.IsMercContract
                 && !q.Deleted
                 && string.IsNullOrEmpty(q.Occupier)
                 && q.IssuingFaction.HasValue
-                && q.IssuingFaction.Value == faction);
+                && q.IssuingFaction.Value == faction
+                && playerLevel >= q.MinLevel && playerLevel <= q.MaxLevel);
             int needed = slotsPerFaction - existing;
             if (needed <= 0) continue;
 
@@ -731,6 +798,29 @@ public partial class QuestSystem
             && player.Level >= q.MinLevel
             && player.Level <= q.MaxLevel
         ).ToList();
+    }
+
+    private static readonly object _mercClaimLock = new();
+
+    /// <summary>
+    /// 1.3.10: claim a Sellsword contract for this player if it is still free and in the player's level band. The
+    /// check and the claim happen under one lock, so two MUD sessions cannot both claim one contract (the card set
+    /// the Occupier with no check, and a later claim overwrote an earlier one). False: someone else has it.
+    /// </summary>
+    public static bool TryClaimMercContract(Character player, Quest quest)
+    {
+        if (player == null || quest == null) return false;
+        lock (_mercClaimLock)
+        {
+            if (!quest.IsMercContract || quest.Deleted || !string.IsNullOrEmpty(quest.Occupier)) return false;
+            if (player.Level < quest.MinLevel || player.Level > quest.MaxLevel) return false;
+            quest.Occupier = player.Name2;
+            quest.OccupierRace = player.Race;
+            quest.OccupierSex = (byte)player.Sex;
+            quest.OccupiedDays = 0;
+        }
+        player.MercContractsClaimedToday++;
+        return true;
     }
 
     /// <summary>
@@ -997,6 +1087,7 @@ public partial class QuestSystem
         // Mark quest as failed/deleted
         quest.Deleted = true;
         quest.Occupier = "";
+        if (WorldResetAgesQuests) RecordEndedByWorld(quest.Id);   // 1.3.11 (K4): a restart must not revive it from a save
         
         // GD.Print($"[QuestSystem] Quest failed: {quest.Id} by {quest.Occupier}");
     }
@@ -1181,7 +1272,8 @@ public partial class QuestSystem
                     RequiredProgress = objData.RequiredProgress,
                     CurrentProgress = objData.CurrentProgress,
                     IsOptional = objData.IsOptional,
-                    BonusReward = objData.BonusReward
+                    BonusReward = objData.BonusReward,
+                    TargetFloor = objData.TargetFloor   // 1.3.10: 0 in a save made before it
                 });
             }
 
@@ -1273,7 +1365,8 @@ public partial class QuestSystem
                     RequiredProgress = objData.RequiredProgress,
                     CurrentProgress = objData.CurrentProgress,
                     IsOptional = objData.IsOptional,
-                    BonusReward = objData.BonusReward
+                    BonusReward = objData.BonusReward,
+                    TargetFloor = objData.TargetFloor   // 1.3.10: 0 in a save made before it
                 });
             }
 
@@ -1380,6 +1473,14 @@ public partial class QuestSystem
 
     public static void MergePlayerQuests(string playerName, List<QuestData> savedQuests)
     {
+        // 1.3.10: in the MUD the world reset aged this player's quests in the shared list while they were away, and
+        // failed the ones whose time ran out (with mail). The save holds the days from the last save, so the shared
+        // copy's days are kept, and a quest the world failed is not handed back.
+        var shared = new Dictionary<string, Quest>();
+        if (WorldResetAgesQuests && savedQuests != null)
+            foreach (var q in questDatabase)
+                if (!string.IsNullOrEmpty(q.Id) && savedQuests.Any(s => s.Id == q.Id)) shared[q.Id] = q;
+
         // Remove only THIS player's quests from the shared database
         questDatabase.RemoveAll(q =>
             string.Equals(q.Occupier, playerName, StringComparison.OrdinalIgnoreCase) ||
@@ -1431,6 +1532,14 @@ public partial class QuestSystem
                 MercContractTier = questData.MercContractTier > 0 ? questData.MercContractTier : 1
             };
 
+            if (shared.TryGetValue(quest.Id, out var sharedCopy) && !quest.Deleted)
+            {
+                if (sharedCopy.Deleted) continue;   // 1.3.10: failed (or ended) by the world while away
+                quest.OccupiedDays = Math.Max(quest.OccupiedDays, sharedCopy.OccupiedDays);
+            }
+            else if (WorldResetAgesQuests && !quest.Deleted && IsEndedByWorld(quest.Id))
+                continue;   // 1.3.11 (K4): the world failed it before a server restart, which emptied the shared list
+
             foreach (var objData in questData.Objectives)
             {
                 quest.Objectives.Add(new QuestObjective
@@ -1447,7 +1556,8 @@ public partial class QuestSystem
                     RequiredProgress = objData.RequiredProgress,
                     CurrentProgress = objData.CurrentProgress,
                     IsOptional = objData.IsOptional,
-                    BonusReward = objData.BonusReward
+                    BonusReward = objData.BonusReward,
+                    TargetFloor = objData.TargetFloor   // 1.3.10: 0 in a save made before it
                 });
             }
 
@@ -1524,6 +1634,20 @@ public partial class QuestSystem
     internal static readonly string[] BanditMonsters = { "Bandit Scout", "Mountain Bandit" };
     internal const string BanditTargetId = "bandit";
 
+    /// <summary>
+    /// 1.3.10: whether bandits are about for this player: the player holds a quest with a bandit kill objective (the
+    /// Sellsword contract "Bandits on the Trade Road", until it is turned in or ends) or a Bandit Raid runs. The
+    /// wilderness then meets its bandits 3 times as often (WildernessData.PickMonsterName).
+    /// </summary>
+    internal static bool BanditsAbout(Character? player)
+    {
+        if (WorldEventSystem.Instance.GetActiveEvents().Any(e => e.Type == WorldEventSystem.EventType.BanditRaid))
+            return true;
+        if (player == null) return false;
+        return GetPlayerQuests(player.Name2).Any(q => q.Objectives.Any(o => o.ObjectiveType == QuestObjectiveType.KillSpecificMonster
+            && string.Equals(o.TargetId, BanditTargetId, StringComparison.OrdinalIgnoreCase)));
+    }
+
     public static void OnMonsterKilled(Character player, string monsterName, bool isBoss = false, string tierName = "", bool isMiniBoss = false)
     {
         bool isBandit = BanditMonsters.Any(b => string.Equals(b, monsterName, StringComparison.OrdinalIgnoreCase)
@@ -1532,6 +1656,7 @@ public partial class QuestSystem
         string nameId = monsterName.ToLower().Replace(" ", "_");
         // TierName is the base monster type (e.g. "Zombie") even for champion variants ("Zombie Champion")
         string tierId = !string.IsNullOrEmpty(tierName) ? tierName.ToLower().Replace(" ", "_") : "";
+        if (tierId == "mire_zombie") tierId = "zombie";   // 1.3.10: the swamp's Mire Zombie counts as a zombie
 
         foreach (var quest in playerQuests)
         {
@@ -1573,6 +1698,11 @@ public partial class QuestSystem
             foreach (var objective in quest.Objectives.Where(o =>
                 o.ObjectiveType == QuestObjectiveType.ReachDungeonFloor && !o.IsComplete))
             {
+                if (quest.QuestTarget == QuestTarget.SurviveDungeon)
+                {
+                    CountFloorsDescended(objective, floorNumber);
+                    continue;
+                }
                 if (floorNumber >= objective.RequiredProgress)
                 {
                     objective.CurrentProgress = objective.RequiredProgress;
@@ -1584,6 +1714,19 @@ public partial class QuestSystem
             }
 
         }
+    }
+
+    /// <summary>
+    /// 1.3.10: a board "Survive N floors" quest counts the floors the player goes down after taking it. It was met
+    /// the first time the player stood on floor N or deeper, so a deep player met it on entering the dungeon. The
+    /// objective's TargetId holds the last floor the player stood on (empty until the first floor after the claim,
+    /// which only sets it); each step deeper than that floor counts.
+    /// </summary>
+    internal static void CountFloorsDescended(QuestObjective objective, int floorNumber)
+    {
+        if (int.TryParse(objective.TargetId, out int lastFloor) && floorNumber > lastFloor)
+            objective.CurrentProgress = Math.Min(objective.RequiredProgress, objective.CurrentProgress + (floorNumber - lastFloor));
+        objective.TargetId = floorNumber.ToString();
     }
 
     /// <summary>
@@ -1639,8 +1782,7 @@ public partial class QuestSystem
 
         foreach (var bounty in claimed)
         {
-            long reward = bounty.BountyGold > 0 ? bounty.BountyGold : bounty.Reward * 100L;
-            if (reward <= 0) reward = 500;
+            long reward = DefeatPayout(bounty);
             reward = GodBoonSystem.BountyReward(winner, reward);   // 1.2.0 Temple gods piece 2: Judicar's boon
             winner.Gold += reward;
             long xpReward = TeamHQBonus.ApplyXP(winner, Math.Max(winner.Level * 50, reward / 5));
@@ -1654,6 +1796,17 @@ public partial class QuestSystem
     }
 
     public static long BountyReward(Quest q) => q.BountyGold > 0 ? q.BountyGold : Math.Max(500, q.Reward * 100L);
+
+    /// <summary>
+    /// 1.3.10: the gold a quest with a named target pays when the target is beaten (AutoCompleteBountyForNPC and
+    /// CollectBountiesOnPlayer), before a god's boon: the posted gold, else the stored reward times 100, else 500.
+    /// The bounty board shows it (Quest.GetRewardDescription).
+    /// </summary>
+    public static long DefeatPayout(Quest q)
+    {
+        long reward = q.BountyGold > 0 ? q.BountyGold : q.Reward * 100L;
+        return reward > 0 ? reward : 500;
+    }
 
     /// <summary>
     /// v1.1.11: a player beat an NPC, by any route: a street fight, a duel, the pit, the Inn challenge,
@@ -1750,6 +1903,16 @@ public partial class QuestSystem
         return "legacy:" + Convert.ToHexString(hash).ToLowerInvariant();
     }
 
+    /// <summary>
+    /// 1.3.10: a quest claimed by, or offered only to, a player other than this one. Beating its target does not
+    /// pay this player or take the quest from its holder.
+    /// </summary>
+    internal static bool HeldByAnother(Quest q, string? playerName)
+    {
+        bool Other(string? who) => !string.IsNullOrEmpty(who) && !string.Equals(who, playerName, StringComparison.OrdinalIgnoreCase);
+        return Other(q.Occupier) || (Other(q.OfferedTo) && !q.Forced);
+    }
+
     public static long AutoCompleteBountyForNPC(Character player, string npcName, bool includeKillContracts = true)
     {
         if (string.IsNullOrEmpty(npcName)) return 0;
@@ -1765,7 +1928,8 @@ public partial class QuestSystem
             !string.IsNullOrEmpty(q.TargetNPCName) &&
             q.TargetNPCName.Equals(npcName, StringComparison.OrdinalIgnoreCase) &&
             !q.IsPlayerBounty &&   // v1.1.11: beating an NPC never pays a bounty on a player of that name (review)
-            (includeKillContracts || q.QuestTarget != QuestTarget.Assassin)
+            (includeKillContracts || q.QuestTarget != QuestTarget.Assassin) &&
+            !HeldByAnother(q, player?.Name2)   // 1.3.10: another player's claimed (or offered) quest stays theirs
         ).ToList();
         // v1.1.11: another process may hold the same bounty; only the one whose DB claim lands pays it.
         // A bounty claimed elsewhere is marked Deleted here too, unpaid.
@@ -1778,8 +1942,7 @@ public partial class QuestSystem
         foreach (var bounty in matchingBounties)
         {
             // Calculate reward — use BountyGold if set (king bounties), else legacy byte Reward
-            long reward = bounty.BountyGold > 0 ? bounty.BountyGold : bounty.Reward * 100L;
-            if (reward <= 0) reward = 500; // Minimum reward
+            long reward = DefeatPayout(bounty);
             if (player != null) reward = GodBoonSystem.BountyReward(player, reward);   // 1.2.0 Temple gods piece 2: Judicar's boon
 
             // Give player the reward immediately
@@ -2328,18 +2491,17 @@ public partial class QuestSystem
     {
         var bountyTypeKeys = new[]
         {
-            ("quest.generic_bounty.bandit_leader", "quest.generic_bounty.bandit_leader_desc", 5),
-            ("quest.generic_bounty.escaped_prisoner", "quest.generic_bounty.escaped_prisoner_desc", 3),
-            ("quest.generic_bounty.cult_leader", "quest.generic_bounty.cult_leader_desc", 6),
-            ("quest.generic_bounty.rogue_mage", "quest.generic_bounty.rogue_mage_desc", 4),
-            ("quest.generic_bounty.orc_warlord", "quest.generic_bounty.orc_warlord_desc", 7)
+            ("quest.generic_bounty.bandit_leader", "quest.generic_bounty.bandit_leader_desc"),
+            ("quest.generic_bounty.escaped_prisoner", "quest.generic_bounty.escaped_prisoner_desc"),
+            ("quest.generic_bounty.cult_leader", "quest.generic_bounty.cult_leader_desc"),
+            ("quest.generic_bounty.rogue_mage", "quest.generic_bounty.rogue_mage_desc"),
+            ("quest.generic_bounty.orc_warlord", "quest.generic_bounty.orc_warlord_desc")
         };
 
-        var (titleKey, descKey, killCount) = bountyTypeKeys[random.Next(bountyTypeKeys.Length)];
+        var (titleKey, descKey) = bountyTypeKeys[random.Next(bountyTypeKeys.Length)];
         var title = Loc.Get(titleKey);  // bootstrap-language snapshot for legacy Title field
         var desc = Loc.Get(descKey);
         var difficulty = (byte)(random.Next(1, 5)); // 1-4 difficulty
-        killCount += difficulty * 2; // Scale kills with difficulty
 
         var bounty = new Quest
         {
@@ -2364,12 +2526,9 @@ public partial class QuestSystem
             DaysToComplete = 14
         };
 
-        bounty.Objectives.Add(QuestObjective.Localized(
-            QuestObjectiveType.KillMonsters,
-            "quest.objective.slay_monsters",
-            new object[] { killCount },
-            killCount
-        ));
+        // 1.3.10: the bounty names its criminal, and killing that criminal completes it (it counted any kills before).
+        // The criminal is placed on a floor when the bounty is taken (PlaceTargets).
+        bounty.Objectives.Add(NamedTargetObjective(titleKey));
 
         SetDefaultRewards(bounty);
         bounty.Reward = (byte)Math.Min(255, bounty.Reward * 2); // King bounties pay double: Quest.CalculateReward halves it back to the base tier and doubles the gold and XP
@@ -2503,11 +2662,12 @@ public partial class QuestSystem
         }
         else if (kind == 1)
         {
-            // FindArtifact removed (no tracking/completion code) — treat as dungeon exploration
+            // 1.3.10: the thief who holds the artifact waits on a floor in the player's range (placed below); killing
+            // the thief recovers it. Before 1.3.10 reaching the floor completed the quest.
             questTarget = QuestTarget.ReachFloor;
-            objectiveType = QuestObjectiveType.ReachDungeonFloor;
-            targetValue = ClampFloor(player.Level + difficulty * 3);
-            targetName = $"Floor {targetValue}";
+            objectiveType = QuestObjectiveType.KillBoss;
+            targetValue = 1;
+            targetName = Loc.GetIn("en", RelicThiefKey);
         }
         else if (kind == 2)
         {
@@ -2558,13 +2718,22 @@ public partial class QuestSystem
         };
 
         // Add the main objective
-        quest.Objectives.Add(new QuestObjective(
-            objectiveType,
-            questDescription,
-            targetValue,
-            "",
-            targetName
-        ));
+        if (kind == 1)
+        {
+            // 1.3.10: the thief, placed on its floor now (the quest is taken as it is made)
+            quest.Objectives.Add(NamedTargetObjective(RelicThiefKey));
+            PlaceTargets(quest, player);
+        }
+        else
+        {
+            quest.Objectives.Add(new QuestObjective(
+                objectiveType,
+                questDescription,
+                targetValue,
+                "",
+                targetName
+            ));
+        }
 
         // For monster quests, add monsters to track
         if (questTarget == QuestTarget.Monster)
@@ -2587,6 +2756,146 @@ public partial class QuestSystem
         }
 
         return quest;
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // 1.3.10: placed quest targets. The royal artifact quest, the Crown criminal bounties and the bounty board's
+    // champion bounties name a target; when the quest is taken the target is placed on a dungeon floor in the
+    // player's range (the objective's TargetFloor), it waits in one room of that floor, and killing it completes the
+    // objective. The floor is the player's level plus the difficulty times 3 (the floor the royal quests and the
+    // champion's tier already used), capped at the deepest floor the player can reach.
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>1.3.10: the name of the thief who holds the royal artifact.</summary>
+    internal const string RelicThiefKey = "quest.placed.relic_thief";
+
+    /// <summary>1.3.10: the key a placed objective shows through once it has a floor.</summary>
+    internal const string PlacedObjectiveKey = "quest.objective.defeat_on_floor";
+
+    /// <summary>1.3.10: a kill objective for a named target (its name key): the target's English name, matched by
+    /// OnMonsterKilled through the placed monster's tier, as its TargetId in lower case with underscores.</summary>
+    private static QuestObjective NamedTargetObjective(string nameKey)
+    {
+        string english = Loc.GetIn("en", nameKey);
+        var objective = QuestObjective.Localized(QuestObjectiveType.KillBoss, "quest.objective.defeat_boss",
+            new object[] { "loc:" + nameKey }, 1, english.ToLower().Replace(" ", "_"), english);
+        objective.Description = Loc.GetIn("en", "quest.objective.defeat_boss", english);
+        return objective;
+    }
+
+    /// <summary>1.3.10: the deepest floor the player can reach: level plus 10, at most 100, and not past an Old God
+    /// the player has not dealt with.</summary>
+    internal static int ReachableFloor(Character player) =>
+        Math.Max(1, DungeonLocation.GetMaxAccessibleFloor(player, Math.Min(GameConfig.MaxDungeonLevel, player.Level + 10)));
+
+    /// <summary>1.3.10: whether this objective names a target that is placed when the quest is taken: a royal artifact
+    /// thief, a Crown criminal (a Crown monster bounty's named kill) or a board champion of a known tier.</summary>
+    internal static bool IsPlaceable(Quest quest, QuestObjective objective)
+    {
+        if (objective.ObjectiveType != QuestObjectiveType.KillBoss || string.IsNullOrEmpty(objective.TargetId)) return false;
+        if (quest.QuestTarget == QuestTarget.ClearBoss) return quest.Initiator == BountyBoardInitiator && ChampionTier(objective) != null;
+        return (quest.Initiator == KING_BOUNTY_INITIATOR && quest.QuestTarget == QuestTarget.Monster)
+            || objective.TargetId == Loc.GetIn("en", RelicThiefKey).ToLower().Replace(" ", "_");
+    }
+
+    /// <summary>1.3.10: the family and tier of a board champion objective's target, or null.</summary>
+    private static (MonsterFamilies.MonsterFamily Family, MonsterFamilies.MonsterTier Tier)? ChampionTier(QuestObjective objective)
+    {
+        foreach (var family in MonsterFamilies.AllFamilies)
+            foreach (var t in family.Tiers)
+                if (t.Name.ToLower().Replace(" ", "_") == objective.TargetId) return (family, t);
+        return null;
+    }
+
+    /// <summary>
+    /// 1.3.10: place each named target of the quest on a floor in the taker's range and name the floor in the
+    /// objective. A champion keeps to its tier's levels where the player can reach them.
+    /// </summary>
+    internal static void PlaceTargets(Quest quest, Character player)
+    {
+        if (quest == null || player == null) return;
+        int reachable = ReachableFloor(player);
+        foreach (var objective in quest.Objectives.Where(o => !o.IsComplete && IsPlaceable(quest, o)))
+        {
+            int floor = player.Level + quest.Difficulty * 3;
+            if (ChampionTier(objective) is { } champion && quest.QuestTarget == QuestTarget.ClearBoss)
+                floor = Math.Clamp(floor, champion.Tier.MinLevel, champion.Tier.MaxLevel);
+            floor = Math.Clamp(floor, 1, reachable);
+            objective.TargetFloor = floor;
+            string name = objective.DescriptionArgs.Count > 0 ? objective.DescriptionArgs[0] : objective.TargetName;
+            objective.DescriptionKey = PlacedObjectiveKey;
+            objective.DescriptionArgs = new List<string> { name, floor.ToString() };
+            objective.Description = Loc.GetIn("en", PlacedObjectiveKey, objective.TargetName, floor);
+        }
+    }
+
+    /// <summary>1.3.10: the name a placed objective's target shows by, in the reader's language.</summary>
+    internal static string PlacedTargetName(QuestObjective objective)
+    {
+        var args = ShowMonsterArgs(objective.DescriptionArgs.Take(1).Select(a => a.StartsWith("loc:", StringComparison.Ordinal)
+            ? (object)Loc.Get(a.Substring(4)) : a).ToArray(), objective);
+        return args.Length > 0 ? args[0]?.ToString() ?? "" : objective.TargetName;
+    }
+
+    /// <summary>1.3.10: the rows that tell the taker where each placed target waits (wrapped to 79 columns).</summary>
+    internal static void WritePlacedTargetLines(TerminalEmulator terminal, Quest quest)
+    {
+        foreach (var objective in quest.Objectives.Where(o => o.TargetFloor > 0 && !o.IsComplete))
+        {
+            terminal.SetColor("bright_cyan");
+            UsurperRemake.UI.UIHelper.WriteWrapped(terminal, Loc.Get("quest.placed.waits_on_floor", PlacedTargetName(objective), objective.TargetFloor));
+        }
+    }
+
+    /// <summary>1.3.10: the player's unfinished placed target on this floor (the first one), or null.</summary>
+    internal static (Quest Quest, QuestObjective Objective)? FindPlacedTarget(Character player, int floor)
+    {
+        if (player == null || floor <= 0) return null;
+        foreach (var quest in GetPlayerQuests(player.Name2))
+            foreach (var objective in quest.Objectives)
+                if (objective.TargetFloor == floor && !objective.IsComplete && objective.ObjectiveType == QuestObjectiveType.KillBoss)
+                    return (quest, objective);
+        return null;
+    }
+
+    /// <summary>
+    /// 1.3.10: the room of the floor where the quest's target waits: one of the rooms that is neither the entrance
+    /// nor the boss room, the same one for the same quest and floor layout.
+    /// </summary>
+    internal static string PlacedTargetRoomId(UsurperRemake.Systems.DungeonFloor floor, Quest quest)
+    {
+        if (floor == null || floor.Rooms.Count == 0) return "";
+        var rooms = floor.Rooms.Where(r => !r.IsBossRoom && r.Id != floor.EntranceRoomId).ToList();
+        if (rooms.Count == 0) rooms = floor.Rooms;
+        uint hash = 2166136261;
+        foreach (char c in quest.Id ?? "") hash = (hash ^ c) * 16777619;
+        return rooms[(int)(hash % (uint)rooms.Count)].Id;
+    }
+
+    /// <summary>
+    /// 1.3.10: the monster a placed objective names, a champion at its floor's level. A board champion is its tier's
+    /// champion; a named criminal or the artifact thief is a humanoid fighter with that name (shown in the reader's
+    /// language). Its tier is the objective's target, so OnMonsterKilled credits the kill to this objective.
+    /// </summary>
+    internal static Monster CreatePlacedTargetMonster(Quest quest, QuestObjective objective, Random? rng = null)
+    {
+        int level = Math.Max(1, objective.TargetFloor);
+        if (quest.QuestTarget == QuestTarget.ClearBoss && ChampionTier(objective) is { } champion)
+            return MonsterGenerator.GenerateMonster(level, isMiniBoss: true, random: rng, forced: champion);
+
+        var monster = MonsterGenerator.GenerateMonster(level, isMiniBoss: true, random: rng);
+        string arg = objective.DescriptionArgs.Count > 0 ? objective.DescriptionArgs[0] : "";
+        monster.Name = arg.StartsWith("loc:", StringComparison.Ordinal) ? MonsterNames.FromKey(arg.Substring(4)) : objective.TargetName;
+        monster.TierName = monster.Name;
+        monster.FamilyName = "Humanoid";
+        monster.MonsterClass = MonsterClass.Humanoid;
+        monster.Undead = 0;
+        monster.AttackType = "physical";
+        monster.CanSpeak = true;
+        monster.Phrase = "";
+        monster.SpecialAbilities.Clear();
+        monster.SignatureAbilities.Clear();
+        return monster;
     }
 
     /// <summary>

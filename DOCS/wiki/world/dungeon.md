@@ -1,8 +1,14 @@
 ---
 title: Dungeon travel and outposts
 path: /wiki/en/world/dungeon/
-checked: 1.3.8
+checked: 1.3.14
 sources: Scripts/Locations/DungeonLocation.cs, Scripts/Data/DungeonSettlementData.cs, Scripts/Systems/MentalSystem.cs, Scripts/Systems/DungeonGenerator.cs, Scripts/Systems/MonsterGenerator.cs, Scripts/Systems/OldGodBossSystem.cs, Scripts/Systems/SevenSealsSystem.cs, Scripts/Core/GameConfig.cs
+history: 1.3.14 | none
+history: 1.3.13 | none
+history: 1.3.12 | none
+history: 1.3.11 | The outpost's torch and lockpick are named Enchanted Torch (+10 HP) and Lockpick Set (+2 Dexterity), and the outpost supply rows keep the prices in one column.
+history: 1.3.10 | A fifth outpost, the Cinder Post, stands on floor 85, healing and mana potions at an outpost cost 1.25 times the town price for your level, and the outpost's smoke bomb is now Smoke Powder (+2 Agility).
+history: 1.3.9 | none
 history: 1.3.8 | An ally told to wait in a room catches up with you when you change floor or leave the dungeon.
 history: 1.3.7 | none
 history: 1.3.6 | none
@@ -69,7 +75,7 @@ With companions or teammates along, entering a new room has a 15% chance that on
 
 ## Dungeon outposts
 
-Four floors have a safe outpost room with no monsters or traps: floors 10, 20, 35 and 65. An outpost can heal, sell supplies and tell its lore; not every outpost does all three.
+Five floors have a safe outpost room with no monsters or traps: floors 10, 20, 35, 65 and 85. An outpost can heal, sell supplies and tell its lore; not every outpost does all three.
 
 {{table:outposts}}
 
@@ -79,7 +85,7 @@ Healing costs (10 + floor x 5) gold times the outpost's price factor, and restor
 
 ### Outpost supplies
 
-Supplies cost their base price times 1 + floor / 10 (the table shows the price on each outpost's floor). A torch heals 10 HP at once, a lockpick gives +2 Dexterity and a smoke bomb +2 Agility for your next fight. Potions, antidotes and herbs stop at your carrying limit.
+A healing or mana potion costs 1.25 times the town price for your level. Other supplies cost their base price times 1 + floor / 10 (the table shows the price on each outpost's floor). A torch heals 10 HP at once, a lockpick gives +2 Dexterity and smoke powder +2 Agility for your next fight; smoke powder is not a smoke bomb and does not help you flee. At your carrying limit the outpost refuses a potion, antidote or herb and takes no gold.
 
 ### Outpost lore
 

@@ -1,4 +1,4 @@
-<!-- doc: checked 1.3.8; sources: scripts-server, web/ssh-proxy.js, web/index.html, web/account, Scripts/BBS/DoorMode.cs, Scripts/Server/MudServer.cs, Scripts/Systems/AccountMail.cs, Scripts/Systems/VersionChecker.cs -->
+<!-- doc: checked 1.3.14; sources: scripts-server, web/ssh-proxy.js, web/index.html, web/account, Scripts/BBS/DoorMode.cs, Scripts/Server/MudServer.cs, Scripts/Systems/AccountMail.cs, Scripts/Systems/VersionChecker.cs -->
 # Usurper Reborn - Online Server Deployment Guide
 
 ## Overview
@@ -174,7 +174,7 @@ ssh -p 4000 usurper@your-server-ip
     account/               # Password reset and address confirmation pages
     package.json           # Node.js dependencies
     node_modules/          # Installed dependencies
-    .env                   # Environment for the web service (optional, see below)
+    .env                   # Old place of the web service environment file (see Moving the environment file below)
 
 /var/usurper/              # Game data (persists across updates)
   usurper_online.db        # SQLite database (all player data)
@@ -186,6 +186,7 @@ ssh -p 4000 usurper@your-server-ip
 
 /etc/ssh/sshd_config_usurper    # Game SSH daemon config
 /etc/nginx/sites-available/usurper  # Nginx reverse proxy config (optional)
+/etc/nginx/sites-enabled/usurper    # The file nginx loads: a link to the one above on a fresh install
 /etc/systemd/system/
   sshd-usurper.service          # Game SSH service
   usurper-mud.service           # MUD game server (advanced)
@@ -232,7 +233,11 @@ Browser -> https://your-domain.com (nginx)
 **Components**:
 - `ssh-proxy.js` - Node.js server providing the WebSocket bridge to the game + Stats REST API
 - `index.html` - Landing page with xterm.js terminal emulator + live stats dashboard
+- `play/` - The full page client at `/play/`
+- `dashboard.html` - The Observatory at `/dashboard`, a public page fed by `/api/dash/` (an unknown `/api/dash/` path answers 404)
 - nginx proxies `/ws` (WebSocket) and `/api/` (HTTP) to Node.js on port 3000
+- Node.js listens on `127.0.0.1` only, so nginx on the same host reaches it and nothing else does. The setting is `WEB_BIND_HOST`. If you reach port 3000 from another host (nginx on a second machine, a container network, a test from your laptop), set `WEB_BIND_HOST=0.0.0.0`, or one interface address, in the web service environment and restart `usurper-web`; then keep port 3000 closed to the internet with a firewall rule. The startup log line `HTTP + WebSocket server listening on` names the address in use
+- The web service reads its environment from `/etc/usurper/web.env`, outside the web folder. The web folder can still hold an old `.env`, plus `.bak` copies, `package.json`, `node_modules` and the server scripts. `nginx-private.conf` answers 404 for them and `ssh-proxy.js` refuses them when it serves the folder
 
 **Setup**:
 ```bash
@@ -252,6 +257,9 @@ cd /opt/usurper/web && sudo -u usurper npm install
 # Install nginx config
 sudo mkdir -p /etc/nginx/snippets
 sudo cp scripts-server/nginx-csp.conf /etc/nginx/snippets/usurper-csp.conf
+sudo cp scripts-server/nginx-cache.conf /etc/nginx/snippets/usurper-cache.conf
+sudo cp scripts-server/nginx-cache-map.conf /etc/nginx/conf.d/usurper-cache-map.conf
+sudo cp scripts-server/nginx-private.conf /etc/nginx/snippets/usurper-private.conf
 sudo cp scripts-server/nginx-usurper.conf /etc/nginx/sites-available/usurper
 sudo ln -sf /etc/nginx/sites-available/usurper /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
@@ -272,6 +280,24 @@ sudo systemctl status usurper-web
 sudo apt install certbot python3-certbot-nginx
 sudo certbot --nginx -d your-domain.com -d www.your-domain.com
 ```
+
+### Changing nginx on a running server
+
+The deploy job updates the game and the web files; it does not touch nginx. A change to `scripts-server/nginx-*.conf` is applied on the server by hand.
+
+1. Find the file nginx loads: `ls -l /etc/nginx/sites-enabled/`. A fresh install links `sites-enabled/usurper` to `sites-available/usurper`. If `sites-enabled/usurper` is a regular file instead, that file is the live one and `sites-available/usurper` is only an old copy: edit the file in `sites-enabled`. `grep -n usurper-csp.conf /etc/nginx/sites-enabled/*` shows which file and line hold the CSP include.
+2. Do not copy `nginx-usurper.conf` over the live file once certbot has run: the template has only the port 80 blocks, so the copy drops the SSL setup.
+3. Back up the live file: `sudo cp -a /etc/nginx/sites-enabled/usurper /root/nginx-usurper.bak-$(date +%Y%m%d)`.
+4. Make the change. New includes go in the server block for your domain on port 443 (certbot adds it), next to the CSP include. For example, the Cache-Control rule:
+   ```bash
+   sudo cp scripts-server/nginx-cache.conf /etc/nginx/snippets/usurper-cache.conf
+   sudo cp scripts-server/nginx-cache-map.conf /etc/nginx/conf.d/usurper-cache-map.conf
+   sudo sed -i -E '/^\s*include \/etc\/nginx\/snippets\/usurper-csp\.conf;/a\    include /etc/nginx/snippets/usurper-cache.conf;' /etc/nginx/sites-enabled/usurper
+   ```
+   Check first that the live file has exactly one CSP include line and no cache include, so the line is added once. The private files rule is added the same way: copy `nginx-private.conf` to `/etc/nginx/snippets/usurper-private.conf` and include it after the CSP include, before the file's `location` blocks.
+5. Test: `sudo nginx -t`. If it fails, restore the backup, remove any files you added, and test again before going on.
+6. Reload: `sudo systemctl reload nginx`. A reload keeps open connections; a restart drops them.
+7. Check from outside: `curl -sI https://your-domain.com/play/` shows the headers the change should add.
 
 ### Stats API
 
@@ -325,7 +351,7 @@ sudo systemctl restart usurper-web
 
 Players with an online account can reset a forgotten password by email, sent through the Resend mail service by the web service. It is off by default. With mail off, players see no forgot password choice, no email question and no Email menu, and the website reset pages (`/account/forgot`, `/account/reset`, `/account/verify`) say that the server does not send mail.
 
-To turn it on, set these in the web service environment. `usurper-web.service` reads `/opt/usurper/web/.env` as its `EnvironmentFile`:
+To turn it on, set these in the web service environment. `usurper-web.service` reads `/etc/usurper/web.env` as its `EnvironmentFile`:
 
 ```bash
 RESEND_API_KEY=re_example          # a Resend API key
@@ -333,9 +359,22 @@ MAIL_FROM=noreply@example.com      # an address on a domain verified with Resend
 SITE_URL=https://example.com       # the public address of your website, http(s)://host[:port]
 ```
 
+The file is optional: the unit's `EnvironmentFile=-` dash lets the service start without it, with no password, no mail and no Discord. At startup the web log prints one `Environment:` line that lists `BALANCE_PASS`, `BALANCE_SECRET`, `RESEND_API_KEY`, `MAIL_FROM`, `DISCORD_BOT_TOKEN` and `BUG_REPORT_WEBHOOK_URL`, each `set` or `unset` (names only, never values); read it with `sudo journalctl -u usurper-web -n 50` after every restart.
+
 Both `RESEND_API_KEY` and `MAIL_FROM` must be set. `SITE_URL` defaults to `https://usurper-reborn.net`; a value that is not http or https with a host and an optional port (no path, not even a trailing `/`) is refused with a warning in the web log, and the default is used. Then restart the web service with `sudo systemctl restart usurper-web`. The web service writes the mail switch into the database when it starts and every 15 seconds, and the game reads it at each prompt, so the game follows within 15 seconds; if the web service stops, the game counts mail as off once the last beat is 10 minutes old.
 
 With mail on, an address stays optional for players; a player who gives none is told that only the server's operator can reset a forgotten password. The operator can reset any password from the `/admin` page (Reset Password on the player's row), with mail on or off.
+
+#### Moving the environment file
+
+An older install keeps the file at `/opt/usurper/web/.env`, inside the folder nginx serves. Move it in steps, each checked before the next; a copied `usurper-web.service` from this repository points at the new path, so an install that has not done step 1 starts with no environment.
+
+1. Copy: `sudo install -d -m 750 -o root -g root /etc/usurper`, then `sudo install -m 600 -o root -g root /opt/usurper/web/.env /etc/usurper/web.env`.
+2. Verify: `sudo cmp /opt/usurper/web/.env /etc/usurper/web.env; echo $?` prints `0`.
+3. Change the unit's one line, `EnvironmentFile=-/opt/usurper/web/.env`, to `EnvironmentFile=-/etc/usurper/web.env` (`sudo systemctl edit --full usurper-web`; leave the rest of your unit alone), then `sudo systemctl daemon-reload`. Check with `systemctl show usurper-web -p EnvironmentFiles`.
+4. Restart: `sudo systemctl restart usurper-web`. Players on the website are disconnected, so pick a quiet moment.
+5. Check: the `Environment:` log line lists the same names as `set` as before the restart.
+6. Remove the old file last: `sudo rm /opt/usurper/web/.env`. The 404 rules for dot files stay in place.
 
 ## Advanced: MUD Server (High-Capacity)
 

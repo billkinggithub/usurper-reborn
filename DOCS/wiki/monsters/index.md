@@ -1,8 +1,14 @@
 ---
 title: Monsters and bosses
 path: /wiki/en/monsters/
-checked: 1.3.8
+checked: 1.3.14
 sources: Scripts/Data/MonsterFamilies.cs, Scripts/Systems/MonsterGenerator.cs, Scripts/Systems/MonsterAbilities.cs, Scripts/Systems/MonsterTactics.cs, Scripts/Systems/EliteAffixes.cs, Scripts/Core/Monster.cs, Scripts/Core/GameConfig.cs, Scripts/Systems/CombatEngine.cs, Scripts/Systems/DifficultySystem.cs, Scripts/Locations/DungeonLocation.cs, Scripts/Data/WildernessData.cs, Scripts/Data/GauntletChampionData.cs
+history: 1.3.14 | none
+history: 1.3.13 | none
+history: 1.3.12 | none
+history: 1.3.11 | none
+history: 1.3.10 | On cycle 2 or later, the New Game+ Slayer unlock makes elite encounters a quarter more common.
+history: 1.3.9 | none
 history: 1.3.8 | none
 history: 1.3.7 | Deep monster Strength, punch and weapon power rise faster after level 75, to 1.97 times at level 80 and 2.31 times at level 100.
 history: 1.3.6 | A monster's breath and spell damage is now magical and cut by your gear's magic resistance, except an Old God's, a monster you poison no longer hits harder, and Thorns no longer reflects the Alchemist's thrown bombs or the Bard's Cutting Words.
@@ -58,7 +64,7 @@ A champion's name adds a word by family: Champion (Goblinoid), Revenant (Undead)
 
 ## Elites
 
-From dungeon floor 3 a regular encounter can hold one elite: {{percent:EliteChanceFloors3To10}} percent of regular encounters on floors 3 to 10, {{percent:EliteChanceFloors11To30}} percent on floors 11 to 30 and {{percent:EliteChanceFloors31Plus}} percent from floor 31. An elite has {{balance:EliteHpMultiplier}} times the HP, {{balance:EliteDamageMultiplier}} times the Strength, punch and weapon power and {{balance:EliteDefenceMultiplier}} times the Defense and armor of the monster it was, and gives {{balance:EliteExperienceMultiplier}} times the experience and {{balance:EliteGoldMultiplier}} times the gold. A group of three or more has one monster fewer when it holds an elite. The elite's trait is part of its name and is announced when the fight starts. From floor {{balance:EliteSecondAffixFloor}} an elite has two different traits.
+From dungeon floor 3 a regular encounter can hold one elite: {{percent:EliteChanceFloors3To10}} percent of regular encounters on floors 3 to 10, {{percent:EliteChanceFloors11To30}} percent on floors 11 to 30 and {{percent:EliteChanceFloors31Plus}} percent from floor 31, a quarter more on cycle 2 or later after a life with 5,000 monster kills (the New Game+ Slayer unlock). An elite has {{balance:EliteHpMultiplier}} times the HP, {{balance:EliteDamageMultiplier}} times the Strength, punch and weapon power and {{balance:EliteDefenceMultiplier}} times the Defense and armor of the monster it was, and gives {{balance:EliteExperienceMultiplier}} times the experience and {{balance:EliteGoldMultiplier}} times the gold. A group of three or more has one monster fewer when it holds an elite. The elite's trait is part of its name and is announced when the fight starts. From floor {{balance:EliteSecondAffixFloor}} an elite has two different traits.
 
 ### Elite traits
 

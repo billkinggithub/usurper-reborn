@@ -30,8 +30,8 @@ public class DataCombat125Tests
     private const BindingFlags F = BindingFlags.NonPublic | BindingFlags.Instance;
     private const BindingFlags SNP = BindingFlags.NonPublic | BindingFlags.Static;
     private const int MaxWidth = 79;
-    private static readonly string[] AllLanguages = { "en", "es", "fr", "hu", "it" };
-    private static readonly string[] OtherLanguages = { "es", "fr", "hu", "it" };
+    private static readonly string[] AllLanguages = { "en", "es", "fr", "hu", "it", "zh" };
+    private static readonly string[] OtherLanguages = { "es", "fr", "hu", "it", "zh" };
 
     // GameConfig.MaxNameLength (30) characters, the longest name a player can have.
     private const string LongName = "Bartholomew Thistlewood Grande";
@@ -226,7 +226,11 @@ public class DataCombat125Tests
             foreach (var lang in OtherLanguages)
             {
                 string name = InLang(lang, god.LocName), title = InLang(lang, god.LocTitle);
-                name.Should().StartWith(proper + ",", "the proper name is the same in every language").And.NotBe(god.Name);
+                // Chinese puts the epithet first and transliterates the proper name, so the English
+                // "proper name + comma" rule cannot hold there; the other languages keep the name first.
+                if (lang != "zh")
+                    name.Should().StartWith(proper + ",", "the proper name is the same in every language");
+                name.Should().NotBe(god.Name);
                 title.Should().NotBe(god.Title);
                 MonsterNames.DisplayIn(lang, god.Name).Should().Be(name, "the boss monster shows the same name");
                 foreach (var ability in god.Phase1Abilities.Concat(god.Phase2Abilities).Concat(god.Phase3Abilities))

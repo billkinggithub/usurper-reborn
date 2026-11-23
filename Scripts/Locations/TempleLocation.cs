@@ -183,6 +183,16 @@ public partial class TempleLocation : BaseLocation
         WriteBoxHeader(Loc.Get("temple.header_visual"), "bright_cyan");
         terminal.WriteLine("");
 
+        // 1.3.10 (C5): after a death, the life it cost, once, on the screen the player lands on
+        if (!string.IsNullOrEmpty(currentPlayer.PendingLifeNotice))
+        {
+            terminal.SetColor("yellow");
+            foreach (var row in UsurperRemake.UI.UIHelper.WordWrap(currentPlayer.PendingLifeNotice, UsurperRemake.UI.UIHelper.WrapWidth))
+                terminal.WriteLine(row);
+            terminal.WriteLine("");
+            currentPlayer.PendingLifeNotice = null;
+        }
+
         terminal.SetColor("white");
         terminal.WriteLine(Loc.Get("temple.description_line1"));
         terminal.WriteLine(Loc.Get("temple.description_line2"));
@@ -2564,8 +2574,12 @@ public partial class TempleLocation : BaseLocation
 
     #region Inner Sanctum
 
+    /// <summary>1.3.10: the Cloister's (Inner Sanctum's) meditation price; free on a Holy Day.</summary>
+    internal static long CloisterCost => WorldEventSystem.Instance.TempleServicesFree ? 0 : GameConfig.InnerSanctumCost;
+
     private async Task VisitInnerSanctum()
     {
+        long sanctumCost = CloisterCost;   // 1.3.10: read once (free on a Holy Day)
         if (FactionSystem.Instance?.HasTempleAccess() != true)
         {
             terminal.SetColor("red");
@@ -2603,7 +2617,8 @@ public partial class TempleLocation : BaseLocation
         terminal.WriteLine(Loc.Get("temple.sanctum_stillness"));
         terminal.WriteLine(Loc.Get("temple.sanctum_runes"));
         terminal.SetColor("yellow");
-        terminal.WriteLine("\n" + Loc.Get("temple.sanctum_cost", GameConfig.InnerSanctumCost));
+        terminal.WriteLine("\n" + Loc.Get("temple.sanctum_cost", sanctumCost));
+        if (WorldEventSystem.Instance.TempleServicesFree) terminal.WriteLine(Loc.Get("temple.holy_day_free"));
         terminal.SetColor("cyan");
         terminal.WriteLine(Loc.Get("temple.sanctum_grant"));
         terminal.WriteLine("");
@@ -2615,7 +2630,7 @@ public partial class TempleLocation : BaseLocation
         if (!await terminal.AskYesNoAsync(Loc.Get("temple.sanctum_enter_prompt")))
             return;
 
-        if (currentPlayer.Gold < GameConfig.InnerSanctumCost)
+        if (currentPlayer.Gold < sanctumCost)
         {
             terminal.SetColor("red");
             terminal.WriteLine(Loc.Get("temple.sanctum_cant_afford"));
@@ -2623,8 +2638,8 @@ public partial class TempleLocation : BaseLocation
             return;
         }
 
-        currentPlayer.Gold -= GameConfig.InnerSanctumCost;
-        currentPlayer.Statistics?.RecordGoldSpent(GameConfig.InnerSanctumCost);
+        currentPlayer.Gold -= sanctumCost;
+        currentPlayer.Statistics?.RecordGoldSpent(sanctumCost);
         if (DoorMode.IsOnlineMode)
             currentPlayer.LastInnerSanctumRealDate = DateTime.UtcNow;
         else
@@ -3136,7 +3151,7 @@ public partial class TempleLocation : BaseLocation
                 {
                     string cloister = MeditatedInCloisterToday()
                         ? Loc.Get("temple.faith_hall.cloister_done")
-                        : Loc.Get("temple.faith_hall.cloister", GameConfig.InnerSanctumCost);
+                        : Loc.Get("temple.faith_hall.cloister", CloisterCost);
                     items.Add(new TempleMenuItem("C", cloister, cloister));
                 }
                 // 1.2.8: a betrayal to forgive (the Stranger's or a companion's) or to avenge (the Stranger, if she escaped)
@@ -3287,6 +3302,7 @@ public partial class TempleLocation : BaseLocation
         {
             case BetrayalSystem.AtonementOutcome.Done:
                 Say(Loc.Get("betrayal.atone_done", cost, name), "bright_cyan");
+                if (WorldEventSystem.Instance.TempleServicesFree) Say(Loc.Get("temple.holy_day_free"), "yellow");
                 Say(Loc.Get("betrayal.atone_counted"), "cyan");
                 break;
             case BetrayalSystem.AtonementOutcome.AlreadyToday:

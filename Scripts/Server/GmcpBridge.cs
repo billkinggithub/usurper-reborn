@@ -87,22 +87,83 @@ public static class GmcpBridge
         if (player == null || !IsActive) return;
         var ctx = SessionContext.Current;
         if (ctx == null) return;
+        EmitVitalsIfChangedFor(ctx, player, ctx.Username, null);
+    }
 
+    /// <summary>
+    /// 1.3.9: Char.Vitals for each grouped player in <paramref name="teammates"/>, sent to that
+    /// player's own session. Group combat and shared rests run on the leader's session, so the
+    /// leader-side emits above never reached a follower's client. NPC companions, mercenaries and
+    /// echoes have no session of their own and are skipped, so solo and leader-only play send
+    /// nothing more than before.
+    /// </summary>
+    public static void EmitVitalsToGroup(System.Collections.Generic.IEnumerable<global::Character>? teammates)
+        => EmitVitalsToGroup(teammates, FollowerContext);
+
+    /// <summary>1.3.9: Char.Vitals for one grouped player, sent to that player's own session.</summary>
+    public static void EmitVitalsToFollower(global::Character? teammate)
+        => EmitVitalsToFollower(teammate, FollowerContext);
+
+    private static SessionContext? FollowerContext(string username) => GroupSystem.GetSession(username)?.Context;
+
+    internal static void EmitVitalsToGroup(System.Collections.Generic.IEnumerable<global::Character>? teammates, Func<string, SessionContext?> resolve)
+    {
+        if (teammates == null) return;
+        foreach (var t in teammates) EmitVitalsToFollower(t, resolve);
+    }
+
+    internal static void EmitVitalsToFollower(global::Character? teammate, Func<string, SessionContext?> resolve)
+    {
+        if (teammate == null) return;
+        // Read once: group cleanup clears both when the follower leaves or drops.
+        var terminal = teammate.RemoteTerminal;
+        var name = teammate.GroupPlayerUsername;
+        if (terminal == null || string.IsNullOrEmpty(name)) return;
+        SessionContext? ctx;
+        try { ctx = resolve(name); }
+        catch { return; }
+        // A follower who disconnected has no session, no stream or GMCP off: nothing is sent.
+        if (ctx == null || !ctx.GmcpEnabled || ctx.OutputStream == null) return;
+        // A new login under the same name has its own terminal; this character's terminal is not its.
+        if (!ReferenceEquals(ctx.Terminal, terminal)) return;
+        EmitVitalsIfChangedFor(ctx, teammate, name, terminal);
+    }
+
+    // The change check runs on the receiving session's own LastGmcp* fields. For a follower the leader's
+    // thread and, after the group, the follower's own loop both send on that session, so the check, the
+    // baseline update and the write all happen under the session's GmcpVitalsLock and cannot reorder.
+    // Lock order: GmcpVitalsLock, then the terminal's writer lock (a follower only), then the stream lock.
+    // When terminal is given, the frame is written under that terminal's writer lock so it never lands
+    // inside text the follower's terminal is writing.
+    private static void EmitVitalsIfChangedFor(SessionContext ctx, global::Character player, string label, TerminalEmulator? terminal)
+    {
+        lock (ctx.GmcpVitalsLock)
+            EmitVitalsIfChangedLocked(ctx, player, label, terminal);
+    }
+
+    private static void EmitVitalsIfChangedLocked(SessionContext ctx, global::Character player, string label, TerminalEmulator? terminal)
+    {
         long hp = player.HP, maxHp = player.MaxHP;
         long mana = player.Mana, maxMana = player.MaxMana;
         long sta = player.Stamina;
+        long combatSp = player.CurrentCombatStamina, maxCombatSp = player.MaxCombatStamina;
         int mental = player.Mental; // v1.1.15: Mental runs in both modes, so it belongs on Vitals too
         if (hp == ctx.LastGmcpHp && maxHp == ctx.LastGmcpMaxHp
             && mana == ctx.LastGmcpMana && maxMana == ctx.LastGmcpMaxMana
-            && sta == ctx.LastGmcpStamina && mental == ctx.LastGmcpMental)
+            && sta == ctx.LastGmcpStamina && mental == ctx.LastGmcpMental
+            && combatSp == ctx.LastGmcpCombatStamina && maxCombatSp == ctx.LastGmcpMaxCombatStamina)
             return;
 
         ctx.LastGmcpHp = hp; ctx.LastGmcpMaxHp = maxHp;
         ctx.LastGmcpMana = mana; ctx.LastGmcpMaxMana = maxMana;
         ctx.LastGmcpStamina = sta;
+        ctx.LastGmcpCombatStamina = combatSp; ctx.LastGmcpMaxCombatStamina = maxCombatSp;
         ctx.LastGmcpMental = mental;
 
-        Emit("Char.Vitals", new { hp, maxHp, mp = mana, maxMp = maxMana, sp = sta, mental, maxMental = GameConfig.MaxMentalStability });
+        // sp is the Stamina stat; combatSp and maxCombatSp (1.3.9) are the fight stamina the game shows.
+        var payload = new { hp, maxHp, mp = mana, maxMp = maxMana, sp = sta, mental, maxMental = GameConfig.MaxMentalStability, combatSp, maxCombatSp };
+        if (terminal != null) terminal.RunUnderWriterLock(() => TryWriteFrame(ctx, "Char.Vitals", payload, label));
+        else TryWriteFrame(ctx, "Char.Vitals", payload, label);
     }
 
     /// <summary>
@@ -342,11 +403,18 @@ public static class GmcpBridge
             hp     = m.HP,
             maxHp  = m.MaxHP,
             isBoss = m.IsBoss || m.IsMiniBoss,
+            rank   = EnemyRank(m),   // 1.3.10: "boss", "champion" or "normal"; isBoss stays as it was for old pages and MUD clients
             alive  = m.IsAlive
         }).ToList();
 
         Emit("Char.Combat.Enemies", new { enemies, round = currentRound });
     }
+
+    /// <summary>
+    /// 1.3.10: the enemy's rank on Char.Combat.Enemies: "boss" for a boss, "champion" for a champion or elite
+    /// (IsMiniBoss and not a boss), otherwise "normal". The web enemy chip reads it, so a champion no longer reads Boss.
+    /// </summary>
+    internal static string EnemyRank(global::Monster m) => m.IsBoss ? "boss" : m.IsMiniBoss ? "champion" : "normal";
 
     /// <summary>
     /// Emit Char.Combat.Enemies if any tracked enemy stat (hp / maxHp / alive)
@@ -357,8 +425,9 @@ public static class GmcpBridge
     ///
     /// Round number is passed through to the payload but is not part of the
     /// change-detection snapshot -- including it would force an emit every
-    /// round and defeat the whole point. Name / level / isBoss are also
-    /// stable across a fight so they don't need to be in the snapshot.
+    /// round and defeat the whole point. Level and isBoss are stable across a
+    /// fight so they are not in the snapshot; 1.3.10: the rank is, so a change
+    /// of rank is sent.
     /// </summary>
     public static void EmitCombatEnemiesIfChanged(System.Collections.Generic.List<global::Monster>? monsters, int currentRound)
     {
@@ -368,13 +437,14 @@ public static class GmcpBridge
 
         var sb = new System.Text.StringBuilder();
         foreach (var m in monsters)
-            sb.Append($"{m.Name}|{m.HP}|{m.MaxHP}|{m.IsAlive};");
+            sb.Append($"{m.Name}|{m.HP}|{m.MaxHP}|{m.IsAlive}|{EnemyRank(m)};");
         var snapshot = sb.ToString();
 
         if (snapshot == ctx.LastGmcpEnemiesSnapshot) return;
         ctx.LastGmcpEnemiesSnapshot = snapshot;
 
         EmitCombatEnemiesInternal(monsters, currentRound);
+        EmitWebEnemies(monsters, fightStart: false);   // 2.0 phase 3a: the families beside it, for the web client
     }
 
     /// <summary>
@@ -391,6 +461,149 @@ public static class GmcpBridge
     }
 
     /// <summary>
+    /// 2.0: true when the current session is the web client (SessionContext.WebClient). Display only:
+    /// a caller may skip building a web client payload on it, and nothing else.
+    /// </summary>
+    public static bool IsWebClientActive
+    {
+        get
+        {
+            var ctx = SessionContext.Current;
+            return ctx != null && ctx.WebClient && ctx.OutputStream != null;
+        }
+    }
+
+    /// <summary>2.0: the packages only EmitWebClient sends, to the current session (phase 1: Client.Menu, Room.Detail;
+    /// phase 3a: Client.Enemies, Client.Footer, Client.Sheet, Client.Map; 1.3.9: Client.Waiting, sent by EmitWebWaiting).</summary>
+    internal static readonly string[] WebClientPackages =
+        { "Client.Menu", "Room.Detail", "Client.Enemies", "Client.Footer", "Client.Sheet", "Client.Map", "Client.Waiting" };
+
+    /// <summary>2.0: true for a package only EmitWebClient sends.</summary>
+    internal static bool IsWebClientPackage(string? package) => package != null && Array.IndexOf(WebClientPackages, package) >= 0;
+
+    /// <summary>
+    /// 2.0 phase 3a: true when <paramref name="c"/> is the character this session plays (its engine's current player).
+    /// Client.Sheet and Client.Footer describe that character only, never another player's.
+    /// </summary>
+    internal static bool IsSessionsOwnCharacter(global::Character? c)
+    {
+        var own = SessionContext.Current?.Engine?.CurrentPlayer;
+        return c != null && own != null && ReferenceEquals(own, c);
+    }
+
+    /// <summary>
+    /// 2.0 phase 3a: Client.Enemies, {enemies:[{name, family}]}, the same members in the same order as Char.Combat.Start
+    /// and Char.Combat.Enemies, with each foe's monster family for its picture (Monster.ArtFamilyName: FamilyName, or a floor boss's theme family; empty when it has none) so the web
+    /// client can pick its art. Sent at the fight's start, and beside Char.Combat.Enemies when the names or families
+    /// changed since the last Client.Enemies of the fight. Web client only.
+    /// </summary>
+    public static void EmitWebEnemies(System.Collections.Generic.List<global::Monster>? monsters, bool fightStart)
+    {
+        if (monsters == null || !IsWebClientActive) return;
+        var ctx = SessionContext.Current!;
+        var sb = new StringBuilder();
+        foreach (var m in monsters) sb.Append(m.Name).Append('|').Append(m.ArtFamilyName).Append(';');
+        string snapshot = sb.ToString();
+        if (!fightStart && snapshot == ctx.LastWebEnemiesSnapshot) return;
+        ctx.LastWebEnemiesSnapshot = snapshot;
+        EmitWebClient("Client.Enemies", new { enemies = monsters.Select(m => new { name = m.Name, family = m.ArtFamilyName }).ToList() });
+    }
+
+    /// <summary>
+    /// 2.0 phase 3a: Client.Footer, the status line's values the other packages do not carry: potions (as the potion
+    /// line prints them, Healing out of MaxPotions), the lives or revives counter and the XP percent. A null field is
+    /// one the status line leaves out on this session, and is left out of the frame. Sent when the status line draws,
+    /// and (1.3.9) before each prompt, when a value changed since the last Client.Footer on this session. Web client only.
+    /// </summary>
+    public static void EmitWebFooterIfChanged(long potions, long maxPotions, int? lives, int? maxLives, string? livesKind, int? xpPercent)
+    {
+        if (!IsWebClientActive) return;
+        var ctx = SessionContext.Current!;
+        string snapshot = $"{potions}|{maxPotions}|{lives}|{maxLives}|{livesKind}|{xpPercent}";
+        if (snapshot == ctx.LastWebFooterSnapshot) return;
+        ctx.LastWebFooterSnapshot = snapshot;
+        EmitWebClient("Client.Footer", new { potions, maxPotions, lives, maxLives, livesKind, xpPercent });
+    }
+
+    /// <summary>
+    /// 1.3.9: before each prompt on a web client session, Char.Vitals, Char.Status and Client.Footer for the character
+    /// that session plays, each only when one of its values changed since it was last sent. The web page's footer
+    /// reads these three, and many screens (dungeon rooms, traps, the map, victory and loot) change HP, potions, gold,
+    /// XP or level without drawing the status line or passing the location loop, so their values went stale.
+    /// <paramref name="reading"/> is the terminal asking for input: a grouped follower's terminal read on the leader's
+    /// session is not that session's own and sends nothing. Web client sessions only: no other session gets a byte
+    /// more, and no terminal text is written.
+    /// </summary>
+    public static void EmitWebRefreshIfChanged(TerminalEmulator? reading)
+    {
+        if (!IsWebClientActive) return;
+        var ctx = SessionContext.Current!;
+        if (reading != null && ctx.Terminal != null && !ReferenceEquals(ctx.Terminal, reading)) return;
+        var player = ctx.Engine?.CurrentPlayer;
+        if (player == null) return;
+        EmitVitalsIfChanged(player);
+        EmitStatusIfChanged(player);
+        BaseLocation.EmitWebFooterFor(player);
+    }
+
+    /// <summary>
+    /// 2.0: emit a web client package (WebClientPackages) to the CURRENT session only, and only when
+    /// that session is the web client. There is no form of this that takes another session: these packages
+    /// describe the screen the current session drew, so EmitTo refuses them.
+    /// </summary>
+    public static void EmitWebClient(string package, object? payload)
+    {
+        var ctx = SessionContext.Current;
+        if (ctx == null || !ctx.WebClient) return;
+        TryWriteFrame(ctx, package, payload, ctx.Username);
+    }
+
+    /// <summary>
+    /// 1.3.9: Client.Waiting, an empty frame that tells the web page the game is reading input now, in any language.
+    /// Sent once at the start of each stream read to the session that owns <paramref name="reading"/>: a grouped
+    /// follower's terminal read on the leader's session reaches the follower, written under that terminal's writer
+    /// lock as EmitVitalsToFollower does. Web client sessions only; the frame goes straight to the owner's stream, so
+    /// a spectator (mirrored from the terminal's text) never gets it.
+    /// </summary>
+    public static void EmitWebWaiting(TerminalEmulator reading) => EmitWebWaiting(reading, OwnerOfTerminal);   // the result only matters to a poll
+
+    /// <summary>
+    /// 1.3.9: Client.Waiting {"poll": true}, for a poll that throws away the key it catches (the auto-combat stop key,
+    /// the story skip), so the page knows that key is not typed on a line. Same owner and lock rule as a read.
+    /// </summary>
+    /// <returns>True when the frame was sent (a web client session owns the terminal).</returns>
+    public static bool EmitWebPollWaiting(TerminalEmulator polling) => EmitWebWaiting(polling, OwnerOfTerminal, poll: true);
+
+    private static SessionContext? OwnerOfTerminal(TerminalEmulator reading)
+    {
+        var sessions = MudServer.Instance?.ActiveSessions;
+        if (sessions == null) return null;
+        foreach (var kv in sessions)
+        {
+            var ctx = kv.Value.Context;
+            if (ctx != null && ReferenceEquals(ctx.Terminal, reading)) return ctx;
+        }
+        return null;
+    }
+
+    internal static bool EmitWebWaiting(TerminalEmulator reading, Func<TerminalEmulator, SessionContext?> resolve, bool poll = false)
+    {
+        var ctx = SessionContext.Current;
+        if (ctx == null || (ctx.Terminal != null && !ReferenceEquals(ctx.Terminal, reading)))
+        {
+            try { ctx = resolve(reading); }
+            catch { return false; }
+            // A new login under the same name has its own terminal; this terminal is not its.
+            if (ctx == null || !ReferenceEquals(ctx.Terminal, reading)) return false;
+        }
+        if (!ctx.WebClient) return false;
+        var owner = ctx;
+        object? payload = poll ? new { poll = true } : null;   // a line read sends the empty frame
+        reading.RunUnderWriterLock(() => TryWriteFrame(owner, "Client.Waiting", payload, owner.Username));
+        return true;
+    }
+
+    /// <summary>
     /// Emit a GMCP frame to a specific session's output stream regardless of which
     /// session is "current." Used by chat fan-out paths where the sender's
     /// SessionContext is current but the GMCP frame needs to reach the recipient.
@@ -399,6 +612,8 @@ public static class GmcpBridge
     public static void EmitTo(PlayerSession? session, string package, object? payload)
     {
         if (session?.Context == null || !session.Context.GmcpEnabled) return;
+        // 2.0: the web client packages describe the screen the current session drew; they never go to another session
+        if (IsWebClientPackage(package)) return;
         TryWriteFrame(session.Context, package, payload, session.Username);
     }
 

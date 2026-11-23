@@ -299,7 +299,6 @@ public static class RelayClient
                 if (rawMode != null)
                 {
                     connectionType += ";echo=1";
-                    Console.Error.WriteLine("[RELAY] Terminal in raw mode; server-side echo requested");
                 }
             }
 
@@ -364,7 +363,6 @@ public static class RelayClient
             }
 
             // Auth succeeded — bridge stdin/stdout ↔ TCP socket
-            Console.Error.WriteLine($"[RELAY] Connected as '{username}', bridging I/O");
 
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             var socket = client.Client;
@@ -528,10 +526,10 @@ public static class RelayClient
             if (ll.Code == lang) { langName = ll.Name; break; }
         var text = new System.Collections.Generic.List<string> { "\u001b[2J\u001b[H" }; // Clear screen
         foreach (var row in MudServer.AuthBoxRows(L("auth.relay_title"), new[] {
-            ("1;36", "L", L("auth.login")),
-            ("1;32", "R", L("auth.register")),
-            ("1;35", "G", $"{L("auth.language")} ({langName})"),
-            ("1;31", "Q", L("auth.quit")) }))
+            (MudServer.AuthMenuColor, "L", L("auth.login")),
+            (MudServer.AuthMenuColor, "R", L("auth.register")),
+            (MudServer.AuthMenuColor, "G", $"{L("auth.language")} ({langName})"),
+            (MudServer.AuthQuitColor, "Q", L("auth.quit")) }))
             text.Add(row + "\r\n");
         text.Add("\u001b[0m");
         text.Add($"\r\n  {L("auth.choice")} ");

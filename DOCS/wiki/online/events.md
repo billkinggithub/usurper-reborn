@@ -1,8 +1,13 @@
 ---
 title: Rankings, news and world events
 path: /wiki/en/online/events/
-checked: 1.3.8
+checked: 1.3.13
 sources: Scripts/Systems/WorldEventSystem.cs, Scripts/Systems/NewsSystem.cs, Scripts/Locations/MainStreetDistricts.cs, Scripts/Systems/DailySystemManager.cs, Scripts/Systems/WorldSimService.cs, Scripts/Systems/WorldBossSystem.cs, Scripts/Systems/CombatEngine.cs, Scripts/Locations/WeaponShopLocation.cs, Scripts/Locations/ArmorShopLocation.cs, Scripts/Locations/MagicShopLocation.cs, Scripts/Locations/HealerLocation.cs, Scripts/Locations/DarkAlleyLocation.cs, Scripts/Systems/WeeklyGodSystem.cs
+history: 1.3.13 | none
+history: 1.3.12 | none
+history: 1.3.11 | The Healer no longer shows alignment or world event price lines it never applied, and the Bandit Lord Rises event, which never started, is removed from the event list.
+history: 1.3.10 | While Blessed Rain falls, healing HP at the Healer is free; on a Holy Day the Cloister meditation and an act of atonement are free; no event changes anyone's stats; and the event descriptions state what each event does.
+history: 1.3.9 | The website's Observatory page shows public world data and an hourly history of the world.
 history: 1.3.8 | An NPC ally's fall at your side writes one line in the news, not two.
 history: 1.3.7 | none
 history: 1.3.6 | none
@@ -23,11 +28,11 @@ Online the server's daily reset at 7 PM Eastern does the same once a day for the
 
 ## What does each world event do
 
-An event can change shop prices, the experience and the gold of a monster fight you win. Several events at once multiply, and the totals are held to x0.25 to x4.0 for prices, x0.5 to x3.0 for experience and x0.25 to x3.0 for gold. The prices are those of the Weapon, Armor and Magic shops and the Dark Alley; the Healer shows the change but does not charge it. The last column shows when the daily roll can draw the event. Of the events marked No, only the Gold Rush and The Realm Celebrates come another way (above); the others never start.
+An event can change shop prices, the experience and the gold of a monster fight you win. Several events at once multiply, and the totals are held to x0.25 to x4.0 for prices, x0.5 to x3.0 for experience and x0.25 to x3.0 for gold. The prices are those of the Weapon, Armor and Magic shops and the Dark Alley; the Healer neither charges nor shows it. The last column shows when the daily roll can draw the event. Of the events marked No, only the Gold Rush and The Realm Celebrates come another way (above); the others never start. While a Bandit Raid runs, bandits show up 3 times as often in the [wilderness](/wiki/en/world/wilderness/).
 
 {{table:world-events}}
 
-A plague has effects of its own: while it is active a healthy character in a fight takes 1 percent of maximum HP 10 percent of the rounds, with a small chance to catch the plague, and a sick one takes 25 percent more disease damage. The stat changes some events announce are not applied to anyone.
+A plague has effects of its own: while it is active a healthy character in a fight takes 1 percent of maximum HP 10 percent of the rounds, with a small chance to catch the plague, and a sick one takes 25 percent more disease damage. No event changes anyone's stats. While Blessed Rain falls, healing HP at the Healer (H and F) is free, with no tax. On a Holy Day the Temple's Cloister meditation and an act of atonement are free; the Rite of Return keeps its price.
 
 ## Events can affect your Mental
 

@@ -203,3 +203,44 @@ This is a proposal for the user to approve, not a rule in force.
 2. A ratchet test counts `ElectronMode` references (111 in 40 files today); the count may only go down, like the localization ratchets.
 3. Electron gaps found in 1.x reviews are added to section 2 of this plan instead of becoming merge requirements.
 4. When a 1.x change already touches a location's Electron menu, it fixes that menu's labels to Loc keys, which also lowers the 203 count.
+
+## 7. Decisions made
+
+### 2026-11-01: a browser client, and its look
+
+- **The 2.0 client is the full screen browser client.** Asked whether a fully immersive play page should be the 2.0 graphical client or a play page improvement in 1.x, the user answered: "make it the 2.0 client, start with mockups". The page at `/play/` (`web/play/index.html`) grows into it. It does not answer decisions 1 to 9 above.
+- **Look: "C with A's discipline".** Three directions were mocked up on the combat and dungeon room screens at desktop, tablet and phone sizes, with real game text and the current art: A, the terminal at the center with panels around it; B, the floor scene full screen with the enemies standing in it; C, the Chronicle, a dark two page book with the scene as a framed plate, the fight as prose and the action keys as red initials in the margin. Four outside model critiques were shown as input. The user picked C with A's information discipline in fights: monospace numbers for rolls and damage, framed action buttons, status chips, and a fixed combat control band. C shows the 384 x 192 scenes at their own size and uses one sprite per monster family as a plate, so it works with the current art; a sprite per named monster (75, against 15 family sprites today) is an upgrade for later, not a requirement.
+- What each panel needs from the game, checked at main 79e4ab3d: sent today over GMCP: `Char.Vitals` (`Scripts/Server/GmcpBridge.cs:165`), `Char.Combat.Party` (`:344`), `Char.Combat.Enemies` (`:409`), `Char.Status` (`:196`), `Char.Combat.Start` and `Char.Combat.End` (`Scripts/Systems/CombatEngine.cs:1141`, `:2492`), `Room.Info` (`Scripts/Locations/DungeonLocation.cs:2622`). Sent only to the old Electron client: `combat_menu` (`CombatEngine.cs:31759`), `combat_start` with the monster family (`CombatEngine.cs:2533`), `dungeon_room` (`DungeonLocation.cs:3496`), the room menu (`DungeonLocation.cs:3539`), `dungeon_map` (`DungeonLocation.cs:13807`), `party_status` (`DungeonLocation.cs:11259`). Not sent by anything: the ready chips, unvisited map rooms, XP to the next level.
+
+### 2026-11-01: the first four screens
+
+Each screen was mocked up in the Chronicle look with three placements of one element, at desktop, tablet and phone sizes plus a high contrast version, with real game text. The user picked one per screen:
+
+- **Combat: "C3".** The party and the enemy targets sit as panels under the scene plate on the left page; the framed action keys and the quickbar sit as a grid under the newest log line on the right page.
+- **Dungeon room: "D3".** The scene plate and the party panel on the left page; on the right page the room prose, then the map and the exit compass, then the framed action keys, so moving and acting sit together. Exits show only the cleared and unknown states the game already sends.
+- **Main Street: "E1".** The street plate with the people present and the party under it on the left page; on the right page the intro text and the framed keys grouped as Go, Districts and System.
+- **Character Status: "G2".** The class portrait with the equipment slots framed around it on the left page; the basic information, level and experience, combat statistics and equipment totals on the right page.
+
+A screen without its own layout shows the game's own text in the book page in monospace; this was mocked up on the status screen and reads in the same look.
+
+### 2026-11-01: the Steam desktop client
+
+The Steam build starts the game in single player inside WezTerm (`wezterm.lua:15` runs the game with `--local`; `launchers/Play.bat`, `launchers/play.sh`) and reaches the online server only through the game's own online menu (`Scripts/Systems/OnlinePlaySystem.cs`, an SSH link). The browser client at `/play/` is online only: its screens come from `Client.Menu` and `Room.Detail`, which the server sends to web sessions (`Scripts/Server/GmcpBridge.cs`, `EmitWebClient`). A terminal window cannot draw them.
+
+Three ways to bring the browser client to Steam players were put to the user: a link from the game's online menu that opens `/play/` in the browser; a second Steam launch option that opens `/play/` in the browser; a desktop app that hosts the browser client as a second Steam launch option beside WezTerm, online first and single player later through the same screens. The user answered: "let's do 3, which will be the capstone of the 2.0 release".
+
+- **Decision 3, local, online, or both: both, online first.** The desktop app loads the online client first; single player through the same screens follows.
+- **Decision 5, distribution: a second Steam launch option beside the WezTerm build.** The WezTerm build and its accessible launchers (`launchers/Play-Accessible.bat`, `launchers/play-accessible.sh`) stay.
+- **Decision 4, platforms: open.**
+- The link from the game's online menu and the browser launch option were not picked.
+
+### 2026-11-01: the shop, the desktop shell, platforms, keys
+
+The picks were put to the user on one page with the facts and a lean for each. The user answered: "1. I like H3.  2. Electron is fine 3. All four. 4. The user should be able to click a button to make it default if they want for future sessions, not sure how that would work though since they don't have a web account.  5. Yeah, I like the cache-control.  6. keep & and * and let the client label them clearly."
+
+- **Weapon Shop: "H3".** A compact list with the selected item's detail compared with the weapon in hand.
+- **Desktop shell: Electron.** The desktop app reuses the window and launcher parts of `electron-client/` (Electron 32, `electron-client/package.json`); it carries its own Chromium, so the page renders as it does in Chrome.
+- **Decision 4, platforms: all four Steam targets.** Windows x64, Linux x64, macOS Intel and macOS ARM, as the Steam build ships today (`.github/workflows/ci-cd.yml:330-333`). CI signs none of the game's own programs; the WezTerm app on macOS is left untouched to keep its signature (`ci-cd.yml:627-629`). A macOS launch test comes first; signing that needs a purchase is a separate question for the user.
+- **The `%` and `*` keys stay** (`Scripts/Locations/BaseLocation.cs:2881-2887`, `:4284-4287`); the client labels them clearly.
+- **The default view:** the View tab saves Classic or Chronicle in the browser (`web/play/index.html`, `playView`), so the choice holds for later visits in that browser.
+- **Caching:** the user approved a Cache-Control rule for the web server (`scripts-server/nginx-usurper.conf`).

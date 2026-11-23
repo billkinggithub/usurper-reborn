@@ -232,6 +232,9 @@ public class DailySystemManager
         if (DoorMode.IsOnlineMode)
         {
             await RunBasicDailyReset();
+            // 1.3.10 (D1): team wages at this player's own reset; the shared maintenance pass below runs once
+            // per server day for whichever session gets there first, so it charges no wages online
+            await MaintenanceSystem.ProcessTeamWages(player);
             if (maintenanceSystem != null)
             {
                 await maintenanceSystem.CheckAndRunMaintenance(forced);
@@ -332,6 +335,7 @@ public class DailySystemManager
         // and in no helper the catch-up path (RunCatchUpDailyReset) shares: absence must add nothing.
         player.PresentDays++;
         RelationshipSystem.ProcessNeglect(player);
+        NPCPetitionSystem.DropMessagesToTheDead(player);   // 1.3.11 (K16): a dying wish message to someone permanently dead
         
         // Turn-based resets only apply in non-Endless modes
         if (currentMode != DailyCycleMode.Endless)
@@ -890,8 +894,11 @@ public class DailySystemManager
         }
         catch { /* Loan system error */ }
 
-        // Process Quest System daily maintenance
-        QuestSystem.ProcessDailyQuestMaintenance();
+        // Process Quest System daily maintenance. 1.3.10: in the MUD the world reset (WorldSimService) ages every
+        // claimed quest once a day; this ran once per player crossing the boundary, so each player's reset aged
+        // every other player's quests too
+        if (!QuestSystem.WorldResetAgesQuests)
+            QuestSystem.ProcessDailyQuestMaintenance();
         // v1.2: the bank's robbery reserve grows once per day (online: WorldSimService)
         if (!UsurperRemake.BBS.DoorMode.IsOnlineMode)
             await BankVaultSystem.DailyRefill();

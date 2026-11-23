@@ -1,7 +1,7 @@
-<!-- doc: checked 1.3.8; sources: Scripts, Console/Bootstrap, web, scripts-server, Localization, launchers, electron-client, tools/wiki-build, .github/workflows/ci-cd.yml, usurper-reloaded.csproj, runtimeconfig.template.json, wezterm.lua -->
+<!-- doc: checked 1.3.14; sources: Scripts, Console/Bootstrap, web, scripts-server, Localization, launchers, electron-client, tools/wiki-build, .github/workflows/ci-cd.yml, usurper-reloaded.csproj, runtimeconfig.template.json, wezterm.lua -->
 # Usurper Reborn -- Architecture Document
 
-> A comprehensive technical reference for the Usurper Reborn codebase, checked against v1.3.8. Section
+> A comprehensive technical reference for the Usurper Reborn codebase, checked against v1.3.14. Section
 > version tags below (e.g. "v0.60.7") mark when a subsystem was introduced or last substantially
 > revised, not the document date.
 
@@ -97,7 +97,8 @@ Headless 24/7 NPC simulation (deprecated since v0.60.0; the MUD server has integ
 --mud-relay                Run as relay client (used by sshd-usurper)
 --mud-port <N>             Port for server / relay
 --admin <username>         Mark this account as admin in the MUD process
---auto-provision           Auto-create accounts for trusted BBS auth
+--allow-trusted-auth       Accept the password-free AUTH form from local relays (off by default)
+--auto-provision           Auto-create accounts for trusted BBS auth (needs --allow-trusted-auth)
 --user <username>          Pre-set username (skip auth)
 --db <path>                SQLite database path
 --worldsim                 Headless simulator (deprecated)
@@ -176,9 +177,10 @@ Stats follow Pascal `UserRec` layout for source-game compatibility. Modern field
 - **Knighthood / Fame**: `IsKnighted`, `Fame`, `WeeklyRank`, `PreviousWeeklyRank`, `RivalName`, `RivalLevel`
 - **Login streaks**: `LoginStreak`, `LongestLoginStreak`, `LastLoginDate`
 - **Blood Moon**: `BloodMoonDay`, `IsBloodMoon`
-- **Settlement buffs**: `SettlementGoldClaimedToday`, `HQArmoryLevel`, `HQBarracksLevel`, `HQTrainingLevel`, `HQInfirmaryLevel` (transient; cached from DB on login)
+- **Settlement buffs**: `SettlementGoldClaimedToday`, `HQArmoryLevel`, `HQBarracksLevel`, `HQTrainingLevel`, `HQInfirmaryLevel` (transient; cached from DB on login). `SmugglersCachePurchases` (1.3.10) is saved: the discounted purchases left from the Smugglers' Cache service (`GameConfig.SmugglersCachePurchases`)
+- **Dying messages** (1.3.10): `DyingMessages`, a list of `DyingMessageSaveData` (recipient, elder, gold) for the messages the player promised to deliver; talking to the recipient delivers one and pays the elder's savings (`NPCPetitionSystem.DeliverDyingMessages`). An old save has none
 - **NG+**: `CycleExpMultiplier`, NG+ cycle level
-- **Preferences**: `CombatSpeed`, `AutoHeal`, `SkipIntimateScenes`, `ScreenReaderMode`, `CompactMode`, `Language`, `DisableCharacterMonsterArt`, `MutedChannels`
+- **Preferences**: `CombatSpeed`, `AutoHeal`, `SkipIntimateScenes`, `ScreenReaderMode`, `CompactMode`, `Language`, `DisableCharacterMonsterArt`, `MutedChannels`. A new character starts on `CombatSpeed.Fast` (1.3.10, `CharacterCreationSystem`); a loaded save keeps its own, and a save with no `CombatSpeed` field reads Normal
 
 `RecalculateStats()` is the canonical re-derivation entry point: resets derived fields to `Base*`, layers race / class growth, applies equipment, applies child bonuses, applies specialization bonuses, and clamps. Called on every character mutation.
 
@@ -238,7 +240,7 @@ Mystic Shaman is race-locked (Troll / Orc / Gnoll only) and is a melee-caster hy
 ### Character Creation
 **File**: `Scripts/Systems/CharacterCreationSystem.cs`
 
-ANSI portrait + stats card on selection screens (10 races, 10+ classes have portraits; rest fall back to text card). Stat-roll loop with 5-reroll cap. Romantic orientation selection (Straight / Gay / Bisexual / Asexual). NG+ starting bonuses applied via `MetaProgressionSystem.GetStartingLevelBonus()` (Veteran = level 5, Master = level 10).
+ANSI portrait + stats card on selection screens (10 races and all 17 classes have portraits; screen reader mode and the art off setting use the text card). Stat-roll loop with 5-reroll cap. Romantic orientation selection (Straight / Gay / Bisexual / Asexual). NG+ starting bonuses applied via `MetaProgressionSystem.GetStartingLevelBonus()` (Veteran = level 5, Master = level 10).
 
 ---
 
@@ -590,6 +592,8 @@ Conway-style neighbor pressure (isolation and overcrowding change location selec
 
 **Files**: `Scripts/Systems/WorldSimulator.cs` (in-game, single-player + MUD), `Scripts/Systems/WorldSimService.cs` (the host the MUD server and `--worldsim` run it in)
 
+A BBS door hosts the same service in its own process when no other process holds the world sim lock, and cancels it on Quit. The periodic save writes the world state and then runs the maintenance (news, combat and orphan prunes, team and guild upkeep, world edit cleanup); the shutdown save writes the world state only, so a door that exits a few seconds after Quit is not cut off in a long prune (1.3.13).
+
 ### Tick (every 30 seconds)
 
 The order below is the older one. In 1.3.4 immigration and the recruit pool top-up run right after aging, before pregnancies; the tick ends with the settlement tick; catch-up mode runs the volatile systems every 60th tick (`WorldSimulator.cs`).
@@ -612,7 +616,7 @@ The order below is the older one. In 1.3.4 immigration and the recruit pool top-
 ```
 
 ### Race Extinction Floor
-Any race with fewer than 5 living NPCs gets immigrants from a name pool to keep the population diverse; `PermadeathRaceFloor = 3` instead blocks permadeath for a race that small. `IsAgedDeath` is a hard NO-respawn flag.
+Any race with fewer than 5 living NPCs gets immigrants from a name pool to keep the population diverse; `PermadeathRaceFloor = 3` instead blocks permadeath for a race that small. `IsAgedDeath` is a hard NO-respawn flag. Every arrival (the extinction top up, the diversity arrival and the recruit pool) takes the sex the living town has fewer of, a tie by a coin (`WorldSimulator.FewerSex`).
 
 ### World State Authority
 The world sim is the authoritative source for shared state (NPCs, royal court, economy, settlement, marriages, children, world events) in MUD mode. Player saves write player-specific data only; world state is loaded from `world_state` SQLite rows on every login and pushed back on mutating actions. Concurrent online edits are protected by row-level versioning and `OnlineStateManager.SaveAllSharedState()`.
@@ -676,8 +680,10 @@ SaveGameData {
 
 Since 1.3.8 a single player load (both load paths) first calls `GameEngine.ResetStoryForSinglePlayerLoad()`: the story, narrative systems, companions, dungeon party, faction, archetype, amnesia memories and the previous character's god entry start clean before any restore step. An online session keeps its own systems and is left alone. A new character also starts with no recovered amnesia memories.
 
+Since 1.3.10 the Fountain of Vitality is a 10 percent multiplier on max HP, so both load paths call `Character.MigratedBonusMaxHP`, which drops an old save's flat `BonusMaxHP` snapshot when the character has the fountain. The alive bonus, the town pot and the item durability counters are removed: they are no longer written, and a save that holds them loads with the values ignored (`SaveDataStructures.WorldStateData.TownPotValue` stays only so old saves and the editor read it).
+
 ### PlayerData (selection of major fields)
-Identity, stats, attributes, equipment (legacy + modern), inventory, status, daily counters, home upgrades, dungeon progression, preferences, statistics, achievements, login streak, weekly rank/rival, online death state (Resurrections, ResurrectionsUsed, MaxResurrections, TempleResurrectionsUsed, IsArrestCombat), Knighthood/Fame, Blood Moon state, NG+ cycle, child support data, herb pouch, settlement buffs, language/compact mode, mute channels, romantic orientation.
+Identity, stats, attributes, equipment (legacy + modern), inventory, status, daily counters, home upgrades, dungeon progression, preferences, statistics, achievements, login streak, weekly rank/rival, online death state (Resurrections, ResurrectionsUsed, MaxResurrections, TempleResurrectionsUsed, IsArrestCombat), Knighthood/Fame, Blood Moon state, NG+ cycle, child support data, herb pouch, settlement buffs, dying messages, language/compact mode, mute channels, romantic orientation.
 
 ### NPCData
 Identity, stats, class/race, lifecycle (Age, BirthDate, IsAgedDeath, PregnancyDueDate, PregnancyFatherName), marriage, faction, gang, full AI state (13 core personality + 10 romance traits, memories, goals, emotions), inventory, equipment, specialization.
@@ -746,7 +752,7 @@ Per-session AsyncLocal context: `Username`, `CharacterKey`, `ConnectionType`, `C
 
 Two paths:
 
-1. **Trusted AUTH (loopback only as of v0.60.6)**: 3-part `AUTH:user:type` form with no password. Used by the SSH gateway relay (`sshd-usurper` -> `--mud-relay` -> `127.0.0.1:4001`) and local BBS gateway. Validated against `IPAddress.IsLoopback(rawTcpPeer)` -- the raw socket peer cannot be spoofed by external clients (X-IP forwarded headers don't bypass the gate). External callers get `ERR:Authentication required. Trusted auth is only available from local relays.` and a logged rejection.
+1. **Trusted AUTH (off by default as of 1.3.11)**: 3-part `AUTH:user:type` form with no password. Refused unless the server is started with `--allow-trusted-auth`. With the flag it is accepted only from a loopback raw TCP peer (`IPAddress.IsLoopback(rawTcpPeer)`; no header changes the raw peer) that sent no PROXY v2 header and no `X-Client:` line on that connection. It is for a relay started with a named user (`--mud-relay --user <name>`) and a local BBS gateway; the SSH gateway relay without `--user` prompts for a password and sends the password form. Every refusal gets `ERR:Authentication required. Trusted auth is only available from local relays.` and a logged rejection with its reason.
 
 2. **Password AUTH (4-part)**: `AUTH:user:password:type` or `AUTH:user:password:REGISTER:type`. Routed through `SqlSaveBackend.AuthenticatePlayer` / `RegisterPlayer` with PBKDF2-SHA256 (100k iterations, 16-byte salt, constant-time comparison).
 
@@ -1079,16 +1085,27 @@ Bundled into the existing TTYPE probe at session connect. Initial telnet packet 
 ### Packages Shipped
 | Package | Trigger | Payload |
 |---|---|---|
-| `Char.Vitals` | Top of `BaseLocation.LocationLoop` (delta-tracked, only when changed) | `{ hp, maxHp, mp, maxMp, sp, mental, maxMental }` (v1.1.15: mental and maxMental added, both modes) |
+| `Char.Vitals` | Top of `BaseLocation.LocationLoop` (delta-tracked, only when changed) | `{ hp, maxHp, mp, maxMp, sp, mental, maxMental, combatSp, maxCombatSp }` (v1.1.15: mental and maxMental added, both modes; 1.3.9: combatSp and maxCombatSp are the fight stamina, while sp stays the Stamina stat) |
 | `Char.Status` | Every location change | `{ name, class, level, race, gold, bank, xp, location }` |
-| `Room.Info` | Every location change | `{ num, name, area, exits }` (exits filled for town locations and dungeon rooms) |
+| `Room.Info` | Every location change, every dungeon room move and every dungeon room view, each draw of a Main Street district screen (1.3.10), and Main Street again when the player leaves a district with R | `{ num, name, area, exits }` (exits filled for town locations, districts and dungeon rooms). A district's `num` is a text id (`district:MerchantRow`), not a location number; its exits are the town locations it lists and Main Street |
 | `Comm.Channel.Text` | All chat broadcasts | `{ channel, talker, text }` |
 | `Char.Death` | At top of `HandlePlayerDeath` | `{ killer, resurrectionsLeft }` |
+| `Client.Menu` | Web client sessions only (2.0). Sent when a screen draws its menu, never per keystroke: Main Street (both layouts, `MainStreetWebMenu.cs`), the dungeon room view (`EmitRoomMenu`), the combat owner's dungeon fight prompt and the PvP prompt (`CombatEngine.WebMenu.cs`) | `{ screen, oneKey, round?, groups: [{ label, items: [{ key, label, enabled }] }], hint?: { text, label } }`; screen is `main_street`, `main_street_classic`, `dungeon_room`, `combat` or `combat_pvp`. Built from the list the screen's key handler reads (`MainStreetLines`, `RoomActions`, the handler's cases); `enabled` is false where the handler takes the key but refuses it. The dungeon room sends each action's printed key (`DrawKey`, 1.3.10): `*` Inventory and `%` Status, the global keys, while the room still takes `I` and `=` typed. On the combat screens (1.3.10) the list is exactly the keys the text menu drew this round: an action that cannot be taken (Aid Ally with no ally in need, Rescue, a Miracle not offered, Save, Rage, Backstab, Smite, Coat Blade, the herb pouch, and Power Attack, Precise Strike, Fight to Death and Beg for Mercy in PvP) is left out, and a key left out still does what it did when typed. `oneKey` (1.3.9) is true when the page may send a menu key on one press: the character has one key menus on (`WebMenuKeysNeedEnter` false, the default) and is not in screen reader mode (`WebClientMenu.OneKey`). `round` (1.3.9) is the fight's current round on a combat screen and is left out elsewhere. `hint` only when the text menu printed that line. Labels in the session's language |
+| `Client.Waiting` | Web client sessions only (1.3.9). At the start of each stream input read (`ReadLineInteractiveAsync`, `GetMaskedInput`), and with `poll` true when a poll that throws away the key it catches starts listening (the auto-combat stop key, the opening story skip) (`GmcpBridge.EmitWebWaiting`, `EmitWebPollWaiting`) | Empty for a read, `{ poll: true }` for a poll. Tells the page the game is reading input now, in any language. Goes to the session that owns the terminal being read (a grouped follower's terminal read on the leader's session reaches the follower), written under that terminal's writer lock; straight to the owner's stream, so a spectator never gets it |
+| `Room.Detail` | Web client sessions only (2.0). Each dungeon room view (`EmitRoomDetail`) | `{ name, level, theme, themeId, header, danger: { rating, max }, status, boss, exits: [{ key, description, state, stateLabel }], features }`: what the room text shows. `theme` is the translated short name; `themeId` (phase 3a) is the `DungeonTheme` name, the same in every language, for the scene art. Exit state is `cleared`, `fully_cleared` (only where the text says it), `explored` or `unknown`; no target room, no trap |
+| `Client.Enemies` | Web client sessions only (2.0 phase 3a). Beside `Char.Combat.Start`, and beside `Char.Combat.Enemies` when the names or families changed since the last one of the fight (`GmcpBridge.EmitWebEnemies`) | `{ enemies: [{ name, family }] }`: the same members in the same order as the enemy list, `family` the monster family for the sprite (`Monster.ArtFamilyName`: `FamilyName`, or a floor boss's theme family since 1.3.11; empty when none) |
+| `Client.Footer` | Web client sessions only (2.0 phase 3a). When the status line draws and a value changed since the last one (`BaseLocation.EmitWebFooter`) | `{ potions, maxPotions, lives, maxLives, livesKind, xpPercent }`: potions as the potion line prints them (`Healing` of `MaxPotions`); the lives or revives counter (`livesKind` `lives` or `revives`) and the XP percent only where the line prints them (`StatusLineLives`, `StatusLineXpPercent`, the rules the line itself uses) |
+| `Client.Sheet` | Web client sessions only (2.0 phase 3a). As the Character Status sheet draws (`BaseLocation.EmitWebSheet`), once per sheet | `{ title, name, classId, basic, level, combat, equipment, totals }`: the sections the G2 layout shows, labels from the text's own Loc strings without padding and colon, values as the text prints them, each equipment slot with its item name and stats or its empty word. Only for the character the session plays (its engine's `CurrentPlayer`) |
+| `Client.Map` | Web client sessions only (2.0 phase 3a). With each dungeon room draw, beside `Room.Detail` (`EmitWebMapForRoom`), and as the map screen (M) draws (`DungeonLocation.EmitWebMap`); neither for the screen reader | `{ level, theme, themeId, explored, total, cleared, room, location, bossDefeated, rooms: [{ x, y, kind }], links: [{ x1, y1, x2, y2 }] }`: rooms at their `BuildRoomPositionMap` places with the symbol the text prints (`here`, `boss`, `stairs`, `cleared`, `monsters`, `safe`, and `unknown` for a "?") and the corridors it draws. Explored rooms and the current one are always listed. An unexplored room is `unknown` with nothing else about it, and is listed only when exits that are not hidden and unrevealed lead to it from the entrance or a room the player has seen. A corridor through a hidden, unrevealed exit is never listed, though the text map draws it. `room` is the current room's id, as `Room.Info` sends it |
 
-Strict opt-in: SSH-relayed, web terminal, BBS, and Electron sessions skip GMCP entirely via early-return on `!ctx.GmcpEnabled`. Synchronous per-stream lock prevents interleaved frames.
+In group play (1.3.9), `EmitVitalsToGroup` and `EmitVitalsToFollower` send each grouped player's `Char.Vitals` to that player's own session, beside every leader vitals send in combat, when a follower's turn opens and at the shared rests. The change check uses that session's own baseline and runs, with the write, under that session's `GmcpVitalsLock`; the frame is written under the follower terminal's writer lock (`TerminalEmulator.RunUnderWriterLock`) before the stream lock, and only when the session still owns that terminal. The combat-end send to the group does not depend on the leader having GMCP. `Char.Combat.Party` and `Char.Combat.Enemies` still go to the leader only.
+
+The web client capability (`SessionContext.WebClient`, 2.0) is true only for a session whose `ConnectionType` is `Web` and that has `GmcpEnabled`. It is a display preference only: `X-Client` is not limited to loopback, so any client can claim it, and no game rule reads it. `GmcpBridge.EmitWebClient` writes to the current session only; `EmitTo` refuses every web client package (`GmcpBridge.WebClientPackages`: `Client.Menu`, `Room.Detail`, `Client.Enemies`, `Client.Footer`, `Client.Sheet`, `Client.Map`, `Client.Waiting`).
+
+Strict opt-in: SSH-relayed, BBS and Electron sessions and any other websocket client skip GMCP entirely via early-return on `!ctx.GmcpEnabled`. The play page (`/play/`) gets GMCP because the web proxy answers the offer for it (Section 36). Synchronous per-stream lock prevents interleaved frames.
 
 ### Shipped Since
-The server now also emits `Char.StatusVars`, `Char.Items.List`, `Char.Skills.List` and the combat packages `Char.Combat.Party`, `Char.Combat.Enemies`, `Char.Combat.Start`, `Char.Combat.End` and `Char.Combat.Killed` (`GmcpBridge.cs`, `CombatEngine.cs`). Each spell in `Char.Skills.List` carries the mana a cast costs that player (`SpellSystem.CalculateManaCost`) and the level at which the spell opens for the class (`SpellSystem.GetLevelRequired`), since 1.3.5. Each ability in `Char.Skills.List` carries the stamina cost charged, tier increase included (`ClassAbilitySystem.GetEffectiveStaminaCost`, 1.3.6). `Core.Supports.Set` is recorded per session but changes nothing yet.
+The server now also emits `Char.StatusVars`, `Char.Items.List`, `Char.Skills.List` and the combat packages `Char.Combat.Party`, `Char.Combat.Enemies`, `Char.Combat.Start`, `Char.Combat.End` and `Char.Combat.Killed` (`GmcpBridge.cs`, `CombatEngine.cs`). Each enemy in `Char.Combat.Enemies` carries `isBoss`, true for a boss or a champion as before, and since 1.3.10 `rank`, exactly one of `boss` (`IsBoss`), `champion` (`IsMiniBoss` and not a boss) or `normal`; a change of rank is sent like a change of HP (`GmcpBridge.EnemyRank`). Each spell in `Char.Skills.List` carries the mana a cast costs that player (`SpellSystem.CalculateManaCost`) and the level at which the spell opens for the class (`SpellSystem.GetLevelRequired`), since 1.3.5. Each ability in `Char.Skills.List` carries the stamina cost charged, tier increase included (`ClassAbilitySystem.GetEffectiveStaminaCost`, 1.3.6). `Core.Supports.Set` is recorded per session but changes nothing yet.
 
 ---
 
@@ -1247,6 +1264,14 @@ Adjusts target monster level: `playerLevel + (difficulty - 2) * 3`, capped to `p
 ### Daily Quest Limit (`MaxQuestsPerDay = 3`)
 Tracked at claim time via `RoyQuestsToday`. Reset at daily reset.
 
+### Placed targets (1.3.10)
+The royal artifact quest (a Relic Thief), Crown criminal bounties and bounty board champion quests name a target. When the quest is taken (`QuestSystem.PlaceTargets`) the target is placed on a dungeon floor of `player.Level + difficulty * 3`, at most the deepest floor the player can reach (`ReachableFloor`; a champion also stays within its tier's levels), and the objective names that floor. The target waits in one room of the floor and killing it completes the objective. The floor is saved as `QuestObjective.TargetFloor` (0, and for every save before 1.3.10, for none).
+
+### Quest Aging
+Online, the world reset ages every claimed quest once a day (`WorldSimService`); a player's own daily reset does not (`QuestSystem.WorldResetAgesQuests`, 1.3.10). Single player and a BBS door session in its own process age quests at the player's daily reset.
+
+Online, the quests the world reset failed are kept as `world_state` key `quest_ended` (quest id and the time it failed, kept 30 days; `QuestSystem.EndedByWorldKey`, `WorldSimService`), so a server restart does not give one back from a player's save (1.3.11). No schema change.
+
 ### Quest Completion
 Gold rewards reduced 7-10x in v0.52.5 (was overtuned). Failure penalties enabled. Abandoned quests serialize with `QuestStatus.Abandoned`.
 
@@ -1333,7 +1358,7 @@ Full political system: guard loyalty, treasury management, court factions (Loyal
 
 50+ achievements across 7 categories: Combat, Exploration, Economy, Social, Progression, Challenge, Secret.
 
-5 tiers: Bronze, Silver, Gold, Platinum, Diamond. Tier-scaled Fame rewards.
+5 tiers: Bronze, Silver, Gold, Platinum, Diamond. Tier-scaled Fame rewards. The table loads once, under a lock, and is marked loaded only after the load completes.
 
 Notable: `first_steps`, `monster_slayer_1000`, `boss_killer`, `level_100`, `married`, `ruler`, `pvp_veteran`, `nightmare_master`, `completionist`, `first_blood`, `guardian_slayer`, `dedicated_adventurer`, `devoted_champion`, `legendary_devotion`, `world_boss_first`, `world_boss_5_unique`, `world_boss_25_total`, `world_boss_mvp`. Steam achievements wired through `OSC` markers in online mode.
 
@@ -1420,7 +1445,7 @@ Methods: `DrawBoxTop/Bottom/Line/Separator`, `DrawMenuOption`, `DrawStatBar`, `D
 ### ANSI Art
 **File**: `Scripts/UI/ANSIArt.cs`, `Scripts/UI/RacePortraits.cs`
 
-Race / class portraits at character creation (10 races: Orc, Dwarf, Elf, Half-Elf, Troll, Gnoll, Gnome, Human, Hobbit, Mutant; 4 classes: Magician, Assassin, Warrior, Paladin). Plus monster silhouettes, Old God boss reveal art, splash screen, Death art, Treasure / Boss Victory / Level Up event art. SR mode short-circuits at `DisplayArt` / `DisplayArtAnimated` to plain text.
+Race / class portraits at character creation (10 races: Orc, Dwarf, Elf, Half-Elf, Troll, Gnoll, Gnome, Human, Hobbit, Mutant; all 17 classes). Four class portraits are hand drawn (Magician, Assassin, Warrior, Paladin, in `RacePortraits.cs`); the other 13 (1.3.10) are 18 rows of 38 half block cells in `ClassPortraitArt.cs`, generated by `tools/class-portraits/class_portraits.py` from the class sprites, in 256 colours, or in 16 colours in a BBS session (a door, or connection type BBS on the online server). Plus monster silhouettes, Old God boss reveal art, splash screen, Death art, Treasure / Boss Victory / Level Up event art. SR mode short-circuits at `DisplayArt` / `DisplayArtAnimated` to plain text.
 
 ### AccessibilityDetection
 **File**: `Scripts/UI/AccessibilityDetection.cs`
@@ -1452,7 +1477,7 @@ BBS saves stored in `saves/{BBSName}/` to prevent cross-BBS conflicts. Single-pl
 BBS passes raw TCP socket handle for BOTH telnet and SSH. Writing to the raw socket on SSH bypasses encryption -> "Bad packet length" errors. Mitigation: `Console.IsInputRedirected` detection auto-routes SSH BBSes to stdio mode.
 
 ### `--auto-provision`
-Trusted BBS sysops can pass `--auto-provision` so BBS-authenticated users get their game-server account auto-created on first connect. Only valid in trusted-AUTH path (loopback only as of v0.60.6).
+Trusted BBS sysops can pass `--auto-provision` so BBS-authenticated users get their game-server account auto-created on first connect. Only valid in the trusted-AUTH path, so it needs `--allow-trusted-auth` as well (1.3.11).
 
 ---
 
@@ -1479,6 +1504,9 @@ Standalone and Steam builds ship with WezTerm AppImage / .exe + 8 font files in 
 
 ### Font Selection
 In-game `[7] Terminal Font` preference writes `font-choice.txt`; WezTerm reads and auto-reloads. Font scaling 0.85x-1.4x persists in localStorage (Electron client) or via the same prefs file.
+
+### Window Size
+The window opens at 80x50 the first time. After that it opens at the size the player last left it at: `wezterm.lua` saves `<cols> <rows>` to `window-size.txt` beside it on `window-resized` (not in full screen, only a size from 80x24 to 400x200 that changed) and reads it before setting `initial_cols` and `initial_rows`. A missing, unreadable or out of range file keeps 80x50, and every read and write is under `pcall`, so a folder that cannot be written simply does not remember. The file is read with `io.open`, never watched, so a resize does not reload the config, and releases do not ship it, so an update keeps the player's size.
 
 ### Linux Launcher Fallback
 `play.sh` rewritten in v0.52.6 with FUSE-fallback chain: WezTerm AppImage -> WezTerm with `APPIMAGE_EXTRACT_AND_RUN=1` -> system terminal emulators (gnome-terminal, konsole, alacritty, kitty, xterm) -> direct execution. Same chain in `play-accessible.sh` plus `--screen-reader` flag.
@@ -1509,7 +1537,7 @@ Optional Electron-based graphical client with Darkest Dungeon-inspired combat UI
 - **Audio**: Web Audio receiver with sfx / music / ui channel mixer; lazy `.ogg` loading; emits at level-up, death, achievement unlock, boss phase transitions
 
 ### HD Sprites
-`electron-client/generate-sprites.js` calls PixelLab API (192px transparent backgrounds). Fallback chain: HD -> east-facing -> default -> placeholder. 17 classes + 15 monsters in `assets/classes-hd/` and `assets/monsters-hd/`.
+`electron-client/generate-sprites.js` calls PixelLab API (192px transparent backgrounds). Fallback chain: HD -> east-facing -> default -> placeholder. 17 classes + 15 monsters in `assets/classes-hd/` and `assets/monsters-hd/`. The terminal class portraits for 13 classes are converted from those class sprites.
 
 ### Localization
 `electron-client/src/i18n.js` with `window.i18n.t(key, ...args)` API. Embedded English baseline (~75 keys). Translations dropped into `electron-client/lang/{es,fr,hu,it}.json`.
@@ -1525,17 +1553,50 @@ Beta. Text mode is the supported way to play; Electron is optional. Phase 9.5 po
 **File**: `web/index.html`
 
 Dark-themed responsive page with:
-- Embedded xterm.js 5.5.0 web terminal (WebSocket bridge to the game)
+- Play buttons that open the play page (`/play/`) in a new tab
 - Live stats dashboard (`/api/stats`, 2 minute server cache)
 - SSE live feed (`/api/feed`) for NPC activity and player news
 - PvP leaderboard, Hall of Fame, event color coding
 - Game lore: story, Old Gods, classes, races, companions, endings, BBS history, Founder Hall
 
+### Play Page
+**File**: `web/play/index.html`, served at `/play/` (the folder index; no nginx rule needed)
+
+- A full page terminal: xterm.js 5.5.0, always 80 columns, with the font the largest size from 20px down to 12px that fits 80 columns and 25 rows. With a mouse, a phone width keeps the 80 columns at 12px and slides them sideways.
+- Touch screens (`(hover: none) and (pointer: coarse)`: phones and tablets) get `body.touch`:
+  - The font fits all 80 columns to the width, in 0.25px steps down to 4px ("whole screen", the default). The Aa button in the top bar switches to the 12px floor that slides sideways; the choice is kept as `playFit` in localStorage.
+  - A tap pad sits under the terminal, or beside it when the stage is wider than 1.3 times its height. It shows the options of the current screen as buttons: `[K] Label`, `[E]nter`, `[O] Auto-Combat` and the like, read from the xterm buffer from the cursor up to the row where the player last pressed Enter (an xterm marker), the row where the game last cleared the screen (another marker), the previous game prompt, or the top of the screen; blank rows under the cursor's prompt belong to it. One key per action: a key or a label already offered is left out (the Inn's `[S] Status`, then the quick `[%] Status`). Three or more rows set as two text columns are read down the left column, then the right. A label over 40 characters ends at a word with an ellipsis. On a screen whose last line asks for Enter (`ui.press_enter` or `ui.press_any_key` in any language), a key printed inside a box is not an option.
+  - A tap sends the key and Enter, since the game reads lines. A yes or no question offers the two letters its `(x/y)` prompt shows, so (S/N) and (O/N) work. A question ending in a colon offers the keyboard; a screen with nothing to pick lights Enter.
+  - Fixed keys: Enter, Back (0x7f), Keys (every key, one character per tap) and Type (focuses the terminal to raise the phone keyboard; the pad steps aside until it closes).
+  - A compass shows the `Room.Info` exits that are compass directions when the screen also offers that key. The dungeon sends `Room.Info` when the player moves to a room and each time it draws a room, so it shows in a level's first room, after a teleport or a load, and after a fight. A grouped follower's screen is redrawn without an Enter, so a follower's compass can still show the room before.
+  - The terminal is not focused on connect or on a tap, so the phone keyboard opens only from Type.
+- Opens `/ws?gmcp=1`, so the proxy splits the stream (below). Binary frames go to the terminal; text frames are GMCP as `{"gmcp": "Package.Name", "data": ...}`.
+- A status line under the terminal: HP and MP bars and the fight stamina (`Char.Vitals` hp, mp, combatSp and their maximums), level and gold (`Char.Status`) and the location name (`Room.Info`). `Char.Vitals.sp` is the Stamina stat, so it is not drawn.
+- A drawer with Combat and Chat. Combat lists enemies and party (`Char.Combat.Start`, `.Enemies`, `.Party`), marks a killed enemy dead (`Char.Combat.Killed`, since the game sends no enemy update after the last blow), shows the result (`Char.Combat.End`, `Char.Death`) and logs the fight's round text read from the terminal (the Chronicle fight log below; in Classic too). Chat keeps the last 200 `Comm.Channel.Text` lines; the player's own lines are not sent by the game, and `/history` shows the last 50 messages (`ChatHistoryStore.Capacity`), own lines included.
+- At 1200px and wider the drawer sits beside the terminal and opens on its own when a fight starts. Narrower, it lies over the terminal, so a fight marks the Combat button instead.
+- GMCP values are kept only as strings or finite numbers and drawn with `textContent`; the page script has no HTML sinks (`web/test/play-page.test.js`; the pad in `web/test/play-pad.test.js`). UI strings are the `play.*` keys in `web/lang/*.json`.
+- A View panel in the drawer, opened by a View button beside Combat and Chat (the View button shows from the first page load, so the view can be picked before login; Combat and Chat from the first GMCP frame): Classic (everything above, the default for every viewer), Chronicle, and Chronicle with high contrast. The top bar is unchanged. The choice is kept per browser as `playView` in localStorage; an unknown or unreadable value is Classic. In Chronicle the book's running head also has a Classic button.
+- Chronicle (2.0 phase 2, `web/play/chronicle.css`, art in `web/play/art/`): a two page book (one page at 600px and under). The terminal still gets every byte and the keyboard: it sits out of sight in the page (1px, transparent, never `display: none` or `aria-hidden`) at 80 columns and 50 rows, and the book is drawn from its buffer.
+  - Text page, the default for every screen: the screen as the game prints it, in JetBrains Mono with the game colours, with the plate on the left page and key caps from the same screen scan the pad uses. A Text page button forces it on every screen. A new screen opens at its own first line, and stays there while its text arrives until the reader scrolls; the rows above it are the last screen's (the game streams without clearing) and are set quieter, and a short screen still opens at the top of the window. On a desktop the type is sized to the screen's longest row (up to 80 columns, 10px to 15px), so a table row never wraps, and the window ends at a whole line. A box the game draws in line characters is drawn as a box: its rule rows are its edges (with their title), its side bars its left and right edges in the frame's colour, a row the game leaves open on the right still gets its right edge, and a centred title is centred; a bar not at the row's start (a box among art, a map corridor) stays as printed. Beside the keys the text keeps at least 16em; when both do not fit, the right page scrolls. A row drawn in block characters (at least 8, at least half of what it prints) is set solid: line height 1, the letters touching, one line scaled to 80 columns.
+  - Wraps: a row xterm marks `isWrapped` (the game's line ran past column 80 with no line end) is joined to the row above, which keeps its trailing spaces; a row after a real line end is never joined, so table, menu, box and short lines stay as printed.
+  - Fight from `Char.Combat.Start` to `Char.Combat.End`: party and enemy cards (`Char.Combat.Party`, `.Enemies`, `.Killed`), the room heading from `Room.Detail`, and the round text as a log: each draw's rows from the last Enter to the prompt, read from the whole terminal buffer in both views, without blank rows, rows in a double line box (the combat status and the action menu), menu lines whose keys are all on the dock, a tip box's edges and title and a heading set between rules (`═══ COMBAT ═══`), the prompt row (with what the player has typed, and its earlier copies in the draw) and rows drawn only in block characters; oldest at the top, newest at the foot and largest, whole lines only, the last 400 lines kept for the drawer. Text on the line shows under the log as the terminal shows it. A draw read in pieces is stored once, rows read before a draw began are never stored under it, and the draw in which `Char.Combat.End` came still counts. The round marker, the drawer's round counter and the phone header follow `round` in the newest combat `Client.Menu`; a fight with no such frame (a grouped follower) follows `Char.Combat.Enemies` `round`, which the game sends at the end of a round when an enemy changed. Once `Client.Enemies` names the foes (phase 3a), each living foe stands in the plate as its sprite (`web/play/art/monsters`, 2x for one or two foes, 1x for more; 1x and 0.5x on narrower screens) or, with no fitting sprite, as its name; a list that does not match the fight's own names nothing. The sprite is the family's, except for the monsters the page names in each language (`monster.name.*`): the Kobold is drawn as a goblin, the Wraith and the Lich as the wraith, the werewolves as the wolf beast and the Spider Queen and Broodmother as the spider queen, while the Zombie, Ghoul, Pixie, Sprite and Treant show their names, as do the Beast (wolves), Insectoid and Aberration families. An enemy card shows a Boss or Champion chip from the enemy's `rank` when the frame carries it (none for `normal`), and from `isBoss` when it does not. A party card at a quarter of its HP or less (above 0) is marked Low HP in words, with a red edge and a thicker rule; the Classic HP meter says Low HP too. `Char.Death` ends the fight page: the death screen is the text page, and no round marker or drawer round shows. The Combat button's dot goes when the fight ends.
+  - Dungeon room while a `Room.Detail` came in the current draw: name, level, theme, danger, the `features` as "You notice", and the rest of the screen in mono, never cut (when the text, the map and the keys do not fit, the right page scrolls); under the prose the map and the exit compass side by side (D3). The compass is from `exits` only. The map is the last `Client.Map`, shown only while it is the map of this floor drawn from this very room (`Room.Info` `num` equals its `room`); the game sends one with each room draw, so after a move the old map stays out until the new one comes. Rooms not yet seen are drawn with a dashed edge and a "?". A grouped follower's room view is pushed as text from the leader's session, which sends no web client package to the follower, so like the compass a follower's map can show the room before until the follower's own screen draws a room.
+  - Character Status (G2, phase 3a) while a `Client.Sheet` came in the current draw, which is the sheet's first page: the class portrait with the equipment slots around it on the left page, the sheet's sections on the right, the game's Enter key in the dock. The next pages are the text page.
+  - Main Street while a `Client.Menu` `main_street` or `main_street_classic` came in the current draw. The keys the screen prints that the menu does not have (inventory, help, talk and the other quick keys) join the dock as More keys; the street text leaves out the status line (the footer has it), a heading set between rules whose lines went to the dock, and the quick key lines.
+  - A draw starts at each Enter sent and at each screen clear, and ends at the game prompt or after a quiet spell (300ms after output, 1.5s after an Enter with none). A room or street layout whose frame did not come in the draw gives way to the text page; a `Client.Menu` counts for the dock only in the draw it came in. Menu lines (a line that opens with a key, or with a short name and a colon before its keys) whose keys are all on the dock are left out of the text, and a sentence that names a key stays; in a room whose keys came from `Client.Menu`, so are a heading line (ending in a colon) whose lines all went to the dock and the line that opens with the `Room.Detail` header.
+  - Key caps send the key and Enter, as the pad does; `enabled: false` is shown dashed with `aria-disabled` and sends nothing. Keys typed while the book has focus go to the game as the terminal sends them. A `Client.Menu` key shows as the key the screen prints for the same label (the room's `[*] Inventory` and `[%] Status`, where the frame says `I` and `=`; the game takes both), and that key also fires one key. The shop's `[#]` cap reads No. and sends nothing: it gives the terminal the keyboard for the item's number. A cap that is not a letter is set in the mono face (figures on the line); labels are in the book face, never broken inside a word, at most two lines with an ellipsis and the whole label as the title. A line under the keys says how they reach the game: one press on a one key menu, else the key and then Enter. The Enter key shows only while the game reads a line (`Client.Waiting` in the current draw; a server that never sends one is taken at its prompt's shape) and the connection is open.
+  - One key menus, in both views: when the current `Client.Menu` has `oneKey` true and the line is empty, one key press that is one of that menu's keys, in any case and enabled or not, sends the character and Enter. It never fires with text on the line, for `/` (slash commands and chat), with no current `Client.Menu` (a menu stops being current at the next Enter or screen clear), during an IME composition, for a held key's repeats, for a paste, or when `oneKey` is false or absent. Only a real key stroke arms it, so a phone's on screen keyboard, which reports no key, types as before. Auto-Combat and Speed are the single keys `O` and `X` (1.3.9), and their key caps send those; with one key on, a typed word whose first letter is a menu key sends that letter: `AUTO` attacks, and `SPD` shows status on the PvP prompt (on the dungeon fight `S` is not a menu key, so `SPD` types as before); with one key off, typed `AUTO` and `SPD` still work. After a one key send, a typed key (a held key's repeats too) is dropped, not sent and not on the line, until the next `Client.Waiting` (the game starts reading input) or 20 seconds; Enter, key caps, pad buttons and a paste are never dropped, and a connection that has sent no `Client.Waiting` has no wait. After a `Client.Waiting` with `poll` true (the game polls for a key it throws away, as the auto-combat stop key does) every key typed until the next `Client.Waiting` is taken as consumed: none goes on the typed line, so one key stays on.
+  - A taller terminal (Classic to Chronicle sets 50 rows) pulls rows of earlier screens back into view; the current screen starts no higher than the row where the game last cleared the screen, so those rows are never read as part of it.
+  - Art only from language neutral values: the scene from `Room.Info` `num` (the `GameLocation` id), or on a dungeon floor (`area` `Dungeon Floor n`) the floor theme's scene from `Room.Detail` `themeId` (the plain dungeon scene without one; the localized `theme` is not read for art), the portrait from `Client.Sheet` `classId` (the character sheet only), the foe sprite from `Client.Enemies` `family` and the monster's shown name. A place with no scene of its own takes the nearest one (the Armor Shop the weapon shop's, the bars and the dormitory the inn's, the castle's rooms the castle's, the Alchemist the healer's, the Ice Caves the frozen depths, the Pantheon and the Sanctum the temple's, the Settlement the wilderness), else a plain plate with the place's name (a Main Street district, whose `num` is a text id, gets this plate); before the game names a place (login, the account menu, character creation) the plate is the town under the game's name. The art is copied byte for byte from `electron-client/assets`.
+  - The footer: HP, Potions, Gold, Stamina, Level, XP and Lives (or Revives) in one order on every screen, two rows on a desktop and three narrower. Each value comes from the newest frame that carries it: `Char.Vitals` (HP, stamina), `Char.Status` (level, gold, XP) and `Client.Footer` (potions, lives, the XP percent, and `hp`/`maxHp`, `level`, `gold`, `xp` when it has them). The percent follows the last field, as the status line prints it, and a field the line leaves out (null in `Client.Footer`) stays out. Until the first `Client.Footer`, the fields the other frames carry. High contrast follows the view choice or `prefers-contrast: more`; touch screens keep the pad under the book, with only its fixed row on a layout screen. At 600px and under the keys follow the text on every layout (nothing is pinned over it), and a fight's log keeps whole lines in 40vh under the cards. A right page under 590px wide sets its keys three across with a smaller label (a fight's four across down to 480px), and a label wraps only between words.
+
 ### Web Proxy
 **File**: `web/ssh-proxy.js` (Node.js, port 3000)
 
+- **Bind address**: the HTTP and WebSocket server listens on `127.0.0.1:3000` unless `WEB_BIND_HOST` is set (1.3.11; Docker sets `0.0.0.0`). At startup it logs one `Environment:` line that names which of six settings are set, names only
 - **HTTP**: serves `/api/stats`, `/api/feed` (SSE), and `/api/admin/*` family
 - **WebSocket bridge**: browser -> TCP to the MUD server on 127.0.0.1:4001 (`MUD_MODE` on by default); `MUD_MODE=0` falls back to SSH on 127.0.0.1:4000
+- **GMCP split for the play page** (`web/gmcp-split.js`): only a MUD mode websocket opened as `/ws?gmcp=1`. When the game sends `IAC WILL GMCP`, the proxy answers `IAC DO GMCP` once, inside the server's 250ms probe window. Each `IAC SB GMCP ... IAC SE` frame goes to the page as one JSON text frame; terminal bytes go as binary with all other telnet negotiation removed. State carries across TCP chunks, `IAC IAC` becomes one 0xFF, a payload over 20 KB is dropped whole (the game's own cap is 16 KB with framing), and a malformed subnegotiation, or one still open after 64 KB or 5 seconds, closes the session; the terminal text before it is sent first. Every other connection, the Electron client included, keeps the plain byte pipe.
 - **Stats API**: 2 minute server-side cache (`CACHE_TTL`) + 15s browser cache
 - **SSE feed**: 5s poll of `news` table with high-water marks; auto-reconnect after 5s
 - **Discord bot**: discord.js v14 bidirectional gossip relay (Section 24)
@@ -1557,14 +1618,16 @@ Dark-themed responsive page with:
 ### NPC Analytics Dashboard ("The Observatory")
 **File**: `web/dashboard.html`
 
-Public dashboard at `/dashboard`. Real-time observation of the NPC simulation:
-- World Map: location grid with NPC dots colored by faction, sized by level
-- NPC Detail: personality radar (13 traits), emotional state bars, goals, memories, relationships
-- Demographics: class / race / faction doughnut charts, level histogram (Chart.js)
-- Relationship Network: D3.js force-directed graph
-- Live Event Timeline: SSE feed via `/api/dash/feed`
-- Trend Charts: events/hour, alive/dead breakdown
-- 5 endpoints under `/api/dash/` (feed, npcs, summary, events, events/hourly)
+Public page at `/dashboard`, in the site theme, with four tabs (Now, Town, Power, People) and a full-width NPC profile. Every value is drawn with textContent; no chart library.
+- Now: headline numbers (NPCs alive, players online, treasury, ruler, god of the week, world boss), hourly trend sparklines when `/api/dash/history` answers, the Chronicle (`/api/dash/events` plus the SSE `news` event of `/api/dash/feed`) with kind chips and watched names, players online from `/api/stats`
+- Town: living NPCs by place as a ranked list and a tile map shaded in five steps; unknown places grouped as Elsewhere
+- Power: the crown, factions, teams, movers, deaths by depth, the market
+- People: directory with filters, wealthiest, highest level, feuds and friendships, seeking a partner, fallen heroes, leaderboard and PvP from `/api/stats`
+- Watched NPCs and teams are kept in the viewer's localStorage
+- Endpoints under `/api/dash/`: people, profile, ties, realm, movers, depths, market, fallen (`web/dash-observatory.js`), history, events, events/hourly, feed (SSE, `news` only)
+- Hourly history: the MUD's world sim writes one `world_snapshots` row per UTC hour (NPCs alive, dead and married, children, treasury, players online, and the births, NPC deaths and marriages since the previous row), kept 90 days; `/api/dash/history?hours=24|168|720` reads it
+
+**Known limit of the history counts.** Only the MUD server process counts events, because it owns the world. On the official server, online play reaches it three ways: the web client direct, the SSH relay into the MUD, and telnet through haproxy to port 4001. BBS doors and standalone play keep their own databases there. A process other than the MUD that shares the database adds no counts. Deaths are recorded deaths and can be slightly off on rare revival or concurrent paths.
 
 ---
 
@@ -1615,7 +1678,8 @@ Direct SSH / Raw TCP / Telnet / BBS Online Play
      │      -> ForceCommand --mud-relay --mud-port 4001 -> 127.0.0.1:4001 (MudServer)
      └── default (raw TCP / telnet / MUD client) -> 127.0.0.1:4001 (MudServer)
             WITH a PROXY v2 header prepended so MudServer records the real client IP
-            for ban enforcement (MudServer.TryReadProxyProtocolV2Async parses it)
+            for ban enforcement (MudServer.TryReadProxyProtocolV2Async parses it;
+            the header's address is used only when the raw peer is loopback)
 
 usurper-mud (port 4001) -> game server (multi-user, SQLite-backed, integrated world sim)
 ```
@@ -1623,7 +1687,7 @@ usurper-mud (port 4001) -> game server (multi-user, SQLite-backed, integrated wo
 ### Nginx
 **File**: `scripts-server/nginx-usurper.conf`
 
-Static files from `/opt/usurper/web/`. `/api/*` -> `127.0.0.1:3000`. `/ws` -> WebSocket with 24-hour timeout. SSL via Let's Encrypt certbot (auto-renewing). The SSE feeds (`/api/feed`, `/api/dash/feed`) have their own location with buffering off and a 24-hour read timeout; the `/api/` block rate-limits and proxies. The HTTPS redirect exemption for `/api/releases/latest` (Win7 TLS fallback path; v0.49.7) is added by `scripts-server/fix-nginx-http-releases.py`, not by the conf in the repo.
+Static files from `/opt/usurper/web/`. `/api/*` -> `127.0.0.1:3000`. `/ws` -> WebSocket with 24-hour timeout. SSL via Let's Encrypt certbot (auto-renewing). The SSE feeds (`/api/feed`, `/api/dash/feed`) have their own location with buffering off and a 24-hour read timeout; the `/api/` block rate-limits and proxies. The server block includes three snippets from `/etc/nginx/snippets/`: the CSP header (`nginx-csp.conf`), `Cache-Control: no-cache` for pages, styles, scripts and JSON files (`nginx-cache.conf`, with its map `nginx-cache-map.conf` installed in `/etc/nginx/conf.d/`), and a 404 for private files in the web folder (`nginx-private.conf`: names starting with a dot except `.well-known`, `.bak` copies, the package manifests, `node_modules` and the server scripts); `staticFilePath` in `web/ssh-proxy.js` refuses the same set (`PRIVATE_FILES`) when node serves the folder. The HTTPS redirect exemption for `/api/releases/latest` (Win7 TLS fallback path; v0.49.7) is added by `scripts-server/fix-nginx-http-releases.py`, not by the conf in the repo.
 
 ### Systemd Services
 - **haproxy** -- port-4000 multiplexer; SSH-version-line sniff routes "SSH-..." to sshd-usurper:4022, everything else to MudServer:4001 with a PROXY v2 header prepended (replaced sslh in v0.64.0)
@@ -1698,7 +1762,7 @@ Self-contained is mandatory; without it the binary won't run on machines without
 
 ### Version
 ```csharp
-Version = "1.3.8"
+Version = "1.3.14"
 VersionName = "Reckoning"
 ```
 
@@ -1845,6 +1909,7 @@ Scripts/
 │   ├── GroupSystem.cs              Cooperative dungeon parties
 │   ├── BotDetectionSystem.cs       Combat-input cadence tracking
 │   ├── GmcpBridge.cs               GMCP wire-format and emit
+│   ├── WebClientMenu.cs            2.0 Client.Menu payload, web client sessions only
 │   ├── RelayClient.cs              --mud-relay implementation
 │   ├── RoomRegistry.cs             Per-location presence
 │   ├── WizNet.cs                   Wizard / admin tooling
@@ -2008,6 +2073,7 @@ Scripts/
 │   ├── UIHelper.cs                 80-char box drawing
 │   ├── ANSIArt.cs                  Race / class portraits, monster art
 │   ├── RacePortraits.cs            ANSI portrait registry
+│   ├── ClassPortraitArt.cs         13 class portraits converted from the sprites (generated)
 │   ├── ElectronBridge.cs           OSC event emit for Electron client
 │   └── AccessibilityDetection.cs   SPI_GETSCREENREADER wrapper
 │
@@ -2015,11 +2081,15 @@ Scripts/
     └── (helpers)
 
 web/
-├── index.html                      Landing page + terminal + stats
-├── dashboard.html                  NPC Analytics Dashboard
+├── index.html                      Landing page + stats
+├── dashboard.html                  The Observatory (public town dashboard)
 ├── admin.html                      Admin console (bots, bans, settings, players)
 ├── steam.html                      Steam landing page
+├── play/index.html                 Full page terminal at /play/ with GMCP panels and the Chronicle view
+├── play/chronicle.css              The Chronicle view's stylesheet
+├── play/art/                       Scene and class art for the Chronicle view (copied from electron-client/assets)
 ├── ssh-proxy.js                    HTTP + WS + SSE + Discord + admin API + account mail + telemetry
+├── gmcp-split.js                   Telnet and GMCP splitter for /ws?gmcp=1
 ├── wiki-bot.js                     Discord wiki Ask and Suggest
 ├── account/                        Forgotten password, reset and address pages (1.3.4)
 ├── package.json                    ws, ssh2, better-sqlite3, discord.js
@@ -2109,7 +2179,7 @@ GameData/                           (optional, beside the executable; not in the
 
 14. **Defense in Depth on Permadeath** -- 4 layers prevent re-INSERT of erased characters: in-memory blacklist (`MarkUsernameErased` checked at WriteGameData), session `SuppressDisconnectSave`, world-state purge before account delete, 7-day archive.
 
-15. **Loopback-Only Trusted AUTH** -- raw TCP peer (cannot be spoofed) gates the no-password trusted-AUTH path. X-IP forwarded headers (which can be spoofed) are used for ban tracking, never for trust.
+15. **Opt-In, Loopback-Only Trusted AUTH** -- the no-password trusted-AUTH path is off unless the server is started with `--allow-trusted-auth`, and then gated by the raw TCP peer (loopback only) with no PROXY v2 header and no `X-Client:` line on the connection. Forwarded addresses (`X-IP`, the PROXY v2 source) are believed only from a loopback peer, are used for ban tracking, and never grant trust.
 
 16. **Markdown-Style Sentinel for System Events** -- Discord bridge uses `__SYSTEM__` author sentinel rather than schema change to differentiate login/logout from chat.
 

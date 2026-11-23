@@ -26,6 +26,11 @@
     <ProjectReference Include="../usurper-reloaded.csproj" />
   </ItemGroup>
 
+  <!-- The save editor is its own web project; without this its sources (and obj/) are globbed into the tests. -->
+  <ItemGroup>
+    <Compile Remove="Tools/SaveEditor/**" />
+  </ItemGroup>
+
   <!-- 1.2.7: the telemetry rows the C# and the server validators both check -->
   <ItemGroup>
     <None Include="Fixtures/telemetry-rows.json" CopyToOutputDirectory="PreserveNewest" />

@@ -1,4 +1,4 @@
-<!-- doc: checked 1.3.8; sources: docker-compose.yml, Dockerfile, docker, web/ssh-proxy.js, web/account, Scripts/BBS/DoorMode.cs, Scripts/Server/MudServer.cs, Scripts/Systems/AccountMail.cs -->
+<!-- doc: checked 1.3.11; sources: docker-compose.yml, Dockerfile, docker, web/ssh-proxy.js, web/account, Scripts/BBS/DoorMode.cs, Scripts/Server/MudServer.cs, Scripts/Systems/AccountMail.cs -->
 # Usurper Reborn: Docker Deployment Guide
 
 Host your own Usurper Reborn MUD server using Docker.
@@ -75,7 +75,8 @@ services:
 | `--mud-server` | (none) | Start as MUD server (required) |
 | `--mud-port <port>` | 4000 | TCP listen port |
 | `--db <path>` | (next to exe) | SQLite database path |
-| `--auto-provision` | off | Auto-create accounts for trusted auth connections |
+| `--allow-trusted-auth` | off | Accept the password-free AUTH form from a loopback peer (see BBS Passthrough) |
+| `--auto-provision` | off | Auto-create accounts for trusted auth connections (needs `--allow-trusted-auth`) |
 | `--log-stdout` | off | Route logs to stdout instead of files |
 | `--sim-interval <sec>` | 60 | World simulation tick interval, at least 10 (compose sets 30) |
 | `--npc-xp <mult>` | 5.0 | NPC XP gain multiplier (0.01 to 10.0) |
@@ -85,7 +86,7 @@ services:
 | `--worldsim` | (none) | Headless 24/7 world simulator with no players (only with `--no-worldsim` on the server) |
 | `--idle-timeout <min>` | 15 | Idle disconnect for BBS door and MUD sessions (1 to 60) |
 
-Run `UsurperReborn --help` for the single-player, BBS door and online flags; it does not list `--mud-server`, `--mud-port`, `--auto-provision`, `--log-stdout`, `--admin` or `--idle-timeout`.
+Run `UsurperReborn --help` for the single-player, BBS door and online flags; it does not list `--mud-server`, `--mud-port`, `--allow-trusted-auth`, `--auto-provision`, `--log-stdout`, `--admin` or `--idle-timeout`.
 
 ### Web Proxy Environment Variables
 
@@ -98,6 +99,7 @@ Run `UsurperReborn --help` for the single-player, BBS door and online flags; it 
 | `BALANCE_USER` | `admin` | Dashboard login username |
 | `BALANCE_PASS` | `changeme` | Dashboard login password; the shipped default keeps `/balance` and `/admin` locked |
 | `BALANCE_SECRET` | (random) | JWT signing secret (auto-generated if not set) |
+| `WEB_BIND_HOST` | `127.0.0.1` | Address the web service listens on; compose sets `0.0.0.0` because nginx reaches the container by service name, and publishes only nginx |
 | `WS_MAX_CONN_PER_IP` | `8` | Browser sessions allowed per client IP |
 | `BUG_REPORT_WEBHOOK_URL` | (unset) | Discord webhook that receives in-game `/bug` reports; reports are dropped when unset |
 | `DISCORD_BOT_TOKEN` | (unset) | With `DISCORD_GOSSIP_CHANNEL_ID`, mirrors world news to a Discord channel (`discord.js` is installed in the image) |
@@ -135,7 +137,7 @@ In this compose stack nginx passes every page to the web service, which serves `
 ## Connecting
 
 ### Browser
-Open `http://your-server` in a browser. Click "Play Now" for the embedded terminal.
+Open `http://your-server` in a browser. Click "Play Now" for the embedded terminal, or open `http://your-server/play/` for the full page client. The landing page Docker ships also links to `/play/` as "Play in the Browser" (`docker/web/index.html`).
 
 ### SSH (requires additional sshd setup)
 The Docker setup doesn't include an SSH server. Players connect via the browser terminal or raw TCP. For SSH access, run sshd on the host (or in a container that has the game binary) with a `ForceCommand` of `UsurperReborn --mud-relay --mud-port 4000`; the relay puts the terminal in raw mode and forwards to the game server with the player's login. `DOCS/SERVER_DEPLOYMENT.md` has the full sshd setup used on the public server.
@@ -147,20 +149,20 @@ BBS software connects via raw TCP to port 4000 and sends an AUTH header:
 AUTH:username:connectionType\n
 ```
 
-The game server accepts this trusted form (no password) only from a loopback peer, a process on the same host or in the same container; from any other address it answers `ERR:Authentication required. Trusted auth is only available from local relays.` A BBS on another machine sends one of the password forms below. With `--auto-provision` enabled (set in the Docker command; off by default), a trusted login creates the account if the username doesn't exist.
+The game server refuses this trusted form (no password) unless it is started with `--allow-trusted-auth`, which the Docker command does not pass; add it to the command to use the form. With the flag, it is accepted only from a loopback peer, a process on the same host or in the same container, that sent no PROXY header and no `X-Client:` line. Every refusal gets `ERR:Authentication required. Trusted auth is only available from local relays.` A BBS on another machine sends one of the password forms below. With `--auto-provision` enabled (set in the Docker command) and `--allow-trusted-auth`, a trusted login creates the account if the username doesn't exist.
 
 **Example BBS integration** (Synchronet JavaScript):
 ```javascript
 var sock = new Socket();
 sock.connect("your-server", 4000);
-// Trusted form: only when the BBS runs on the same host as the game server
+// Trusted form: only when the BBS runs on the same host and the server has --allow-trusted-auth
 sock.send("AUTH:" + user.alias + ":BBS\n");
 // Relay I/O between BBS user and game socket
 ```
 
 **AUTH header formats**:
 ```
-AUTH:username:connectionType              Trusted auth, loopback only (auto-provision if enabled)
+AUTH:username:connectionType              Trusted auth, --allow-trusted-auth and loopback only (auto-provision if enabled)
 AUTH:username:password:connectionType     Password auth
 AUTH:username:password:REGISTER:type      Register new account with password
 ```
@@ -179,7 +181,7 @@ All dashboards are accessible via the web interface:
 | URL | Description | Auth Required |
 |-----|-------------|---------------|
 | `/` | Landing page with embedded terminal + live stats | No |
-| `/dashboard` | NPC analytics (activities, relationships, timeline) | No |
+| `/dashboard` | The Observatory: public NPC and realm pages (people, ties, realm, depths, market, fallen) | No |
 | `/steam` | Steam client download and setup page | No |
 | `/balance` | Combat balance analytics (win rates, damage stats) | Yes |
 | `/admin` | Server admin panel (bans, player edits, config, world wipe) | Yes |

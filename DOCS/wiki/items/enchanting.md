@@ -1,8 +1,14 @@
 ---
 title: Enchanting
 path: /wiki/en/items/enchanting/
-checked: 1.3.8
-sources: Scripts/Locations/MagicShopLocation.cs, Scripts/Core/GameConfig.cs, Scripts/Systems/CombatEngine.cs, Scripts/Systems/AlignmentSystem.cs, Scripts/Systems/FactionSystem.cs, Scripts/Systems/CityControlSystem.cs, Scripts/Systems/DifficultySystem.cs, Scripts/Systems/StatisticsSystem.cs
+checked: 1.3.14
+sources: Scripts/Locations/MagicShopLocation.cs, Scripts/Core/GameConfig.cs, Scripts/Systems/CombatEngine.cs, Scripts/Systems/AlignmentSystem.cs, Scripts/Systems/FactionSystem.cs, Scripts/Systems/CityControlSystem.cs, Scripts/Systems/DifficultySystem.cs, Scripts/Systems/StatisticsSystem.cs, Scripts/Locations/MainStreetDistricts.cs, Scripts/Locations/MainStreetClassic.cs
+history: 1.3.14 | none
+history: 1.3.13 | none
+history: 1.3.12 | none
+history: 1.3.11 | none
+history: 1.3.10 | The Smugglers' Cache takes 10 percent off the Magic Shop's enchants, potions and accessories for your next 5 purchases.
+history: 1.3.9 | Main Street opens in the classic layout by default, with the districts layout a choice in Settings.
 history: 1.3.8 | none
 history: 1.3.7 | Against Manwe the Creator's Ward stops 55 percent of what gear enchantments add after a hit, Godbane held or not, and the Magic Shop says when an item's name is too long to carry the enchant's tag.
 history: 1.3.6 | Magic resistance now cuts monster breaths and spells, and spells in player fights, by up to half, except Old God attacks, Phoenix Fire and Frostbite add 30 weapon power with new chances and go on weapons only, one of each element, weapon effects and life steal work in player fights and on the world boss, and Boss Slayer adds to Power Attack and class abilities.
@@ -11,7 +17,7 @@ history: 1.3.4 | none
 history: 1.3.3 | none
 history: 1.3.2 | Enchant removal refuses a cursed item without charging, and enchanting a worn item or removing its enchant leaves it worn.
 ---
-The Magic Shop enchants equipment. Open it from Main Street with M for Merchant Row, then M, and press E. You can enchant anything you wear and any weapon, armor, shield or accessory in your backpack. There are 17 enchants; Phoenix Fire, Frostbite and the last three, the counters, go on a weapon only.
+The Magic Shop enchants equipment. From Main Street press M for the Magic Shop. With the district layout, open the Merchant Row district with M, then press M. In the shop press E. You can enchant anything you wear and any weapon, armor, shield or accessory in your backpack. There are 17 enchants; Phoenix Fire, Frostbite and the last three, the counters, go on a weapon only.
 
 ## Enchant list and costs
 
@@ -74,6 +80,6 @@ Enchant removal (W) costs 5,000 + level x 200 gold before the price modifiers: 9
 
 ## Magic Shop prices and the loyalty discount
 
-Enchants, enchant removal, potions, accessories and the shop's spells and scrying are priced through the same modifiers: your alignment, any world event, a Crown member's discount, a city controller's 10 percent, the difficulty and the loyalty discount. The [shops guide](/wiki/en/items/shops/) lists the alignment, faction and difficulty numbers.
+Enchants, enchant removal, potions, accessories and the shop's spells and scrying are priced through the same modifiers: your alignment, any world event, a Crown member's discount, a city controller's 10 percent, the Smugglers' Cache's 10 percent while you have purchases left, the difficulty and the loyalty discount. The [shops guide](/wiki/en/items/shops/) lists the alignment, faction and difficulty numbers.
 
 The loyalty discount counts the gold you have spent at the Magic Shop: 5 percent off from 10,000 gold, 10 percent from 50,000 and 15 percent from 200,000. A failed enchant does not count toward it.

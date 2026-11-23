@@ -1,8 +1,14 @@
 ---
 title: NPC life and relationships
 path: /wiki/en/online/npcs/
-checked: 1.3.8
+checked: 1.3.14
 sources: Scripts/Systems/CompanionSystem.cs, Scripts/Systems/WorldSimulator.cs, Scripts/Systems/NPCSpawnSystem.cs, Scripts/AI/EnhancedNPCBehaviors.cs, Scripts/Systems/FamilySystem.cs, Scripts/Systems/WorldSimService.cs, Scripts/BBS/DoorMode.cs, Scripts/Core/GameConfig.cs, DOCS/release-notes/RELEASE_NOTES_1.2.0.md
+history: 1.3.14 | none
+history: 1.3.13 | none
+history: 1.3.12 | Every newcomer comes as the sex the town has fewer of, so a town that leans one way evens out as it turns over.
+history: 1.3.11 | none
+history: 1.3.10 | A player whose NPC spouse dies grieves (online at the next login), an NPC married to a player is never another NPC's partner, and a jailed NPC stays in its cell and takes no part in weddings.
+history: 1.3.9 | The website's Observatory page counts NPC births, deaths and marriages in its hourly world history.
 history: 1.3.8 | An NPC now holds the opinion of you it had when the game was saved, and NPC allies who see a teammate finished remember it.
 history: 1.3.7 | none
 history: 1.3.6 | none
@@ -24,11 +30,11 @@ A town NPC made when the world starts is aged 18 to 49 and an ordinary newcomer 
 
 ### Can a race die out
 
-No. While 3 or fewer NPCs of a race are alive, old age passes them by: an NPC of that race who reaches the lifespan has its birth date moved 7 real days later instead. A race with fewer than 5 living NPCs receives newcomers up to 5 at the next tick, alternating male and female.
+No. While 3 or fewer NPCs of a race are alive, old age passes them by: an NPC of that race who reaches the lifespan has its birth date moved 7 real days later instead. A race with fewer than 5 living NPCs receives newcomers up to 5 at the next tick; every newcomer comes as the sex the town has fewer of, a tie decided at random.
 
 ### When an NPC dies of old age
 
-Its spouse is widowed, a player spouse is told, a player's romance with it ends, an NPC on a player's team leaves its gear, items and gold to the team leader, and its children who are left without parents go to the royal orphanage.
+Its spouse is widowed, a player spouse is told and grieves (online at the next login), a player's romance with it ends, an NPC on a player's team leaves its gear, items and gold to the team leader, and its children who are left without parents go to the royal orphanage.
 
 ## Do NPCs come back after they die
 
@@ -52,7 +58,7 @@ A new NPC starts in one of 15 places, weighted: Main Street, the Inn and the Cas
 
 ## How do NPCs get married
 
-An unmarried NPC of level 5 or more has a 1 in 500 chance each tick to try. The partner must be level 5 or more, within 10 levels, attracted to it and not close kin, and the pair must score above 0.3 for compatibility; the try then succeeds at the compatibility x 50 percent. An NPC in a polyamorous or open relationship can try while married.
+An unmarried NPC of level 5 or more has a 1 in 500 chance each tick to try. The partner must be level 5 or more, within 10 levels, attracted to it and not close kin, and the pair must score above 0.3 for compatibility; the try then succeeds at the compatibility x 50 percent. An NPC in a polyamorous or open relationship can try while married, but an NPC married to a player is never the partner. A jailed NPC neither tries nor is chosen, and runs none of its daily activities until it is released.
 
 ## How often do NPCs have children
 

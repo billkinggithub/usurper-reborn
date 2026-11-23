@@ -1,4 +1,4 @@
-<!-- doc: checked 1.3.8; sources: Scripts/Server/MudServer.cs, Scripts/BBS/DoorMode.cs, Scripts/Systems/SqlSaveBackend.cs, Scripts/Systems/SqlSaveBackend.AccountMail.cs, Scripts/Systems/AccountMail.cs, Scripts/Systems/OnlineStateManager.cs, Scripts/Systems/OnlineChatSystem.cs, Scripts/Systems/OnlinePlaySystem.cs, Scripts/Systems/OnlineLoginStore.cs, web/ssh-proxy.js, scripts-server, usurper-reloaded.csproj -->
+<!-- doc: checked 1.3.13; sources: Scripts/Server/MudServer.cs, Scripts/BBS/DoorMode.cs, Scripts/Systems/SqlSaveBackend.cs, Scripts/Systems/SqlSaveBackend.AccountMail.cs, Scripts/Systems/AccountMail.cs, Scripts/Systems/OnlineStateManager.cs, Scripts/Systems/OnlineChatSystem.cs, Scripts/Systems/OnlinePlaySystem.cs, Scripts/Systems/OnlineLoginStore.cs, web/ssh-proxy.js, scripts-server, usurper-reloaded.csproj -->
 # Usurper Reborn - Online Multiplayer Architecture
 
 > HISTORICAL DESIGN NOTE (kept for reference). This document describes the ORIGINAL per-process,
@@ -221,8 +221,11 @@ Players can connect directly from a web browser at `https://usurper-reborn.net`.
 - **ssh-proxy.js** (Node.js) runs on port 3000, providing:
   - WebSocket-to-game bridge: browser connects via WebSocket; by default the proxy opens a TCP connection to the MUD server on 127.0.0.1:4001 (`MUD_HOST`, `MUD_PORT`), and with `MUD_MODE=0` it uses the older SSH hop to 127.0.0.1:4000
   - Stats REST API: `GET /api/stats` returns live game data from the SQLite database
+  - GMCP for the play page: a websocket opened as `/ws?gmcp=1` (MUD mode only) has the proxy answer the game's `IAC WILL GMCP`, send each GMCP frame to the page as JSON text and the terminal bytes as binary (`web/gmcp-split.js`). Every other connection keeps the plain byte pipe.
 - **xterm.js** in the browser provides the terminal emulator UI
+- **The play page** at `/play/` is a full page terminal, 80 columns, with a status line and a Combat and Chat drawer filled from GMCP
 - **Live Stats Dashboard** on the landing page shows who's online, aggregate stats, highlights, and news
+- **The Observatory** at `/dashboard` is a public page of NPC and realm data. `ssh-proxy.js` answers `/api/dash/people`, `profile`, `ties`, `realm`, `movers`, `depths`, `market`, `fallen` (`web/dash-observatory.js`) and `history` from the read only database; each sends an allow-listed set of fields, and any other `/api/dash/` path answers 404
 
 ### Stats API Response
 ```json
@@ -238,10 +241,13 @@ Players can connect directly from a web browser at `https://usurper-reborn.net`.
 The response also carries `immortals`, `pvpLeaderboard`, `economy`, `npcActivities` and `cachedAt`.
 
 ### Key Files
-- `web/index.html` - Landing page with embedded xterm.js terminal + live stats dashboard
+- `web/index.html` - Landing page with live stats dashboard; its Play buttons open `/play/` in a new tab
+- `web/play/index.html` - Full page terminal at `/play/` with GMCP panels, and a tap pad on touch screens
 - `web/ssh-proxy.js` - Node.js HTTP + WebSocket server (ws + ssh2 + better-sqlite3)
+- `web/gmcp-split.js` - Telnet and GMCP splitter for `/ws?gmcp=1` connections
 - `web/package.json` - Node.js dependencies
-- `scripts-server/nginx-usurper.conf` - nginx reverse proxy config
+- `web/dashboard.html`, `web/dash-observatory.js`, `web/dash-npcs.js` - The Observatory page and the data builders behind its endpoints
+- `scripts-server/nginx-usurper.conf` - nginx reverse proxy config (it includes the CSP, cache and private files snippets beside it in `scripts-server/`)
 - `scripts-server/usurper-web.service` - systemd service for web proxy
 
 ## Account Mail (1.3.4)
@@ -373,10 +379,13 @@ Option B: Single shared account with in-game auth (simpler)
 - Processes daily events (NPC aging, respawns, economy, etc.)
 - Sets `daily_state.last_reset_day` to prevent double-processing
 - Other players see "Daily maintenance in progress..." briefly
+- Claimed quests age once a day, by the world reset (`WorldSimService`), not by each player's own daily reset (1.3.10; `QuestSystem.WorldResetAgesQuests`, `DailySystemManager`)
+- Team wages are charged per player at that player's own daily reset (1.3.10; `MaintenanceSystem.ProcessTeamWages`, called from `DailySystemManager`); the shared maintenance pass charges none online
 
 ### Crash/Disconnect Recovery
 - `online_players` entries expire after 120 seconds without heartbeat
 - Background cleanup process removes stale entries
+- The orphan cleanup (`SqlSaveBackend.PruneOrphanedPlayerData`) folds names with C# `ToLowerInvariant`, as `ulower` does (1.3.10), so a name stored in another case never removes a connected player's `online_players` row or restarts the connected time the online list shows. Since 1.3.13 it reads the player names once and deletes orphans by exact value, so SQLite never calls back into .NET during the prune; a door process that exited mid-prune crashed on Windows (0xC0000005 in sqlite3_step). The world sim's shutdown save skips it; the periodic save runs it
 - Player data auto-saved before any risky operation
 - SQLite WAL mode prevents corruption on process crash
 
@@ -422,6 +431,7 @@ Option B: Single shared account with in-game auth (simpler)
   - `story_systems` - Not written since 1.3.8 (a player's story stays in that player's save); a row an older version wrote is kept and only read
   - `daily_state` - Daily reset coordination
   - `marriages` - NPC marriage registry
+  - `quest_ended` - Quests the world reset failed, as quest id and failure time, kept 30 days so a restart does not return one from a save (1.3.11; written by `WorldSimService` after each daily maintenance)
 - `SaveAllSharedState()` / `LoadAllSharedState()` for bulk operations
 - Daily reset coordination via `TryProcessDailyReset()` with atomic locking
 - `SaveAllSharedState()` writes the NPCs, world events and quests; it does not write `story_systems`

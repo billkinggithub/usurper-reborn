@@ -1,8 +1,14 @@
 ---
 title: Castle, king and throne
 path: /wiki/en/world/castle/
-checked: 1.3.8
-sources: Scripts/Locations/CastleLocation.cs, Scripts/Locations/MainStreetDistricts.cs, Scripts/Core/King.cs, Scripts/Systems/ChallengeSystem.cs, Scripts/Systems/QuestSystem.cs, Scripts/Systems/DailySystemManager.cs, Scripts/Locations/BaseLocation.cs, Scripts/Systems/FactionSystem.cs, Scripts/Systems/CombatEngine.cs, Scripts/Systems/TrainingSystem.cs, Scripts/Core/Character.cs, Scripts/Systems/StreetEncounterSystem.cs, Scripts/Locations/DarkAlleyLocation.cs, Scripts/Locations/WeaponShopLocation.cs, Scripts/Locations/ArmorShopLocation.cs, Scripts/Locations/MagicShopLocation.cs, Scripts/Locations/TempleLocation.cs, Scripts/Systems/DivineBlessingSystem.cs, Scripts/Core/GameConfig.cs
+checked: 1.3.14
+sources: Scripts/Locations/CastleLocation.cs, Scripts/Locations/MainStreetDistricts.cs, Scripts/Core/King.cs, Scripts/Systems/ChallengeSystem.cs, Scripts/Systems/QuestSystem.cs, Scripts/Systems/DailySystemManager.cs, Scripts/Locations/BaseLocation.cs, Scripts/Systems/FactionSystem.cs, Scripts/Systems/CombatEngine.cs, Scripts/Systems/TrainingSystem.cs, Scripts/Core/Character.cs, Scripts/Systems/StreetEncounterSystem.cs, Scripts/Locations/DarkAlleyLocation.cs, Scripts/Locations/WeaponShopLocation.cs, Scripts/Locations/ArmorShopLocation.cs, Scripts/Locations/MagicShopLocation.cs, Scripts/Locations/TempleLocation.cs, Scripts/Systems/DivineBlessingSystem.cs, Scripts/Core/GameConfig.cs, Scripts/Locations/MainStreetClassic.cs
+history: 1.3.14 | none
+history: 1.3.13 | none
+history: 1.3.12 | none
+history: 1.3.11 | Members of the Faith pay 15 to 35 percent less at the Healer, the throne room menu rows fit within 79 columns in every language, and arresting a plot made only of court titles says the conspirators are thrown out of court, not imprisoned.
+history: 1.3.10 | Detect Threats has a 50 percent chance to uncover an active plot, a discovered plot waits 7 days for the king's arrest before it lapses, the king no longer executes an NPC you rescued, and the royal quest to recover a stolen artifact places a Relic Thief on a named dungeon floor.
+history: 1.3.9 | Main Street opens in the classic layout by default, with the districts layout a choice in Settings.
 history: 1.3.8 | none
 history: 1.3.7 | none
 history: 1.3.6 | none
@@ -14,7 +20,7 @@ history: 1.3.0 | An NPC on a player's team is no longer picked to challenge an N
 history: 1.2.5 | A player in any language can no longer take a second royal quest, and a royal quest to clear a dungeon floor now asks you to clear a floor.
 history: 1.2.4 | none
 ---
-The Castle is where the realm's ruler holds court. Open the Castle Grounds district from Main Street and press K. It appears in the menu after your first few levels.
+The Castle is where the realm's ruler holds court. From Main Street press K for the Castle. With the district layout, open the Castle Grounds district with C, then press K. While the Castle is the only place open there (levels 3 and 4), C opens it at once. It appears in the menu after your first few levels.
 
 ## Visiting as a commoner
 
@@ -104,7 +110,7 @@ When the treasury holds less than a day's costs, every guard loses 3 more loyalt
 
 ### Royal magic, the orphanage and court politics
 
-- **Royal magic,** paid from the magic budget: Bless Kingdom 1,000 (25 toward Chivalry), Detect Threats 500, Protection 2,000 (10 loyalty to every guard) and Scry 1,500 (one NPC's level, place and gold).
+- **Royal magic,** paid from the magic budget: Bless Kingdom 1,000 (25 toward Chivalry), Detect Threats 500 (half of its casts uncover the most advanced secret plot, whose plotters leave the court and can then be arrested; every cast also names up to three townsfolk with Darkness above 300), Protection 2,000 (10 loyalty to every guard) and Scry 1,500 (one NPC's level, place and gold).
 - **The orphanage** holds up to {{balance:MaxRoyalOrphans}} orphans. Adopting an orphan aged 3 to 12 costs 500 + 100 x the orphans already held, from the treasury, and moves you 15 toward Chivalry. A true orphan aged {{balance:OrphanCommissionAge}} or more can be commissioned for {{balance:OrphanCommissionCost}} gold as a guard (salary 300, loyalty 90, 10 toward Chivalry), as a mercenary, or as a townsperson. An adopted orphan is not a true orphan and cannot be commissioned.
 - **Court politics** costs from the treasury: arresting a plotter {{balance:ArrestTrialCost}}, promoting a court member {{balance:PromoteCost}} (+10 loyalty), and a bribe {{balance:BribeBaseCost}} + 50 x (100 minus the member's loyalty). A member at 40 loyalty costs 3,500 to bribe.
 
@@ -136,10 +142,10 @@ Your rank rises with the reputation you earn in your faction after you join: Cro
 
 {{table:faction-bonuses}}
 
-The Faith's listed healing discount is not applied at the Healer: the Healer charges a Faith member the same.
+Members of The Faith pay 15 to 35 percent less at the Healer, by rank, before tax ([Healer tax](/wiki/en/world/healer/#healer-tax)).
 
 ## Royal quests
 
-A royal quest from an audience asks you to kill monsters, reach or clear a dungeon floor, hunt a criminal or investigate. It has a time limit, pays an advance in gold and experience when you accept and 1,000 gold per level when you complete it, and you can hold one at a time. The ruler's Quests screen shows the royal bounties, which you take at the [Quest Hall](/wiki/en/world/town/#guild-row).
+A royal quest from an audience asks you to kill monsters, recover a stolen artifact from the thief who waits on a dungeon floor (the quest names the floor), clear a dungeon floor, slay a dungeon floor boss or investigate by reaching a floor. It has a time limit, pays an advance in gold and experience when you accept and 1,000 gold per level when you complete it, and you can hold one at a time. The ruler's Quests screen shows the royal bounties, which you take at the [Quest Hall](/wiki/en/world/town/#guild-row).
 
 See [crime and prison](/wiki/en/world/law/) for what happens to prisoners.

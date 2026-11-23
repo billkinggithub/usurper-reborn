@@ -16,7 +16,10 @@ public static class MonsterGenerator
     /// </summary>
     /// <param name="approachScale">v1.1.10: extra HP and damage for a dungeon floor that leads up to an Old
     /// God (OldGodApproachScale); 1.0 everywhere else. Defence is not scaled.</param>
-    public static Monster GenerateMonster(int dungeonLevel, bool isBoss = false, bool isMiniBoss = false, Random? random = null, double approachScale = 1.0)
+    /// <param name="forced">1.3.10: the family and tier to make (a quest's placed champion), in place of one drawn for the
+    /// level; null draws one as before.</param>
+    public static Monster GenerateMonster(int dungeonLevel, bool isBoss = false, bool isMiniBoss = false, Random? random = null, double approachScale = 1.0,
+        (MonsterFamilies.MonsterFamily Family, MonsterFamilies.MonsterTier Tier)? forced = null)
     {
         random ??= Random.Shared;
 
@@ -24,7 +27,7 @@ public static class MonsterGenerator
         dungeonLevel = Math.Max(1, Math.Min(100, dungeonLevel));
 
         // Get appropriate monster family and tier for this level
-        var (family, tier) = MonsterFamilies.GetMonsterForLevel(dungeonLevel, random);
+        var (family, tier) = forced ?? MonsterFamilies.GetMonsterForLevel(dungeonLevel, random);
 
         // Calculate base stats using smooth scaling formulas
         var stats = CalculateMonsterStats(dungeonLevel, isBoss ? (tier.BossPowerMultiplier ?? tier.PowerMultiplier) : tier.PowerMultiplier, isBoss, isMiniBoss, approachScale);
@@ -618,6 +621,11 @@ public static class MonsterGenerator
         : realFloor <= 30 ? GameConfig.EliteChanceFloors11To30
         : GameConfig.EliteChanceFloors31Plus;
 
+    /// <summary>1.3.10: the chance the encounter roll uses: the floor's elite chance, times the New Game+ rare
+    /// monster unlock (Slayer, 25 percent more often). EliteChance stays the floor's own figure.</summary>
+    internal static double EliteRollChance(int realFloor) =>
+        EliteChance(realFloor) * UsurperRemake.Systems.MetaProgressionSystem.Instance.GetRareMonsterMultiplier();
+
     /// <summary>True when an encounter can hold an elite: the switch is on, the caller is the dungeon (rules
     /// given; a boss room gives none) and the real floor has a chance. False draws nothing.</summary>
     internal static bool ElitesApply(EncounterRules? rules) =>
@@ -750,7 +758,7 @@ public static class MonsterGenerator
 
         // 1.2.8 elites: the last step, so every draw above is the one made without it. The champion
         // encounter returned earlier and never reaches this.
-        if (ElitesApply(rules) && random.NextDouble() < EliteChance(rules!.RealFloor))
+        if (ElitesApply(rules) && random.NextDouble() < EliteRollChance(rules!.RealFloor))
             PromoteElite(monsters, random, rules.RealFloor);
 
         return monsters;

@@ -1,8 +1,13 @@
 ---
 title: The online world
 path: /wiki/en/online/
-checked: 1.3.8
+checked: 1.3.13
 sources: DOCS/MULTIPLAYER_ARCHITECTURE.md, Scripts/Systems/DailySystemManager.cs, Scripts/Systems/WorldEventSystem.cs, Scripts/Systems/WorldBossSystem.cs
+history: 1.3.13 | none
+history: 1.3.12 | none
+history: 1.3.11 | none
+history: 1.3.10 | Online, quests age once a day with the world's reset instead of at every player's daily reset, and each player pays NPC team wages at their own reset.
+history: 1.3.9 | A browser player plays on the play page at /play/, a full page terminal with a status line and Combat and Chat panels.
 history: 1.3.8 | none
 history: 1.3.7 | none
 history: 1.3.6 | none
@@ -20,6 +25,7 @@ Online play shares a persistent world. NPCs and other players can change the tow
 - [The world boss](/wiki/en/online/world-boss/)
 - [Rankings, news and events](/wiki/en/online/events/)
 - [Discord wiki help](/wiki/en/online/discord/)
+- [Playing as an AI agent](/wiki/en/online/agent-players/)
 
 ## Shared time
 

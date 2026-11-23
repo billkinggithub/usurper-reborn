@@ -1,8 +1,14 @@
 ---
 title: Combat basics
 path: /wiki/en/combat/
-checked: 1.3.8
+checked: 1.3.14
 sources: Scripts/Systems/CombatEngine.cs, Scripts/Systems/StatEffectsSystem.cs, Scripts/Systems/TrainingSystem.cs, Scripts/Core/GameConfig.cs, Scripts/Core/Character.cs, Scripts/Core/Monster.cs, Scripts/Systems/DifficultySystem.cs, Scripts/Systems/MentalSystem.cs, Scripts/Systems/AlignmentSystem.cs, Scripts/Systems/GodBoonSystem.cs, Scripts/Systems/SpellSystem.cs, Scripts/Systems/DailySystemManager.cs, Scripts/Locations/DungeonLocation.cs, Scripts/Locations/InnLocation.cs, Scripts/Locations/HealerLocation.cs, Scripts/Locations/HomeLocation.cs
+history: 1.3.14 | none
+history: 1.3.13 | none
+history: 1.3.12 | none
+history: 1.3.11 | none
+history: 1.3.10 | The standard combat menus list Power Attack, Precise Strike, Taunt, Disarm and Hide, and Rage for a Barbarian who is not raging; a healing potion is refused at full health and asks first when under 10 percent of maximum HP is missing; and new characters start on Fast combat speed.
+history: 1.3.9 | Auto-Combat is now the key O and combat speed the key X, Enter at the target prompt takes the last foe you picked by number in this fight while it lives, and a combat tip shows only when every key it names is one the combat menu uses.
 history: 1.3.8 | none
 history: 1.3.7 | Against Manwe the Creator's Ward stops 55 percent of what gear enchantments add after a hit, Godbane held or not.
 history: 1.3.6 | Magic resistance on your gear now cuts a monster's breath and spell damage by up to half, except an Old God's, a weakened monster sets 0.80 times its armor and Defense against your hits, Boss Slayer gear now adds its 10 percent to Power Attack, and U rescues each Downed ally once per fight.
@@ -132,7 +138,7 @@ When you dual wield, every swing past the first (and past a Warrior's extra swin
 
 ## Tactical actions
 
-These actions work for any class unless stated, and each one ends your turn, even when it fails; only Backstab, Smite or Rage from a class that cannot use it, and Smite with no charge left, ask again. Type the key at the combat prompt. The compact combat menu lists P, E, T, W and L; the standard menu does not list them, but the keys work there too. Every combat menu lists Backstab for an Assassin and Smite for a Paladin with a charge left; none lists Rage.
+These actions work for any class unless stated, and each one ends your turn, even when it fails; only Backstab, Smite or Rage from a class that cannot use it, and Smite with no charge left, ask again. Type the key at the combat prompt. Every combat menu lists P, E, T, W and L, Backstab for an Assassin, Smite for a Paladin with a charge left and Rage for a Barbarian who is not raging. A menu lists only what you can take that round; a key it leaves out still does what it does when you type it.
 
 ### Power Attack (P)
 

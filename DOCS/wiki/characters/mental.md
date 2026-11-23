@@ -1,8 +1,14 @@
 ---
 title: Mental health
 path: /wiki/en/characters/mental/
-checked: 1.3.8
+checked: 1.3.14
 sources: Scripts/Systems/MentalSystem.cs, Scripts/Core/GameConfig.cs, DOCS/release-notes/RELEASE_NOTES_1.2.0.md, Scripts/Systems/GriefSystem.cs, Scripts/Systems/CombatEngine.cs, Scripts/Core/Character.cs
+history: 1.3.14 | none
+history: 1.3.13 | none
+history: 1.3.12 | none
+history: 1.3.11 | Members of the Faith pay 15 to 35 percent less at the Healer for Talk Therapy, Willow Draught and addiction rehab.
+history: 1.3.10 | Grief also begins when your spouse dies away from your fights, at once in single-player and at your next login online.
+history: 1.3.9 | none
 history: 1.3.8 | A story companion told to wait in a dungeon room does not ease the strain of new rooms while it waits.
 history: 1.3.7 | none
 history: 1.3.6 | none
@@ -104,7 +110,7 @@ From Devout onward, your [god's ward](/wiki/en/gods/favor/) reduces a particular
 
 ## Grief
 
-Grief begins when a story companion, an NPC teammate, a spouse or a lover dies. It passes through stages, and each stage changes your fights until the next one begins:
+Grief begins when a story companion, an NPC teammate, a spouse or a lover dies. A spouse lost away from your fights is grieved too: in single-player at once, online at your next login. A grief passes through stages, and each stage changes your fights until the next one begins:
 
 - Denial, 3 days: 20 percent less damage with basic attacks.
 - Anger, 5 days: 30 percent more damage with basic attacks and 20 percent less Defense against monster hits.

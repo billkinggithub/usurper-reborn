@@ -1,8 +1,14 @@
 ---
 title: Death and resurrection
 path: /wiki/en/combat/death/
-checked: 1.3.8
+checked: 1.3.14
 sources: Scripts/Systems/CombatEngine.cs, Scripts/Core/Character.cs, Scripts/Core/GameConfig.cs, Scripts/Systems/FactionSystem.cs, Scripts/Systems/MentalSystem.cs, Scripts/Systems/GodBoonSystem.cs, Scripts/Systems/DifficultySystem.cs, Scripts/Systems/CharacterCreationSystem.cs, Scripts/Locations/TempleLocation.cs
+history: 1.3.14 | none
+history: 1.3.13 | none
+history: 1.3.12 | none
+history: 1.3.11 | none
+history: 1.3.10 | After the death page the game says a life was spent and how many are left, and the Temple's hall says it once more when you arrive.
+history: 1.3.9 | none
 history: 1.3.8 | none
 history: 1.3.7 | Losing levels at death takes from an Abysswarden or a Voidreaver the Constitution those levels gave.
 history: 1.3.6 | Last Stand and Death's Door now keep you fighting at 1 HP, each once per fight, in place of ending the fight, and they come before Divine Favor.
@@ -59,7 +65,7 @@ On Nightmare difficulty death is permanent: the save is deleted. There is no men
 
 ## Resurrect online: resurrections
 
-Online, each death spends one resurrection automatically and you wake at the Temple with half your maximum HP. A death with no resurrections left erases the character. A new character starts with 3; the server can set this from 0 to 99.
+Online, each death spends one resurrection automatically and you wake at the Temple with half your maximum HP. After the death page the game says a life was spent and how many are left, and the Temple's hall says it once more when you arrive. A death with no resurrections left erases the character. A new character starts with 3; the server can set this from 0 to 99.
 
 ### Getting resurrections back
 

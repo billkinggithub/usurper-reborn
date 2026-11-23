@@ -1,8 +1,14 @@
 ---
 title: Dungeon features and random events
 path: /wiki/en/world/dungeon-features/
-checked: 1.3.8
+checked: 1.3.14
 sources: Scripts/Locations/DungeonLocation.cs, Scripts/Systems/DungeonGenerator.cs, Scripts/Systems/FeatureInteractionSystem.cs, Scripts/Systems/DiscoverySystem.cs, Scripts/Data/DiscoveryData.cs, Scripts/Systems/PuzzleSystem.cs, Scripts/Data/RiddleDatabase.cs, Scripts/Core/GameConfig.cs
+history: 1.3.14 | none
+history: 1.3.13 | none
+history: 1.3.12 | none
+history: 1.3.11 | The Ancient Scroll event's result stays on screen until Enter, and the dungeon merchant's healing potion costs the town price for your level minus 15 on any floor.
+history: 1.3.10 | A fifth outpost, the Cinder Post, stands on floor 85, and room names that repeat on a floor are numbered II, III and so on.
+history: 1.3.9 | none
 history: 1.3.8 | An ally told to wait gets nothing from a camp, a safe haven or a room feature and takes no share of a feature's reward.
 history: 1.3.7 | The Warrior and Barbarian attack bonus from a room feature lasts into the next fight.
 history: 1.3.6 | none
@@ -188,7 +194,7 @@ A floor always starts in a hall and ends in the boss room. The number of monster
 - **Meditation chamber:** from floor 10, one per floor: a resting place without monsters that uses the once per floor rest.
 - **Lore library:** from floor 15, one per floor, guarded 30 percent of the time. It tells you one lore fragment you have not read yet, among those your awakening allows.
 - **Memory room:** on floors 30, 45, 60, 75 and 90, without monsters; it can bring back a memory of your past.
-- **Outpost:** on floors 10, 20, 35 and 65; see [dungeon outposts](/wiki/en/world/dungeon/#dungeon-outposts).
+- **Outpost:** on floors 10, 20, 35, 65 and 85; see [dungeon outposts](/wiki/en/world/dungeon/#dungeon-outposts).
 - **Arena room:** guarded, with treasure; only on a few story floors (spoiler below).
 
 :::spoiler Spoiler: rooms on the seal floors

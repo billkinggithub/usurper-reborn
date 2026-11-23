@@ -1,8 +1,14 @@
 ---
 title: Gold, shops and banking
 path: /wiki/en/items/banking/
-checked: 1.3.8
-sources: Scripts/Locations/BankLocation.cs, Scripts/Systems/BankVaultSystem.cs, Scripts/Core/GameConfig.cs, Scripts/Systems/DailySystemManager.cs
+checked: 1.3.14
+sources: Scripts/Locations/BankLocation.cs, Scripts/Systems/BankVaultSystem.cs, Scripts/Core/GameConfig.cs, Scripts/Systems/DailySystemManager.cs, Scripts/Locations/MainStreetDistricts.cs, Scripts/Locations/MainStreetClassic.cs
+history: 1.3.14 | none
+history: 1.3.13 | none
+history: 1.3.12 | none
+history: 1.3.11 | none
+history: 1.3.10 | The bank pays only its stated daily rate, not a further hidden 3 percent, and a player the bank has banned can only repay the loan.
+history: 1.3.9 | Main Street opens in the classic layout by default, with the districts layout a choice in Settings.
 history: 1.3.8 | none
 history: 1.3.7 | none
 history: 1.3.6 | none
@@ -13,7 +19,7 @@ history: 1.3.2 | A bank robbery you lose leaves you at 1 HP and the bank takes i
 history: 1.2.5 | Bank screens, bank news and the bank's guards are shown in all five languages.
 history: 1.2.4 | The Bank's count of robbery attempts for the day is kept across server restarts.
 ---
-Gold on hand and bank gold are separate balances. The Bank, on Guild Row (G, then B), offers deposits, withdrawals, interest, loans, a guard job, transfers (online only) and a robbery. Shop prices, selling and haggling are in [shops](/wiki/en/items/shops/).
+Gold on hand and bank gold are separate balances. The Bank offers deposits, withdrawals, interest, loans, a guard job, transfers (online only) and a robbery. From Main Street press B for the Bank. With the district layout, open the Guild Row district with G, then press B. Shop prices, selling and haggling are in [shops](/wiki/en/items/shops/).
 
 ## Bank interest
 
@@ -31,7 +37,7 @@ Each daily reset, after the loan grows, an unpaid loan is enforced by its size:
 - Over 10,000: debt collectors deal loan / 500 damage (never killing you), add Darkness and 1 wanted level.
 - Over 25,000: the bank takes gold on hand, up to half the loan.
 - Over 50,000: you lose the bank guard job, gain more Darkness and 3 wanted levels, and lose 50 Chivalry.
-- Over 100,000: the bank refuses you service.
+- Over 100,000: the bank only lets you repay the loan (L).
 
 ## Bank guard job
 

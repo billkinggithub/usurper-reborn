@@ -400,6 +400,11 @@ public partial class Quest
     /// </summary>
     public string GetRewardDescription()
     {
+        // 1.3.10: a quest with a named target (a bounty on an NPC or a player) pays a set sum of gold when the target
+        // is beaten; the tier text read it as "Unknown Gold", and a player bounty (no tier stored) as "No reward"
+        if (!string.IsNullOrEmpty(TargetNPCName) && !IsMercContract)
+            return Loc.Get("quest.reward.gold_sum", QuestSystem.DefeatPayout(this).ToString("N0"));
+
         if (Reward == 0 || RewardType == QuestRewardType.Nothing)
             return Loc.Get("quest.reward.none");
 
@@ -558,6 +563,9 @@ public class QuestObjective
     public int CurrentProgress { get; set; } = 0;       // Current count
     public bool IsOptional { get; set; } = false;       // Optional bonus objectives
     public int BonusReward { get; set; } = 0;           // Extra reward for optional objectives
+    /// <summary>1.3.10: the dungeon floor where this kill objective's named target waits (QuestSystem.PlaceTargets),
+    /// set when the quest is taken; 0 for none.</summary>
+    public int TargetFloor { get; set; } = 0;
 
     // v0.61.3: localization-aware fields. When DescriptionKey is non-empty, the
     // display layer renders Loc.Get(DescriptionKey, DescriptionArgs) using the
@@ -623,6 +631,10 @@ public class QuestObjective
                 ? Loc.Get(DescriptionKey, QuestSystem.ShowMonsterArgs(ResolveLocArgs(DescriptionArgs), this))   // v1.2.5: monster names shown
                 : Loc.Get(DescriptionKey);
         }
+        // 1.3.10: a royal audience objective stores the English description it was made from; it is shown through
+        // castle.quest_type_{index}, in the viewer's language and with the wording that says what completes it
+        int royal = System.Array.IndexOf(CastleLocation.RoyalQuestTypes, Description);
+        if (royal >= 0) return Loc.Get($"castle.quest_type_{royal}");
         return Description;
     }
 

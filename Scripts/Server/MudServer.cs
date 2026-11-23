@@ -332,7 +332,8 @@ public class MudServer
             simIntervalSeconds: UsurperRemake.BBS.DoorMode.SimIntervalSeconds,
             npcXpMultiplier: UsurperRemake.BBS.DoorMode.NpcXpMultiplier,
             saveIntervalMinutes: UsurperRemake.BBS.DoorMode.SaveIntervalMinutes,
-            heartbeatOwnerId: worldSimOwnerId
+            heartbeatOwnerId: worldSimOwnerId,
+            writeWorldSnapshots: true   // O2: the hourly world_snapshots row, from the process that owns the world
         );
         _worldSimService = worldSimService;
         var worldSimTask = Task.Run(() => worldSimService.RunAsync(_cts.Token));
@@ -454,6 +455,9 @@ public class MudServer
     /// <summary>1.2.8, tests only: end each connection right after its login reply lines, before a session starts. Never set by the server.</summary>
     internal bool StopAfterLoginReply;
 
+    /// <summary>1.3.11, tests only: the peer address a test connection is treated as having. Never set by the server.</summary>
+    internal string? PeerAddressForTests;
+
     /// <summary>
     /// Handle a single incoming TCP connection.
     /// Supports two modes:
@@ -486,15 +490,44 @@ public class MudServer
             // subsequent ReadLineAsync sees them as the start of the first
             // line (preserves backward compat with existing relays + raw
             // clients connecting without PROXY).
+            //
+            // 1.3.11: the raw TCP peer is read first. A header's address is believed
+            // only from a loopback peer; from any other peer the header is consumed,
+            // so the stream stays in sync, and its address is ignored. Only a process
+            // on this host can present a loopback peer.
+            string? rawPeerIp = PeerAddressForTests;
+            if (rawPeerIp == null)
+            {
+                try { rawPeerIp = (client.Client.RemoteEndPoint as System.Net.IPEndPoint)?.Address.ToString(); }
+                catch { /* socket may have closed */ }
+            }
+            bool isLoopbackPeer = false;
+            if (!string.IsNullOrEmpty(rawPeerIp))
+            {
+                try
+                {
+                    var addr = System.Net.IPAddress.Parse(rawPeerIp);
+                    isLoopbackPeer = System.Net.IPAddress.IsLoopback(addr);
+                }
+                catch { /* malformed; not loopback */ }
+            }
+
             string? forwardedIP = null;
+            bool proxyHeaderSeen = false; // 1.3.11: a header signature was read on this connection
             Stream stream;
             {
-                var (proxySrcIp, leftover) = await TryReadProxyProtocolV2Async(rawStream, ct);
-                if (proxySrcIp != null)
+                var (proxySrcIp, leftover, signatureMatched) = await TryReadProxyProtocolV2Async(rawStream, ct);
+                proxyHeaderSeen = signatureMatched;
+                if (proxySrcIp != null && isLoopbackPeer)
                 {
                     forwardedIP = proxySrcIp;
                     Console.Error.WriteLine($"[MUD] PROXY v2 client IP: {forwardedIP}");
                     stream = rawStream; // header consumed; raw stream now at user data
+                }
+                else if (proxySrcIp != null)
+                {
+                    Console.Error.WriteLine($"[MUD] SECURITY: ignored PROXY v2 address '{proxySrcIp}' from non-loopback peer {rawPeerIp ?? "unknown"}");
+                    stream = rawStream; // header consumed; its address is not used
                 }
                 else if (leftover != null && leftover.Length > 0)
                 {
@@ -527,28 +560,10 @@ public class MudServer
 
             // Check for X-IP forwarded client IP from relay/proxy.
             // v0.64.0: skip this if PROXY v2 already supplied the source IP.
-            // PROXY comes from sslh on the loopback path (trusted); X-IP comes
-            // from the AUTH protocol (untrusted -- any client could spoof it).
             // Letting X-IP override a PROXY-supplied IP would defeat the whole
             // point of the PROXY parsing.
-            // Capture the RAW TCP peer up front -- both the X-IP trust gate below
-            // and the trusted-auth gate later need it. Anyone can spoof an X-IP
-            // header; only a process on this host can present a loopback peer.
-            string? rawPeerIp = null;
-            try { rawPeerIp = (client.Client.RemoteEndPoint as System.Net.IPEndPoint)?.Address.ToString(); }
-            catch { /* socket may have closed */ }
-            bool isLoopbackPeer = false;
-            if (!string.IsNullOrEmpty(rawPeerIp))
-            {
-                try
-                {
-                    var addr = System.Net.IPAddress.Parse(rawPeerIp);
-                    isLoopbackPeer = System.Net.IPAddress.IsLoopback(addr);
-                }
-                catch { /* malformed; not loopback */ }
-            }
-
             string? proxyClientType = null;
+            bool clientTypeLineSeen = false; // 1.3.11: an X-Client line came on this connection
             if (forwardedIP == null && authLine != null && authLine.StartsWith("X-IP:"))
             {
                 string claimedIp = authLine.Substring(5).Trim();
@@ -578,6 +593,7 @@ public class MudServer
                     if (authLine != null && authLine.StartsWith("X-Client:"))
                     {
                         proxyClientType = authLine.Substring(9).Trim();
+                        clientTypeLineSeen = true;
                         Console.Error.WriteLine($"[MUD] Client type: {proxyClientType}");
                         // Read one more line for potential AUTH header
                         authLine = null;
@@ -752,19 +768,15 @@ public class MudServer
                 var usernameKey = username.ToLowerInvariant();
                 Console.Error.WriteLine($"[MUD] Connection from {client.Client.RemoteEndPoint}: user={username}, type={connectionType}, auth={( password != null ? (isRegistration ? "register" : "password") : "trusted" )}");
 
-                // SECURITY: trusted auth (no password) is only allowed from loopback.
-                // The 3-part AUTH:user:type form was originally intended for the local
-                // SSH relay (sshd-usurper -> --mud-relay -> 127.0.0.1:4001) and the BBS
-                // gateway. Without this gate, any external client could telnet to the
-                // game port and send "AUTH:targetUser:Web" to log in as that account
-                // with no password verification. Reproduces against any public server.
-                // Loopback-only because the raw TCP peer is the only thing the server
-                // can trust (X-IP forwarded headers can be spoofed by external clients).
-                // Remote BBS deployments that previously used trusted Online Play must
-                // either co-locate with the game server or migrate to password auth.
-                if (password == null && !isLoopbackPeer)
+                // SECURITY: trusted auth (the 3-part AUTH:user:type form, no password).
+                // 1.3.11: refused unless the server was started with --allow-trusted-auth,
+                // and then accepted only from a loopback peer (the raw TCP peer, which no
+                // header can change) that sent no PROXY header and no X-Client line on
+                // this connection. Every refusal gets the same reply.
+                string? trustedAuthRefusal = TrustedAuthRefusal(UsurperRemake.BBS.DoorMode.AllowTrustedAuth, isLoopbackPeer, proxyHeaderSeen, clientTypeLineSeen);
+                if (password == null && trustedAuthRefusal != null)
                 {
-                    Console.Error.WriteLine($"[MUD] SECURITY: rejected trusted-auth from non-loopback peer {rawPeerIp ?? "unknown"} (claimed user='{username}', type='{connectionType}')");
+                    Console.Error.WriteLine($"[MUD] SECURITY: rejected trusted-auth ({trustedAuthRefusal}) from peer {rawPeerIp ?? "unknown"} (claimed user='{username}', type='{connectionType}')");
                     await WriteLineAsync(stream, "ERR:Authentication required. Trusted auth is only available from local relays.");
                     client.Close();
                     return;
@@ -973,10 +985,10 @@ public class MudServer
             {
                 // v1.2.5: the box is 79 columns wide (it was 80); AuthBoxRows, shared with the SSH relay.
                 await WriteAnsiAsync(stream, "\u001b[2J\u001b[H", isCp437); // Clear screen
-                var entries = new List<(string, string, string)> { ("1;36", "L", L("auth.login")), ("1;32", "R", L("auth.register")) };
-                if (offerForgot) entries.Add(("1;33", "F", L("auth.forgot")));
-                entries.Add(("1;35", "G", $"{L("auth.language")} ({langName})"));
-                entries.Add(("1;31", "Q", L("auth.quit")));
+                var entries = new List<(string, string, string)> { (AuthMenuColor, "L", L("auth.login")), (AuthMenuColor, "R", L("auth.register")) };
+                if (offerForgot) entries.Add((AuthMenuColor, "F", L("auth.forgot")));
+                entries.Add((AuthMenuColor, "G", $"{L("auth.language")} ({langName})"));
+                entries.Add((AuthQuitColor, "Q", L("auth.quit")));
                 foreach (var row in AuthBoxRows(L("auth.title"), entries))
                     await WriteAnsiAsync(stream, row + "\r\n", isCp437);
                 await WriteAnsiAsync(stream, "\u001b[0m", isCp437);
@@ -1532,6 +1544,20 @@ public class MudServer
         return null;
     }
 
+    /// <summary>
+    /// 1.3.11: why the password-free AUTH form is refused on a connection, or null when it is accepted. It is
+    /// accepted only when the server was started with --allow-trusted-auth, the raw peer is loopback, and no
+    /// PROXY header and no X-Client line came on the connection.
+    /// </summary>
+    internal static string? TrustedAuthRefusal(bool allowed, bool loopbackPeer, bool proxyHeaderSeen, bool clientTypeLineSeen)
+    {
+        if (!allowed) return "not enabled";
+        if (!loopbackPeer) return "non-loopback peer";
+        if (proxyHeaderSeen) return "PROXY header";
+        if (clientTypeLineSeen) return "X-Client line";
+        return null;
+    }
+
     // v0.64.0 PROXY protocol v2 signature: the first 12 bytes of every
     // PROXY v2 header. Standard, public spec, used by HAProxy, sslh, nginx,
     // etc. https://www.haproxy.org/download/2.8/doc/proxy-protocol.txt
@@ -1556,8 +1582,11 @@ public class MudServer
     /// Returns (sourceIp, null) on successful PROXY parse, or
     /// (null, leftover) when bytes were read but not a PROXY header.
     /// Returns (null, null) on read error / EOF before 12 bytes.
+    /// 1.3.11: signatureMatched is true whenever the 12 signature bytes were
+    /// read, whatever follows them (a LOCAL command, another version or family,
+    /// a truncated or slow header), so the caller knows a header came.
     /// </summary>
-    private static async Task<(string? sourceIp, byte[]? leftover)> TryReadProxyProtocolV2Async(
+    private static async Task<(string? sourceIp, byte[]? leftover, bool signatureMatched)> TryReadProxyProtocolV2Async(
         Stream stream, CancellationToken ct)
     {
         var buf = new byte[12];
@@ -1573,7 +1602,7 @@ public class MudServer
                 {
                     // EOF before 12 bytes -- whatever we did read isn't a PROXY
                     // header. Return as leftover so caller can use them.
-                    return (null, got > 0 ? buf[..got] : null);
+                    return (null, got > 0 ? buf[..got] : null, false);
                 }
                 got += n;
             }
@@ -1584,13 +1613,13 @@ public class MudServer
             // send a PROXY header. Return what we got (possibly nothing) as
             // leftover; subsequent reads on the wrapped stream pick up where
             // we left off when the user finally types something.
-            return (null, got > 0 ? buf[..got] : null);
+            return (null, got > 0 ? buf[..got] : null, false);
         }
         catch
         {
             // Other I/O error -- propagate up by returning empty so caller
             // can handle the bad-connection case via the existing path.
-            return (null, null);
+            return (null, null, false);
         }
 
         // Check signature
@@ -1599,7 +1628,7 @@ public class MudServer
             if (buf[i] != ProxyV2Signature[i])
             {
                 // Not a PROXY header. The 12 bytes are real client data.
-                return (null, buf);
+                return (null, buf, false);
             }
         }
 
@@ -1613,13 +1642,13 @@ public class MudServer
             while (hdrGot < 4)
             {
                 int n = await stream.ReadAsync(hdr, hdrGot, 4 - hdrGot, cts.Token);
-                if (n <= 0) return (null, null); // truncated PROXY header
+                if (n <= 0) return (null, null, true); // truncated PROXY header
                 hdrGot += n;
             }
         }
         catch
         {
-            return (null, null);
+            return (null, null, true);
         }
 
         byte verCmd = hdr[0];        // bits 7-4 = version (2), bits 3-0 = command (0=LOCAL, 1=PROXY)
@@ -1636,20 +1665,20 @@ public class MudServer
             while (payGot < payloadLen)
             {
                 int n = await stream.ReadAsync(payload, payGot, payloadLen - payGot, cts.Token);
-                if (n <= 0) return (null, null); // truncated
+                if (n <= 0) return (null, null, true); // truncated
                 payGot += n;
             }
         }
         catch
         {
-            return (null, null);
+            return (null, null, true);
         }
 
         // PROXY command (verCmd lower nibble = 1). LOCAL command (0) means
         // "no real client" (health checks) -- treat as no source IP.
-        if ((verCmd & 0x0F) != 0x01) return (null, null);
+        if ((verCmd & 0x0F) != 0x01) return (null, null, true);
         // Version check (upper nibble must be 2).
-        if ((verCmd & 0xF0) != 0x20) return (null, null);
+        if ((verCmd & 0xF0) != 0x20) return (null, null, true);
 
         // Parse source IP from payload based on address family.
         try
@@ -1658,13 +1687,13 @@ public class MudServer
             {
                 var srcBytes = new byte[4];
                 Array.Copy(payload, 0, srcBytes, 0, 4);
-                return (new System.Net.IPAddress(srcBytes).ToString(), null);
+                return (new System.Net.IPAddress(srcBytes).ToString(), null, true);
             }
             if (famProto == 0x21 && payloadLen >= 36) // TCP over IPv6
             {
                 var srcBytes = new byte[16];
                 Array.Copy(payload, 0, srcBytes, 0, 16);
-                return (new System.Net.IPAddress(srcBytes).ToString(), null);
+                return (new System.Net.IPAddress(srcBytes).ToString(), null, true);
             }
         }
         catch
@@ -1674,7 +1703,7 @@ public class MudServer
 
         // Unsupported family (AF_UNIX, AF_UNSPEC) or malformed payload --
         // header was consumed, caller can continue but without a real IP.
-        return (null, null);
+        return (null, null, true);
     }
 
     /// <summary>
@@ -1836,10 +1865,18 @@ public class MudServer
     internal static List<string> IdleWarningRows(string lang, int minutesLeft) =>
         NoticeRows($"*** {Loc.GetIn(lang, minutesLeft == 1 ? "mud.idle_warning_one" : "mud.idle_warning_many", minutesLeft)} ***");
 
+    /// <summary>1.3.9: the login box colours (his pick): the border and title bright purple, the menu
+    /// bright green, and the whole Quit entry red.</summary>
+    internal const string AuthBoxColor = "1;35";
+    internal const string AuthMenuColor = "1;32";
+    internal const string AuthQuitColor = "1;31";
+
     /// <summary>
     /// v1.2.5: the login box of the direct connection gate and the SSH relay: 79 columns wide (77 inside),
-    /// a centred title, a blank row, one row per menu entry and a blank row. Each row starts with its
-    /// colour; the colour of an entry sits on its hotkey only. The caller resets the colour after.
+    /// a centred title, a blank row, one row per menu entry and a blank row. 1.3.9: every border segment
+    /// and the title are drawn in AuthBoxColor, each with its own colour code so no row inherits the
+    /// colour of the one before; an entry's hotkey and label are both drawn in the entry's colour.
+    /// The caller resets the colour after.
     /// </summary>
     internal static List<string> AuthBoxRows(string title, IEnumerable<(string Color, string Hotkey, string Label)> entries)
     {
@@ -1847,12 +1884,13 @@ public class MudServer
         if (title.Length > inner) title = title.Substring(0, inner);
         int tpad = inner - title.Length;
         int tleft = tpad / 2;
+        string box = $"\u001b[{AuthBoxColor}m";
         var rows = new List<string>
         {
-            "\u001b[1;36m\u2554" + new string('\u2550', inner) + "\u2557",
-            "\u001b[1;37m\u2551" + new string(' ', tleft) + title + new string(' ', tpad - tleft) + "\u2551",
-            "\u001b[1;36m\u2560" + new string('\u2550', inner) + "\u2563",
-            "\u001b[0;37m\u2551" + new string(' ', inner) + "\u2551",
+            box + "\u2554" + new string('\u2550', inner) + "\u2557",
+            box + "\u2551" + new string(' ', tleft) + title + new string(' ', tpad - tleft) + "\u2551",
+            box + "\u2560" + new string('\u2550', inner) + "\u2563",
+            box + "\u2551" + new string(' ', inner) + "\u2551",
         };
         foreach (var (color, hotkey, label) in entries)
         {
@@ -1860,10 +1898,10 @@ public class MudServer
             int room = inner - $"  [{hotkey}] ".Length;
             if (text.Length > room) text = text.Substring(0, room);
             int pad = room - text.Length;
-            rows.Add($"\u2551  \u001b[{color}m[{hotkey}]\u001b[0;37m {text}{new string(' ', pad)}\u2551");
+            rows.Add($"{box}\u2551  \u001b[{color}m[{hotkey}] {text}{new string(' ', pad)}{box}\u2551");
         }
-        rows.Add("\u2551" + new string(' ', inner) + "\u2551");
-        rows.Add("\u001b[1;36m\u255a" + new string('\u2550', inner) + "\u255d");
+        rows.Add(box + "\u2551" + new string(' ', inner) + "\u2551");
+        rows.Add(box + "\u255a" + new string('\u2550', inner) + "\u255d");
         return rows;
     }
 

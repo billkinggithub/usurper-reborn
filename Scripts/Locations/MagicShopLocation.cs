@@ -520,6 +520,7 @@ public partial class MagicShopLocation : BaseLocation
     
     private async Task IdentifyItem(Character player)
     {
+        terminal.ClearScreen();   // 1.3.11 (R10): a new page, not rows under the shop menu
         DisplayMessage("");
 
         var unidentifiedItems = player.Inventory.Where(item => !item.IsIdentified).ToList();
@@ -664,6 +665,7 @@ public partial class MagicShopLocation : BaseLocation
                 CityControlSystem.Instance.DisplayTaxBreakdown(terminal, Loc.Get("magic_shop.healing_potions"), totalCost);
                 player.Gold -= hpTotalWithTax;
                 player.Healing += quantity;
+                SmugglersCache.Spend(player);   // 1.3.10 (P6)
 
                 // Process city tax share from this sale
                 CityControlSystem.Instance.ProcessSaleTax(totalCost);
@@ -697,6 +699,7 @@ public partial class MagicShopLocation : BaseLocation
     /// </summary>
     private async Task RemoveCurse(Character player)
     {
+        terminal.ClearScreen();   // 1.3.11 (R10): a new page, not rows under the shop menu
         DisplayMessage("");
         WriteSectionHeader(Loc.Get("magic_shop.curse_removal"), "magenta");
         DisplayMessage("");
@@ -1116,6 +1119,7 @@ public partial class MagicShopLocation : BaseLocation
         // v0.60.8: use the central DungeonLocation.OldGodFloors constant rather
         // than duplicating the literal here.
 
+        terminal.ClearScreen();   // 1.3.11 (R10): a new page, not rows under the shop menu
         DisplayMessage("");
         WriteSectionHeader(Loc.Get("magic_shop.reset_scroll_header"), "magenta");
         DisplayMessage("");
@@ -2155,6 +2159,7 @@ public partial class MagicShopLocation : BaseLocation
 
         // Execute enchantment
         player.Gold -= enchantCost;
+        SmugglersCache.Spend(player);   // 1.3.10 (P6)
 
         // Consume materials (even on failure for 4th/5th enchant)
         if (EnchantMaterialRequirements.TryGetValue(tierChoice - 1, out var consumeReqs))
@@ -2715,6 +2720,7 @@ public partial class MagicShopLocation : BaseLocation
         }
 
         player.Gold -= removalCost;
+        SmugglersCache.Spend(player);   // 1.3.10 (P6)
 
         // v1.2.5: back to the base form: every stat, the fire and frost flags, the value and the name the
         // enchants changed. The record goes too, so a later first enchant records afresh.
@@ -3208,6 +3214,7 @@ public partial class MagicShopLocation : BaseLocation
         player.Statistics?.RecordAccessoryPurchase(totalWithTax);
         AchievementSystem.CheckAchievements(player); // v0.61.3: immediate achievement check
         CityControlSystem.Instance.ProcessSaleTax(price);
+        SmugglersCache.Spend(player);   // 1.3.10 (P6)
         // Check for equipment quest completion
         QuestSystem.OnEquipmentPurchased(player, item);
 
@@ -3860,6 +3867,7 @@ public partial class MagicShopLocation : BaseLocation
         // Deduct costs
         player.Gold -= loveTotalWithTax;
         CityControlSystem.Instance.ProcessSaleTax(spellCost);
+        SmugglersCache.Spend(player);   // 1.3.10 (P6)
         player.Mana -= selected.manaCost;
 
         // Check resistance (high Commitment NPCs)
@@ -4141,6 +4149,7 @@ public partial class MagicShopLocation : BaseLocation
         // Deduct costs
         player.Gold -= deathTotalWithTax;
         CityControlSystem.Instance.ProcessSaleTax(spellCost);
+        SmugglersCache.Spend(player);   // 1.3.10 (P6)
         player.Mana -= selected.manaCost;
 
         // Calculate success
@@ -4160,9 +4169,11 @@ public partial class MagicShopLocation : BaseLocation
             WrappedLine($"  {Loc.Get("magic_shop.dark_done", targetNPC.Name1)}", "cyan");
 
             // Kill the NPC — will respawn after world sim cycle
+            WorldSnapshotCounters.CountNpcDeath(targetNPC);   // O2: a death for the hourly world snapshot
             targetNPC.IsDead = true;
             // targetNPC.IsPermaDead = true;  // Disabled — NPCs now respawn after death
             targetNPC.HP = 0;
+            WorldSimulator.RecordFamilyDeath(targetNPC, player.Name2);   // 1.3.10: the victim's kin remember
 
             // Blood price for dark magic kill
             WorldSimulator.ApplyBloodPrice(player, targetNPC, GameConfig.MurderWeightPerDarkMagicKill, isDeliberate: true);
@@ -4265,6 +4276,7 @@ public partial class MagicShopLocation : BaseLocation
             var (mpKingTax, mpCityTax, mpTotalWithTax) = CityControlSystem.CalculateTaxedPrice(totalCost);
             CityControlSystem.Instance.DisplayTaxBreakdown(terminal, Loc.Get("magic_shop.mana_potions"), totalCost);
             player.Gold -= mpTotalWithTax;
+            SmugglersCache.Spend(player);   // 1.3.10 (P6)
             player.ManaPotions += qty;
 
             DisplayMessage(Loc.Get("magic_shop.mana_deal", _ownerName, $"{qty}"), "bright_green");
@@ -4321,6 +4333,7 @@ public partial class MagicShopLocation : BaseLocation
 
         player.Gold -= scryTotalWithTax;
         CityControlSystem.Instance.ProcessSaleTax(scryCost);
+        SmugglersCache.Spend(player);   // 1.3.10 (P6)
 
         DisplayMessage("");
         DisplayMessage(Loc.Get("magic_shop.scry_reveal"), "magenta");

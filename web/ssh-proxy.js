@@ -21,6 +21,9 @@ const path = require('path');
 const { execFile } = require('child_process');
 const fs = require('fs');
 const os = require('os');
+const { wantsGmcp, createGmcpSplitter } = require('./gmcp-split');
+const { publicNpcs } = require('./dash-npcs');
+const { createObservatory, playerNameSet } = require('./dash-observatory');
 
 let bcrypt;
 try {
@@ -31,6 +34,25 @@ try {
 }
 
 const WS_PORT = 3000;
+// --- Bind host (1.3.11) ---
+// The HTTP and WebSocket server listens on WEB_BIND_HOST, loopback unless the operator says otherwise.
+// docker compose sets 0.0.0.0 for usurper-web because nginx reaches it by service name; compose
+// publishes only nginx. A self-hoster who reaches port 3000 from another host sets it too.
+function resolveBindHost(env) {
+  const v = typeof env.WEB_BIND_HOST === 'string' ? env.WEB_BIND_HOST.trim() : '';
+  return v || '127.0.0.1';
+}
+// --- End bind host ---
+const WS_BIND_HOST = resolveBindHost(process.env);
+// --- Startup env line (1.3.11) ---
+// One startup line names the variables the service reads from its environment file, each set or unset.
+// Names only, never a value. The unit's file is optional, so a missing file starts the service with no
+// settings and is-active still passes; this line shows it in the journal.
+const STARTUP_ENV_NAMES = ['BALANCE_PASS', 'BALANCE_SECRET', 'RESEND_API_KEY', 'MAIL_FROM', 'DISCORD_BOT_TOKEN', 'BUG_REPORT_WEBHOOK_URL'];
+function startupEnvLine(env) {
+  return '[usurper-web] Environment: ' + STARTUP_ENV_NAMES.map((n) => n + '=' + (env[n] ? 'set' : 'unset')).join(' ');
+}
+// --- End startup env line ---
 const SSH_HOST = '127.0.0.1';
 const SSH_PORT = 4000;
 // Gateway account for the legacy SSH hop (only used when MUD_MODE=0). This is
@@ -380,7 +402,6 @@ function initPeakTracking() {
 const DASH_NPC_CACHE_TTL = 10000; // 10 seconds
 const DASH_EVENTS_CACHE_TTL = 5000; // 5 seconds
 const DASH_HOURLY_CACHE_TTL = 60000; // 60 seconds
-const DASH_SNAPSHOT_INTERVAL = 30000; // 30 seconds for NPC snapshots
 
 const CLASS_NAMES = {
   0: 'Alchemist', 1: 'Assassin', 2: 'Barbarian', 3: 'Bard',
@@ -489,7 +510,7 @@ function sendJson(res, status, data, extraHeaders) {
 }
 
 // --- Bug Report Proxy ---
-// Real webhook URL lives only in this env var (loaded from /opt/usurper/web/.env).
+// Real webhook URL lives only in this env var (loaded from /etc/usurper/web.env by the service unit).
 // Game clients POST to /api/bug-report, we forward to Discord server-side so the
 // URL is never baked into Steam / BBS distributions.
 const BUG_REPORT_WEBHOOK_URL = process.env.BUG_REPORT_WEBHOOK_URL || '';
@@ -1148,6 +1169,49 @@ function getDashNpcs() {
   }
 }
 
+// Lower-cased player character names and login names, read at most once per NPC cache period, or
+// null when they could not be read. Every public dashboard list uses this one set only to keep
+// players out of it; it is never sent.
+let dashPlayerNamesCache = null;
+let dashPlayerNamesCacheTime = 0;
+function getDashPlayerNames() {
+  const now = Date.now();
+  if (dashPlayerNamesCacheTime && (now - dashPlayerNamesCacheTime) < DASH_NPC_CACHE_TTL) return dashPlayerNamesCache;
+  let names = null;
+  try {
+    names = playerNameSet(db.prepare('SELECT username, display_name FROM players').all());
+  } catch (err) {
+    // Without the player list nothing about other characters can be checked, so none is sent.
+    console.error(`[usurper-web] Dashboard player name query error: ${err.message}`);
+    names = null;
+  }
+  dashPlayerNamesCache = names;
+  dashPlayerNamesCacheTime = now;
+  return names;
+}
+
+// The public NPC list (dash-npcs.js) behind the Observatory profile, ties and movers, rebuilt at most once
+// per NPC cache period.
+let dashPublicNpcCache = null;
+let dashPublicNpcCacheTime = 0;
+function getDashPublicNpcs() {
+  const now = Date.now();
+  if (dashPublicNpcCache && (now - dashPublicNpcCacheTime) < DASH_NPC_CACHE_TTL) return dashPublicNpcCache;
+  dashPublicNpcCache = publicNpcs(getDashNpcs(), getDashPlayerNames());
+  dashPublicNpcCacheTime = now;
+  return dashPublicNpcCache;
+}
+
+// The Observatory endpoints (dash-observatory.js), each cached for its own period.
+const dashObservatory = createObservatory({
+  getDb: () => db,
+  getNpcs: getDashNpcs,
+  getPublicNpcs: getDashPublicNpcs,
+  getPlayerNames: getDashPlayerNames,
+  now: () => Date.now(),
+  log: (msg) => console.error(`[usurper-web] Observatory query error: ${msg}`),
+});
+
 // Read royal court data from world_state (the authoritative source).
 // The world sim maintains the 'royal_court' key 24/7. Player sessions write to it
 // when they change king state (throne challenges, tax changes, treasury ops).
@@ -1167,185 +1231,18 @@ function getRoyalCourtFromWorldState() {
   return null;
 }
 
-// Derive city controller info from NPC data (isTeamLeader maps to CTurf in-game)
-function getCityControllerFromNpcs(npcs) {
-  if (!npcs || npcs.length === 0) return null;
-  const controllers = npcs.filter(n => {
-    const isLeader = n.isTeamLeader || n.IsTeamLeader;
-    const hasTeam = n.team || n.Team;
-    const alive = !(n.isDead || n.IsDead);
-    return isLeader && hasTeam && alive;
-  });
-  if (controllers.length === 0) return null;
-
-  const teamName = controllers[0].team || controllers[0].Team;
-  // All members of the controlling team (not just leaders)
-  const teamMembers = npcs.filter(n => (n.team || n.Team) === teamName && !(n.isDead || n.IsDead));
-  const teamLeader = teamMembers.sort((a, b) => (b.level || b.Level || 0) - (a.level || a.Level || 0))[0];
-  const totalPower = teamMembers.reduce((sum, n) => {
-    return sum + (n.level || n.Level || 0) + (n.strength || n.Strength || 0) + (n.defence || n.Defence || 0);
-  }, 0);
-
-  return {
-    teamName,
-    memberCount: teamMembers.length,
-    totalPower,
-    leaderName: teamLeader ? (teamLeader.name || teamLeader.Name || 'None') : 'None',
-    leaderBank: teamLeader ? (teamLeader.bankGold || teamLeader.BankGold || 0) : 0
-  };
-}
-
-function getDashSummary() {
-  const npcs = getDashNpcs();
-  if (!npcs || npcs.length === 0) return { total: 0 };
-
-  const alive = npcs.filter(n => !n.isDead && !n.IsDead);
-  const dead = npcs.filter(n => n.isDead || n.IsDead);
-  const permadead = npcs.filter(n => n.isPermaDead || n.IsPermaDead);
-  const agedDeath = npcs.filter(n => n.isAgedDeath || n.IsAgedDeath);
-  const married = npcs.filter(n => n.isMarried || n.IsMarried);
-  const pregnant = npcs.filter(n => n.pregnancyDueDate || n.PregnancyDueDate);
-  const teams = new Set(npcs.filter(n => n.team || n.Team).map(n => n.team || n.Team).filter(t => t));
-
-  // Class distribution (alive NPCs only — exclude permadead)
-  const classDist = {};
-  alive.forEach(n => {
-    const cls = CLASS_NAMES[n.class] || CLASS_NAMES[n.Class] || 'Unknown';
-    classDist[cls] = (classDist[cls] || 0) + 1;
-  });
-
-  // Race distribution (alive only)
-  const raceDist = {};
-  alive.forEach(n => {
-    const race = RACE_NAMES[n.race] || RACE_NAMES[n.Race] || 'Unknown';
-    raceDist[race] = (raceDist[race] || 0) + 1;
-  });
-
-  // Faction distribution (alive only)
-  const factionDist = {};
-  alive.forEach(n => {
-    const fid = String(n.npcFaction !== undefined ? n.npcFaction : (n.NPCFaction !== undefined ? n.NPCFaction : -1));
-    const fname = FACTION_NAMES[fid] || 'None';
-    factionDist[fname] = (factionDist[fname] || 0) + 1;
-  });
-
-  // Location distribution (alive only)
-  const locationDist = {};
-  alive.forEach(n => {
-    const loc = n.location || n.Location || 'Unknown';
-    locationDist[loc] = (locationDist[loc] || 0) + 1;
-  });
-
-  // Level distribution (alive only)
-  const levelDist = {};
-  alive.forEach(n => {
-    const lvl = n.level || n.Level || 1;
-    const bucket = Math.floor(lvl / 10) * 10;
-    const key = `${bucket}-${bucket + 9}`;
-    levelDist[key] = (levelDist[key] || 0) + 1;
-  });
-
-  // Age distribution (alive only)
-  const ageDist = {};
-  alive.forEach(n => {
-    const age = n.age || n.Age || 0;
-    if (age > 0) {
-      const bucket = Math.floor(age / 10) * 10;
-      const key = `${bucket}-${bucket + 9}`;
-      ageDist[key] = (ageDist[key] || 0) + 1;
-    }
-  });
-
-  // Average level (alive only)
-  const levels = alive.map(n => n.level || n.Level || 1);
-  const avgLevel = levels.length > 0 ? (levels.reduce((a, b) => a + b, 0) / levels.length).toFixed(1) : 0;
-
-  // Total gold (alive only)
-  const totalGold = alive.reduce((sum, n) => sum + (n.gold || n.Gold || 0), 0);
-
-  // King - from NPC data (which NPC has isKing flag)
-  const kingNpc = npcs.find(n => n.isKing || n.IsKing);
-
-  // Economy data: read from world_state (the authoritative source).
-  // The world sim maintains the 'royal_court' and 'economy' keys 24/7.
-  // Player sessions write to 'royal_court' when they change king state.
-  let economy = null;
-  try {
-    const royalCourt = getRoyalCourtFromWorldState();
-    const cityController = getCityControllerFromNpcs(npcs);
-
-    // Economy summary from world sim (daily income/expenses/revenue counters)
-    let econSummary = {};
-    try {
-      const econRow = db.prepare("SELECT value FROM world_state WHERE key = 'economy'").get();
-      if (econRow && econRow.value) econSummary = JSON.parse(econRow.value);
-    } catch (e) {}
-
-    if (royalCourt || cityController || Object.keys(econSummary).length > 0) {
-      economy = {
-        kingName: royalCourt?.kingName || econSummary.kingName || 'None',
-        kingIsActive: true,
-        treasury: royalCourt?.treasury ?? econSummary.treasury ?? 0,
-        taxRate: royalCourt?.taxRate ?? econSummary.taxRate ?? 0,
-        kingTaxPercent: royalCourt?.kingTaxPercent ?? econSummary.kingTaxPercent ?? 0,
-        cityTaxPercent: royalCourt?.cityTaxPercent ?? econSummary.cityTaxPercent ?? 0,
-        dailyTaxRevenue: econSummary.dailyTaxRevenue || 0,
-        dailyCityTaxRevenue: econSummary.dailyCityTaxRevenue || 0,
-        dailyIncome: econSummary.dailyIncome || 0,
-        dailyExpenses: econSummary.dailyExpenses || 0,
-        cityControlTeam: cityController?.teamName || econSummary.cityControlTeam || 'None',
-        cityControlMembers: cityController?.memberCount || econSummary.cityControlMembers || 0,
-        cityControlPower: cityController?.totalPower || econSummary.cityControlPower || 0,
-        cityControlLeader: cityController?.leaderName || econSummary.cityControlLeader || 'None',
-        cityControlLeaderBank: cityController?.leaderBank || econSummary.cityControlLeaderBank || 0
-      };
-    }
-  } catch (e) { /* economy data may not be available */ }
-
-  // Children data from world_state (serialized by WorldSimService)
-  let children = null;
-  try {
-    const childRow = db.prepare("SELECT value FROM world_state WHERE key = 'children'").get();
-    if (childRow && childRow.value) children = JSON.parse(childRow.value);
-  } catch (e) { /* children data may not exist yet */ }
-
-  return {
-    total: npcs.length,
-    alive: alive.length,
-    dead: dead.length,
-    permadead: permadead.length,
-    agedDeath: agedDeath.length,
-    married: married.length,
-    pregnant: pregnant.length,
-    teams: economy?.cityControlTeam && economy.cityControlTeam !== 'None' && !teams.has(economy.cityControlTeam)
-      ? teams.size + 1 : teams.size,
-    avgLevel: parseFloat(avgLevel),
-    totalGold,
-    king: economy?.kingName || (kingNpc ? (kingNpc.name || kingNpc.Name) : null),
-    classDist,
-    raceDist,
-    factionDist,
-    locationDist,
-    levelDist,
-    ageDist,
-    economy,
-    children
-  };
-}
-
 function getDashEvents() {
   const now = Date.now();
   if (dashEventsCache && (now - dashEventsCacheTime) < DASH_EVENTS_CACHE_TTL) return dashEventsCache;
   if (!db) return [];
   try {
     dashEventsCache = db.prepare(`
-      SELECT id, message, category, player_name, created_at
+      SELECT id, message, category, created_at
       FROM news ORDER BY created_at DESC LIMIT 500
     `).all().map(row => ({
       id: row.id,
       message: row.message,
       category: row.category,
-      playerName: row.player_name,
       time: row.created_at
     }));
     dashEventsCacheTime = now;
@@ -1384,8 +1281,6 @@ function getDashEventsHourly() {
 // --- Dashboard SSE Feed ---
 const dashSseClients = new Set();
 let dashLastNewsId = 0;
-let lastNpcSnapshotTime = 0;
-let lastNpcSnapshotHash = '';
 
 function initDashFeedIds() {
   if (!db) return;
@@ -1411,37 +1306,6 @@ function dashPollFeed() {
       dashLastNewsId = newsRows[newsRows.length - 1].id;
       const items = newsRows.map(r => ({ message: r.message, category: r.category, time: r.created_at }));
       dashBroadcast('news', JSON.stringify({ items }));
-    }
-
-    // NPC snapshot (every 30 seconds)
-    const now = Date.now();
-    if (now - lastNpcSnapshotTime >= DASH_SNAPSHOT_INTERVAL) {
-      lastNpcSnapshotTime = now;
-      const npcs = getDashNpcs();
-      if (npcs && npcs.length > 0) {
-        // Compact snapshot for SSE (just key fields per NPC)
-        const snapshot = npcs.map(n => ({
-          name: n.name || n.Name,
-          level: n.level || n.Level || 1,
-          class: n.class !== undefined ? n.class : (n.Class !== undefined ? n.Class : -1),
-          race: n.race !== undefined ? n.race : (n.Race !== undefined ? n.Race : -1),
-          location: n.location || n.Location || 'Unknown',
-          alive: !(n.isDead || n.IsDead),
-          married: !!(n.isMarried || n.IsMarried),
-          faction: n.npcFaction !== undefined ? n.npcFaction : (n.NPCFaction !== undefined ? n.NPCFaction : -1),
-          isKing: !!(n.isKing || n.IsKing),
-          pregnant: !!(n.pregnancyDueDate || n.PregnancyDueDate),
-          emotion: n.emotionalState || n.EmotionalState || null,
-          hp: n.hp || n.HP || 0,
-          maxHp: n.maxHP || n.MaxHP || 1
-        }));
-        const hash = crypto.createHash('md5').update(JSON.stringify(snapshot)).digest('hex');
-        if (hash !== lastNpcSnapshotHash) {
-          lastNpcSnapshotHash = hash;
-          const summary = getDashSummary();
-          dashBroadcast('npc-snapshot', JSON.stringify({ npcs: snapshot, summary }));
-        }
-      }
     }
   } catch (e) {
     // Silently ignore
@@ -1586,9 +1450,10 @@ function getStats() {
       ORDER BY op.display_name
     `).all().map(row => {
       const isImmortal = row.is_immortal === 1 || row.is_immortal === true;
-      const rawName = row.display_name || row.username;
+      // The character name only; the login name (online_players.username) is never sent.
+      const rawName = row.display_name || '';
       return {
-        name: row.noble_title ? `${row.noble_title} ${rawName}` : rawName,
+        name: rawName && row.noble_title ? `${row.noble_title} ${rawName}` : rawName,
         level: isImmortal ? (row.god_level || 1) : (row.level || 1),
         className: isImmortal ? 'Immortal' : (CLASS_NAMES[row.class_id] || 'Unknown'),
         location: row.location || 'Unknown',
@@ -1788,12 +1653,11 @@ function getStats() {
     let news = [];
     try {
       news = db.prepare(`
-        SELECT message, category, player_name, created_at
+        SELECT message, category, created_at
         FROM news WHERE category != 'npc' ORDER BY created_at DESC LIMIT 10
       `).all().map(row => ({
         message: row.message,
         category: row.category,
-        playerName: row.player_name,
         time: row.created_at
       }));
     } catch (e) { /* news table may not exist */ }
@@ -2909,30 +2773,6 @@ async function handleDashRequest(req, res) {
     dashSseClients.add(res);
     console.log(`[usurper-web] Dashboard SSE connected (${dashSseClients.size} total)`);
 
-    // Send initial snapshot immediately
-    try {
-      const npcs = getDashNpcs();
-      if (npcs && npcs.length > 0) {
-        const snapshot = npcs.map(n => ({
-          name: n.name || n.Name,
-          level: n.level || n.Level || 1,
-          class: n.class !== undefined ? n.class : (n.Class !== undefined ? n.Class : -1),
-          race: n.race !== undefined ? n.race : (n.Race !== undefined ? n.Race : -1),
-          location: n.location || n.Location || 'Unknown',
-          alive: !(n.isDead || n.IsDead),
-          married: !!(n.isMarried || n.IsMarried),
-          faction: n.npcFaction !== undefined ? n.npcFaction : (n.NPCFaction !== undefined ? n.NPCFaction : -1),
-          isKing: !!(n.isKing || n.IsKing),
-          pregnant: !!(n.pregnancyDueDate || n.PregnancyDueDate),
-          emotion: n.emotionalState || n.EmotionalState || null,
-          hp: n.hp || n.HP || 0,
-          maxHp: n.maxHP || n.MaxHP || 1
-        }));
-        const summary = getDashSummary();
-        res.write(`event: npc-snapshot\ndata: ${JSON.stringify({ npcs: snapshot, summary })}\n\n`);
-      }
-    } catch (e) {}
-
     req.on('close', () => {
       dashSseClients.delete(res);
       console.log(`[usurper-web] Dashboard SSE disconnected (${dashSseClients.size} total)`);
@@ -2940,17 +2780,31 @@ async function handleDashRequest(req, res) {
     return true;
   }
 
-  // Data endpoints
-  if (method === 'GET' && url === '/api/dash/npcs') {
-    const npcs = getDashNpcs();
-    sendJson(res, 200, npcs);
-    return true;
-  }
-
-  if (method === 'GET' && url === '/api/dash/summary') {
-    const summary = getDashSummary();
-    sendJson(res, 200, summary);
-    return true;
+  // Observatory endpoints: public, allow-listed, cached (dash-observatory.js).
+  if (method === 'GET') {
+    let parsed = null;
+    try { parsed = new URL(url, 'http://localhost'); } catch (e) { parsed = null; }
+    const route = parsed ? parsed.pathname : '';
+    const simple = {
+      '/api/dash/people': dashObservatory.people,
+      '/api/dash/ties': dashObservatory.ties,
+      '/api/dash/realm': dashObservatory.realm,
+      '/api/dash/movers': dashObservatory.movers,
+      '/api/dash/depths': dashObservatory.depths,
+      '/api/dash/market': dashObservatory.market,
+      '/api/dash/fallen': dashObservatory.fallen,
+    };
+    if (Object.prototype.hasOwnProperty.call(simple, route)) {
+      sendJson(res, 200, simple[route]());
+      return true;
+    }
+    if (route === '/api/dash/profile') {
+      const name = parsed.searchParams.get('name');
+      const entry = name && name.length <= 100 ? dashObservatory.profile(name) : null;
+      if (entry) sendJson(res, 200, entry);
+      else sendJson(res, 404, { error: 'Not found' });
+      return true;
+    }
   }
 
   if (method === 'GET' && url === '/api/dash/events') {
@@ -2965,8 +2819,78 @@ async function handleDashRequest(req, res) {
     return true;
   }
 
-  return false; // Not a dash route
+  // O2: the hourly world snapshots for the Observatory trends
+  if (method === 'GET' && dashHistory.matches(url)) {
+    dashHistory.handle(req, res);
+    return true;
+  }
+
+  // Any other /api/dash/ path, including the retired npcs and summary routes, gets a 404
+  // instead of an open request.
+  sendJson(res, 404, { error: 'Not found' });
+  return true;
 }
+
+// --- Dashboard History (O2) ---
+// GET /api/dash/history?hours=24|168|720: the world_snapshots rows of the last 24 hours, 7 days or 30 days,
+// oldest first, with the table's columns only. Any other hours value (or none) is 24. The game's world sim
+// writes one row per UTC hour, keyed 'yyyy-MM-ddTHH:00:00Z', so the window is a primary key range on
+// that string. Cached 5 minutes per window. A database without the table (a game not yet upgraded) gives [].
+const DASH_HISTORY_HOURS = [24, 168, 720];
+const DASH_HISTORY_CACHE_MS = 5 * 60 * 1000;
+const DASH_HISTORY_COLUMNS = ['taken_at', 'npcs_alive', 'npcs_dead', 'npcs_married', 'children', 'treasury',
+  'players_online', 'births', 'deaths', 'marriages'];
+const DASH_HISTORY_SQL = `SELECT ${DASH_HISTORY_COLUMNS.join(', ')} FROM world_snapshots
+  WHERE taken_at > ? AND taken_at <= ? ORDER BY taken_at ASC`;
+
+// The hours asked for when it is one of the three windows, else 24.
+function dashHistoryHours(url) {
+  let raw = null;
+  try { raw = new URL(url, 'http://localhost').searchParams.get('hours'); } catch { raw = null; }
+  const n = /^[0-9]{1,4}$/.test(raw || '') ? Number(raw) : NaN;
+  return DASH_HISTORY_HOURS.includes(n) ? n : 24;
+}
+
+// The row key of the UTC hour that holds the instant: 'yyyy-MM-ddTHH:00:00Z', as the game writes it.
+function dashHistoryHourKey(ms) {
+  return new Date(ms).toISOString().slice(0, 13) + ':00:00Z';
+}
+
+// deps: getDb() gives the read only game database (or null), now() the clock, sendJson the reply.
+function createDashHistory(deps) {
+  const cache = new Map();   // hours -> { at, rows }
+
+  function matches(url) {
+    return url === '/api/dash/history' || (typeof url === 'string' && url.startsWith('/api/dash/history?'));
+  }
+
+  // The window's rows: after the hour that held now minus hours, up to the hour that holds now (hours rows at most).
+  function rows(hours) {
+    const t = deps.now();
+    const hit = cache.get(hours);
+    if (hit && t - hit.at < DASH_HISTORY_CACHE_MS) return hit.rows;
+    const db = deps.getDb();
+    if (!db) return [];
+    try {
+      const found = db.prepare(DASH_HISTORY_SQL)
+        .all(dashHistoryHourKey(t - hours * 60 * 60 * 1000), dashHistoryHourKey(t))
+        .map((r) => Object.fromEntries(DASH_HISTORY_COLUMNS.map((c) => [c, r[c]])));
+      cache.set(hours, { at: t, rows: found });
+      return found;
+    } catch (err) {
+      return hit ? hit.rows : [];
+    }
+  }
+
+  function handle(req, res) {
+    deps.sendJson(res, 200, rows(dashHistoryHours(req.url)));
+  }
+
+  return { matches, rows, handle };
+}
+
+const dashHistory = createDashHistory({ getDb: () => db, now: () => Date.now(), sendJson: (res, status, data) => sendJson(res, status, data) });
+// --- End Dashboard History ---
 
 // --- Admin Dashboard API ---
 const ADMIN_SERVICES = ['usurper-mud', 'sshd-usurper', 'usurper-web', 'nginx'];
@@ -5128,7 +5052,7 @@ function handleHttpRequest(req, res) {
   // The game client POSTs { content: "..." } here; we forward to the real
   // Discord webhook stored server-side in BUG_REPORT_WEBHOOK_URL. This exists
   // because the client URL is baked into Steam/BBS binaries and was scraped
-  // and abused — the real URL now lives only in /opt/usurper/web/.env.
+  // and abused, the real URL now lives only in the service's environment file (/etc/usurper/web.env).
   if (req.method === 'POST' && req.url === '/api/bug-report') {
     handleBugReport(req, res).catch(err => {
       console.error(`[usurper-web] Bug report proxy error: ${err.message}`);
@@ -5236,7 +5160,7 @@ function handleHttpRequest(req, res) {
     res.end();
   } else if (req.method === 'GET') {
     // Static file serving for HTML pages and assets (index, dashboard, balance, admin, lang/*.json)
-    const MIME_TYPES = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json', '.png': 'image/png', '.ico': 'image/x-icon' };
+    const MIME_TYPES = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json', '.png': 'image/png', '.webp': 'image/webp', '.ico': 'image/x-icon' };
     // 1.3.4: staticFilePath (a folder's index.html for the account pages; nothing outside the web folder)
     const resolved = staticFilePath(__dirname, req.url, fs);
     if (!resolved) {
@@ -5343,8 +5267,9 @@ function buildWhoResponse() {
 
     const lines = rows.map(row => {
       const isImmortal = row.is_immortal === 1 || row.is_immortal === true;
-      const rawName = row.display_name || row.username;
-      const name = row.noble_title ? `${row.noble_title} ${rawName}` : rawName;
+      // The character name only; the login name (online_players.username) is never sent.
+      const rawName = row.display_name || '';
+      const name = rawName && row.noble_title ? `${row.noble_title} ${rawName}` : rawName;
       const level = isImmortal ? (row.god_level || 1) : (row.level || 1);
       const className = isImmortal ? 'Immortal' : (CLASS_NAMES[row.class_id] || 'Unknown');
       const location = row.location || 'Unknown';
@@ -5767,13 +5692,24 @@ function startDiscordBridge() {
 // folder's index.html when it exists (the /account/forgot, /account/reset and /account/verify pages), else
 // the path plus .html. The path is percent-decoded once; a bad encoding, a NUL, a backslash or a result
 // outside the web folder gives null (the caller answers 403).
+// 2.0: the web folder also holds the server itself, so a private file gives null too: any name starting with a
+// dot (.env), a .bak copy, the package manifests, node_modules, and the server's own scripts, which no page loads.
+// scripts-server/nginx-private.conf refuses the same set when nginx serves the folder.
+const PRIVATE_FILES = new Set(['package.json', 'package-lock.json', 'ssh-proxy.js', 'gmcp-split.js', 'wiki-bot.js',
+  'wiki-search.js', 'dash-npcs.js', 'dash-monster-names.js', 'dash-observatory.js']);
+function isPrivateWebPath(base, f) {
+  const parts = path.relative(base, f).split(path.sep);
+  if (parts.some((s) => s.startsWith('.') || s.endsWith('.bak'))) return true;
+  if (parts[0] === 'node_modules') return true;
+  return parts.length === 1 && PRIVATE_FILES.has(parts[0]);
+}
 function staticFilePath(root, url, fsx) {
   let p;
   try { p = decodeURIComponent(String(url).split('?')[0]); } catch { return null; }
   if (p.includes('\0') || p.includes('\\')) return null;
   if (p === '/') p = '/index.html';
   const base = path.resolve(root);
-  const inside = (f) => f.startsWith(base + path.sep);
+  const inside = (f) => f.startsWith(base + path.sep) && !isPrivateWebPath(base, f);
   if (!path.extname(p)) {
     const folderIndex = path.resolve(base, '.' + p, 'index.html');
     if (inside(folderIndex) && fsx.existsSync(folderIndex) && fsx.statSync(folderIndex).isFile()) return folderIndex;
@@ -5805,8 +5741,9 @@ function wsConnRelease(ip) {
   if (count <= 1) wsConnPerIp.delete(ip); else wsConnPerIp.set(ip, count - 1);
 }
 
-httpServer.listen(WS_PORT, () => {
-  console.log(`[usurper-web] HTTP + WebSocket server listening on port ${WS_PORT}`);
+httpServer.listen(WS_PORT, WS_BIND_HOST, () => {
+  console.log(`[usurper-web] HTTP + WebSocket server listening on ${WS_BIND_HOST}:${WS_PORT}`);
+  console.log(startupEnvLine(process.env));
   console.log(`[usurper-web] Stats API: http://127.0.0.1:${WS_PORT}/api/stats`);
 
   // v0.57.13: start Discord gossip bridge (no-op if env vars not set)
@@ -5866,19 +5803,33 @@ wss.on('connection', (ws, req) => {
     // presents an interactive login/register menu directly to the user.
     // Detect client type from origin header
     const clientType = origin.startsWith('file://') || origin.startsWith('app://') ? 'Electron' : 'Web';
+    // The /play page opens /ws?gmcp=1: the proxy answers the game's GMCP offer for it and
+    // sends GMCP frames as JSON text, terminal bytes as binary (gmcp-split.js). Every other
+    // connection, the Electron client included, keeps the byte pipe.
+    const splitter = wantsGmcp(req.url) ? createGmcpSplitter({
+      onTerminal: (buf) => { if (ws.readyState === ws.OPEN) ws.send(buf); },
+      onGmcp: (json) => { if (ws.readyState === ws.OPEN) ws.send(json); },
+      onReply: (buf) => { if (!tcp.destroyed) tcp.write(buf); },
+      onFatal: (reason) => {
+        console.error(`[usurper-web] GMCP framing error for ${clientIP}: ${reason}`);
+        tcp.destroy();
+        if (ws.readyState === ws.OPEN) ws.close(1011, 'Game stream error');
+      },
+    }) : null;
 
     const tcp = net.connect({ host: MUD_HOST, port: MUD_PORT }, () => {
       console.log(`[usurper-web] TCP connected to MUD server for ${clientIP} (${clientType})`);
-      // Forward real client IP and client type to game server
-      tcp.write(`X-IP:${clientIP}\n`);
-      tcp.write(`X-Client:${clientType}\n`);
     });
+    // Forward real client IP and client type to game server. 1.3.11: written as the
+    // connection is made, so these lines go to the game before any browser byte.
+    tcp.write(`X-IP:${clientIP}\n`);
+    tcp.write(`X-Client:${clientType}\n`);
 
     // TCP → WebSocket
     tcp.on('data', (data) => {
-      if (ws.readyState === ws.OPEN) {
-        ws.send(data);
-      }
+      if (ws.readyState !== ws.OPEN) return;
+      if (splitter) splitter.push(data);
+      else ws.send(data);
     });
 
     tcp.on('close', () => {

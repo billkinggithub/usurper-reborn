@@ -596,13 +596,17 @@ public class Castle125Tests : IDisposable
         // Type 2 ("Clear a dungeon floor of all hostile creatures") is a floor to clear; it was read as a monster
         // quest until 1.2.5 because "creature" was checked before "floor".
         var expected = new[] { QuestTarget.Monster, QuestTarget.ReachFloor, QuestTarget.ClearFloor, QuestTarget.ReachFloor, QuestTarget.DefeatNPC };
-        var objective = new[] { QuestObjectiveType.KillMonsters, QuestObjectiveType.ReachDungeonFloor, QuestObjectiveType.ClearDungeonFloor, QuestObjectiveType.ReachDungeonFloor, QuestObjectiveType.KillBoss };
+        // 1.3.10: type 1 (the stolen artifact) is a kill of the thief placed on a floor
+        var objective = new[] { QuestObjectiveType.KillMonsters, QuestObjectiveType.KillBoss, QuestObjectiveType.ClearDungeonFloor, QuestObjectiveType.ReachDungeonFloor, QuestObjectiveType.KillBoss };
         CastleLocation.RoyalQuestTypes.Should().HaveCount(5);
         InLang("hu", () =>
         {
             for (int i = 0; i < CastleLocation.RoyalQuestTypes.Length; i++)
             {
-                L("en", $"castle.quest_type_{i}").Should().Be(CastleLocation.RoyalQuestTypes[i]);
+                // 1.3.10: type 4 is shown as the dungeon boss kill that completes it; the English description it is
+                // stored and read by stays
+                if (i == 4) L("en", "castle.quest_type_4").Should().NotBe(CastleLocation.RoyalQuestTypes[4]);
+                else L("en", $"castle.quest_type_{i}").Should().Be(CastleLocation.RoyalQuestTypes[i]);
                 L("hu", $"castle.quest_type_{i}").Should().NotBe(CastleLocation.RoyalQuestTypes[i]);
                 var quest = QuestSystem.CreateRoyalAudienceQuest(Hero(), "Queen Test", 2, 100, 100, CastleLocation.RoyalQuestTypes[i]);
                 try

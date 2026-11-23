@@ -1,8 +1,14 @@
 ---
 title: Home and family
 path: /wiki/en/world/home/
-checked: 1.3.8
-sources: Scripts/Locations/HomeLocation.cs, Scripts/Locations/ChurchLocation.cs, Scripts/Systems/RelationshipSystem.cs, Scripts/Systems/IntimacySystem.cs, Scripts/Systems/FamilySystem.cs, Scripts/Core/Child.cs, Scripts/Systems/AlignmentSystem.cs, Scripts/Locations/CastleLocation.cs, Scripts/Systems/VisualNovelDialogueSystem.cs, Scripts/Locations/MainStreetDistricts.cs, Scripts/Core/GameConfig.cs, Scripts/Systems/DailySystemManager.cs, Scripts/Systems/CombatEngine.cs
+checked: 1.3.14
+sources: Scripts/Locations/HomeLocation.cs, Scripts/Locations/ChurchLocation.cs, Scripts/Systems/RelationshipSystem.cs, Scripts/Systems/IntimacySystem.cs, Scripts/Systems/FamilySystem.cs, Scripts/Core/Child.cs, Scripts/Systems/AlignmentSystem.cs, Scripts/Locations/CastleLocation.cs, Scripts/Systems/VisualNovelDialogueSystem.cs, Scripts/Locations/MainStreetDistricts.cs, Scripts/Core/GameConfig.cs, Scripts/Systems/DailySystemManager.cs, Scripts/Systems/CombatEngine.cs, Scripts/Locations/MainStreetClassic.cs
+history: 1.3.14 | none
+history: 1.3.13 | none
+history: 1.3.12 | none
+history: 1.3.11 | none
+history: 1.3.10 | The Reinforced Door is sold only online, the Vitality Fountain gives a real 10 percent more maximum HP at every level, and with the district layout H opens Home at once while it is the only place open there.
+history: 1.3.9 | Main Street opens in the classic layout by default, with the districts layout a choice in Settings.
 history: 1.3.8 | none
 history: 1.3.7 | none
 history: 1.3.6 | none
@@ -14,7 +20,7 @@ history: 1.2.6 | A child's name given at birth or at Home cannot contain < > & o
 history: 1.2.5 | The Home screens are shown in all five languages, and long upgrade, trophy and pet rows wrap at 79 columns.
 history: 1.2.4 | Online your Home is private, and a spouse left alone for 21 days you were present writes you a letter.
 ---
-Your Home is a private base with rest, storage, upgrades and family life. Online, "Also here" is not shown at home, and say, emote, disconnect notices and other room lines from other players do not reach you there. From Main Street open the Home and Hearth district with H, then press H for Home. It appears after your first few levels.
+Your Home is a private base with rest, storage, upgrades and family life. Online, "Also here" is not shown at home, and say, emote, disconnect notices and other room lines from other players do not reach you there. From Main Street press H for Home. With the district layout, open the Home and Hearth district with H, then press H. While Home is the only place open there (levels 3 and 4), H opens it at once. It appears after your first few levels.
 
 ## The Home menu
 
@@ -44,9 +50,9 @@ A Bed level multiplies the chance of a child: 15 percent each time with a spouse
 - Trophy Room, 500,000 gold: shows your trophies (T).
 - Study, 750,000 gold: {{percent:StudyXPBonus}} percent more combat experience.
 - Servants' Quarters, 500,000 gold: {{balance:ServantsDailyGoldBase}} + level x {{balance:ServantsDailyGoldPerLevel}} gold each day.
-- Reinforced Door, 250,000 gold: online, lets you sleep at Home safely.
+- Reinforced Door, 250,000 gold, sold online only: lets you sleep at Home safely.
 - Legendary Armory, 2,500,000 gold: +5 permanent damage and +5 permanent defense.
-- Vitality Fountain, 5,000,000 gold: bonus maximum HP equal to 10 percent of your maximum HP when you buy it.
+- Vitality Fountain, 5,000,000 gold: 10 percent more maximum HP, at every level.
 
 ## Marriage
 

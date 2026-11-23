@@ -1264,7 +1264,11 @@ function renderers(data) {
           o.healing
             ? escape(`${num(o.healCost)} gold, restores ${Math.round(o.healShareOfMissing * 100)} percent of missing HP and mana`)
             : "None",
-          escape(o.goods.map((g) => `${g.name} ${num(g.price)}`).join(", ") || "None"),
+          escape(
+            o.goods
+              .map((g) => (g.price == null ? `${g.name} (${g.townPriceFactor} x the town price)` : `${g.name} ${num(g.price)}`))
+              .join(", ") || "None",
+          ),
           o.lore ? "Yes" : "No",
         ]),
         "Dungeon outposts",
@@ -1965,7 +1969,8 @@ function build(options = {}) {
       if (
         !(
           source === "README.md" ||
-          /^(Scripts|DOCS|web)\/[\w./-]+\.(cs|md|js)$/.test(source)
+          /^(Scripts|DOCS|web)\/[\w./-]+\.(cs|md|js)$/.test(source) ||
+          /^web\/[\w./-]+\.html$/.test(source)
         ) ||
         source.includes("..") ||
         !fs.existsSync(path.join(root, source))

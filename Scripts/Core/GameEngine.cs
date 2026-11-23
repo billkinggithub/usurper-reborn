@@ -516,9 +516,7 @@ public partial class GameEngine
             if (altSave != null)
                 WriteMenuKey("2", Loc.Get("engine.menu_play", altSave.PlayerName));
             if (mainSave == null)
-                WriteMenuKey("N", Loc.Get("engine.menu_new_char"));
-            else
-                WriteMenuKey("N", Loc.Get("engine.menu_new_overwrite"));
+                WriteMenuKey("N", Loc.Get("engine.menu_new_char"));   // 1.3.10 (N6): the overwrite is apart, below
             if (canCreateAlt)
                 WriteMenuKey("M", Loc.Get("engine.menu_create_alt"));
             if (altSave != null)
@@ -541,6 +539,12 @@ public partial class GameEngine
 #if !STEAM_BUILD
             WriteMenuKey("@", Loc.Get("engine.menu_support"));
 #endif
+            if (mainSave != null)
+            {
+                terminal.WriteLine("");
+                WriteDangerKey("N", Loc.Get("engine.menu_new_overwrite", mainSave.PlayerName));
+                terminal.WriteLine("");
+            }
             WriteMenuKey("Q", Loc.Get("engine.menu_quit"));
             terminal.WriteLine("");
         }
@@ -558,9 +562,7 @@ public partial class GameEngine
             if (altSave != null)
                 WriteMenuKey("D", Loc.Get("engine.menu_delete_alt_full"));
             if (mainSave == null)
-                WriteMenuKey("N", Loc.Get("engine.menu_create_new"));
-            else
-                WriteMenuKey("N", Loc.Get("engine.menu_new_overwrite_full"));
+                WriteMenuKey("N", Loc.Get("engine.menu_create_new"));   // 1.3.10 (N6): the overwrite is apart, below
             if (showOnline)
                 WriteMenuKey("O", Loc.Get("engine.menu_online_full"));
 
@@ -624,6 +626,16 @@ public partial class GameEngine
                 WriteMenuKey("E", Loc.Get("engine.menu_email"));
             if (isSysOp || isOnlineAdmin)
                 WriteMenuKey("%", isSysOp ? Loc.Get("engine.menu_sysop_console") : Loc.Get("engine.menu_admin_console"));
+            // 1.3.10 (play test N6): starting over deletes the main character, so it is not beside the key that plays it:
+            // its own section at the foot, in red, naming the character; N still asks for DELETE before anything goes
+            if (mainSave != null)
+            {
+                terminal.WriteLine("");
+                terminal.SetColor("darkgray");
+                terminal.WriteLine(GameConfig.ScreenReaderMode ? Loc.Get("engine.section_start_over") : SectionRule("engine.section_start_over_visual"));
+                WriteDangerKey("N", Loc.Get("engine.menu_new_overwrite_full", mainSave.PlayerName));
+                terminal.WriteLine("");
+            }
             terminal.SetColor("darkgray");
             terminal.Write("  [");
             terminal.SetColor("red");
@@ -704,6 +716,7 @@ public partial class GameEngine
                     terminal.SetColor("bright_red");
                     terminal.WriteLine("");
                     terminal.WriteLine(Loc.Get("engine.delete_main_warning"));
+                    terminal.WriteLine(Loc.Get("engine.delete_main_named", mainSave.PlayerName, mainSave.Level));   // 1.3.10 (N6)
                     if (altSave != null)
                         terminal.WriteLine(Loc.Get("engine.delete_alt_unaffected"));
                     var confirm = await terminal.GetInput(Loc.Get("engine.delete_confirm_prompt"));
@@ -965,25 +978,40 @@ public partial class GameEngine
     /// </summary>
     internal async Task BeginNewLifeAsync(string accountName)
     {
-        // Preserve player preferences before deleting old save
-        bool preserveScreenReader = currentPlayer?.ScreenReaderMode ?? GameConfig.ScreenReaderMode;
-        bool preserveMenuKeys = currentPlayer?.MenuKeysNeedEnter ?? GameConfig.MenuKeysNeedEnter; // v1.1.15
-        var preserveOrientation = currentPlayer?.Orientation ?? SexualOrientation.Straight;
+        // Preserve player preferences before deleting old save. 1.3.10 (play test G4): CreateNewGame applies them before
+        // its first save; they were restored after it returned, which is after the whole new life was played (it ends
+        // in EnterGameWorld), so the new character was saved and played with the defaults.
+        _keptPrefs = KeptPrefs.Of(currentPlayer);
         // Use the active character key (could be main or alt)
         var activeKey = UsurperRemake.BBS.DoorMode.GetPlayerName()?.ToLowerInvariant() ?? accountName;
         var ngpSaves = SaveSystem.Instance.GetPlayerSaves(activeKey);
         foreach (var save in ngpSaves)
             SaveSystem.Instance.DeleteSave(Path.GetFileNameWithoutExtension(save.FileName));
         await CreateNewGame(activeKey);
-        // Restore preferences that CreateNewGame defaults from CLI flags
-        if (currentPlayer != null)
+    }
+
+    /// <summary>
+    /// 1.3.10 (play test G4): the preferences a character's next life keeps (NG+ and the renounce restart): screen
+    /// reader, menu keys need Enter, web one-key menus and orientation.
+    /// </summary>
+    internal sealed record KeptPrefs(bool ScreenReader, bool MenuKeysNeedEnter, bool WebMenuKeysNeedEnter, SexualOrientation Orientation)
+    {
+        internal static KeptPrefs? Of(Character? c) =>
+            c == null ? null : new KeptPrefs(c.ScreenReaderMode, c.MenuKeysNeedEnter, c.WebMenuKeysNeedEnter, c.Orientation);
+
+        internal void ApplyTo(Character c)
         {
-            currentPlayer.ScreenReaderMode = preserveScreenReader;
-            currentPlayer.Orientation = preserveOrientation;
-            currentPlayer.MenuKeysNeedEnter = preserveMenuKeys; // v1.1.15
-            GameConfig.MenuKeysNeedEnter = preserveMenuKeys;
+            c.ScreenReaderMode = ScreenReader;
+            c.MenuKeysNeedEnter = MenuKeysNeedEnter;
+            c.WebMenuKeysNeedEnter = WebMenuKeysNeedEnter;
+            c.Orientation = Orientation;
+            GameConfig.ScreenReaderMode = ScreenReader;
+            GameConfig.MenuKeysNeedEnter = MenuKeysNeedEnter;
         }
     }
+
+    /// <summary>1.3.10 (play test G4): set by a new-life restart, taken by the next CreateNewGame before its first save.</summary>
+    private KeptPrefs? _keptPrefs;
 
     public void _Ready()
     {
@@ -1339,13 +1367,20 @@ public partial class GameEngine
                 $"SyncDeadSpouseState: cleared {cleared} stale dead-spouse marriage record(s) for {currentPlayer.Name}");
         }
 
+        var retiredSpouses = new List<(string Id, string Name, bool Aged)>();
         int retired = UsurperRemake.Systems.RomanceTracker.Instance
-            .SyncDeadPartners(NPCSpawnSystem.Instance?.ActiveNPCs);
+            .SyncDeadPartners(NPCSpawnSystem.Instance?.ActiveNPCs, retiredSpouses);
         if (retired > 0)
         {
             UsurperRemake.Systems.DebugLogger.Instance?.LogInfo("ROMANCE",
                 $"SyncDeadPartners: retired {retired} dead/missing partner(s) for {currentPlayer.Name}");
         }
+
+        // 1.3.10: a spouse who died while the player was away is grieved now (online the world simulator has no
+        // session to grieve in)
+        foreach (var (id, name, aged) in retiredSpouses)
+            UsurperRemake.Systems.GriefSystem.BeginSpouseGrief(currentPlayer, id, name,
+                aged ? UsurperRemake.Systems.DeathType.Inevitable : UsurperRemake.Systems.DeathType.Combat);
 
         // Make the correction durable now; neither pass writes to disk itself.
         if (retired > 0 || cleared > 0) _ = SaveCurrentGame();
@@ -1437,6 +1472,7 @@ public partial class GameEngine
             if (PendingNewGamePlus)
             {
                 PendingNewGamePlus = false;
+                _keptPrefs = KeptPrefs.Of(currentPlayer);   // 1.3.10 (G4): the single-player NG+ keeps them too
                 await CreateNewGame("");
                 continue;
             }
@@ -2650,6 +2686,22 @@ public partial class GameEngine
     }
 
     /// <summary>
+    /// 1.3.10: the login failsafe's ending: Manwe resolved (defeated, allied, saved or consumed), the ending
+    /// sequence not finished and the player not immortal give the ending to play now; otherwise null.
+    /// </summary>
+    internal static EndingType? EndingToResumeOnLogin(Character player)
+    {
+        if (player == null || player.IsImmortal) return null;
+        var storySystem = StoryProgressionSystem.Instance;
+        bool manweResolved = storySystem.OldGodStates.TryGetValue(OldGodType.Manwe, out var manweState) &&
+            (manweState.Status == GodStatus.Defeated || manweState.Status == GodStatus.Allied ||
+             manweState.Status == GodStatus.Saved || manweState.Status == GodStatus.Consumed);
+        bool sequenceCompleted = storySystem.HasStoryFlag("ending_sequence_completed");
+        if (!manweResolved || sequenceCompleted) return null;
+        return EndingsSystem.Instance.DetermineEnding(player);
+    }
+
+    /// <summary>
     /// Load game by filename
     /// </summary>
     private async Task LoadSaveByFileName(string fileName)
@@ -3032,7 +3084,7 @@ public partial class GameEngine
                     {
                         terminal.WriteLine("");
                         terminal.SetColor("bright_yellow");
-                        terminal.WriteLine($"  {Loc.Get("journal.ticker", Loc.Get(loginStep.LocKey, loginStep.Args))}");
+                        terminal.WriteLine($"  {Loc.Get("journal.ticker", loginStep.Text(currentPlayer))}");
                         terminal.SetColor("white");
                     }
                 }
@@ -3162,13 +3214,8 @@ public partial class GameEngine
             // sequence-not-completed is enough to fire DetermineEnding on login.
             if (currentPlayer != null && !currentPlayer.IsImmortal)
             {
-                var storySystem = StoryProgressionSystem.Instance;
-                bool manweResolved = storySystem.OldGodStates.TryGetValue(OldGodType.Manwe, out var manweState) &&
-                    (manweState.Status == GodStatus.Defeated || manweState.Status == GodStatus.Allied ||
-                     manweState.Status == GodStatus.Saved || manweState.Status == GodStatus.Consumed);
-                bool sequenceCompleted = storySystem.HasStoryFlag("ending_sequence_completed");
-
-                if (manweResolved && !sequenceCompleted)
+                var resumeEnding = EndingToResumeOnLogin(currentPlayer);
+                if (resumeEnding != null)
                 {
                     terminal.SetColor("bright_yellow");
                     terminal.WriteLine("");
@@ -3177,12 +3224,13 @@ public partial class GameEngine
                     terminal.WriteLine("");
                     await Pacing.Wait(2000);
 
-                    var endingType = EndingsSystem.Instance.DetermineEnding(currentPlayer);
+                    var endingType = resumeEnding.Value;
                     await EndingsSystem.Instance.TriggerEnding(currentPlayer, endingType, terminal);
 
                     if (PendingNewGamePlus)
                     {
                         PendingNewGamePlus = false;
+                        _keptPrefs = KeptPrefs.Of(currentPlayer);   // 1.3.10 (G4): this path kept none
                         var activeKey = UsurperRemake.BBS.DoorMode.GetPlayerName()?.ToLowerInvariant() ?? fileName;
                         var ngpSaves = SaveSystem.Instance.GetPlayerSaves(activeKey);
                         foreach (var save in ngpSaves)
@@ -5091,6 +5139,7 @@ public partial class GameEngine
         var newCharacter = await CreateNewPlayer(playerName);
         if (newCharacter == null)
         {
+            _keptPrefs = null;   // 1.3.10 (G4): no new life was made
             return; // Player cancelled creation
         }
 
@@ -5122,6 +5171,12 @@ public partial class GameEngine
 
         // v1.1.15: a new character starts with menu keys needing Enter; a prior character's choice does not carry over
         GameConfig.MenuKeysNeedEnter = currentPlayer.MenuKeysNeedEnter;
+
+        // 1.3.10 (play test G4): a new life (NG+, the renounce restart) keeps the old character's preferences, from the
+        // first save on
+        var kept = _keptPrefs;
+        _keptPrefs = null;
+        kept?.ApplyTo(currentPlayer);
 
         // Auto-populate quickbar with starting spells/abilities
         AutoPopulateQuickbar(currentPlayer);
@@ -5280,7 +5335,7 @@ public partial class GameEngine
         bool getsAldricQuest = !isNgPlus && isFreshChar;
         if (isFreshChar && !getsAldricQuest)
         {
-            HintSystem.Instance.TryShowHint(HintSystem.HINT_GETTING_STARTED, terminal, currentPlayer.HintsShown);
+            HintSystem.Instance.TryShowHint(HintSystem.HINT_GETTING_STARTED, terminal, currentPlayer);
             await terminal.PressAnyKey();
         }
         else if (getsAldricQuest && !currentPlayer.HintsShown.Contains(HintSystem.HINT_GETTING_STARTED))
@@ -5614,8 +5669,9 @@ public partial class GameEngine
             Thiefs = playerData.Thiefs,
             Brawls = playerData.Brawls,
             Assa = playerData.Assa,
-            DarkNr = playerData.DarkNr > 0 ? playerData.DarkNr : GameConfig.DefaultDarkDeeds,
-            ChivNr = playerData.ChivNr > 0 ? playerData.ChivNr : GameConfig.DefaultGoodDeeds,
+            // 1.3.10: the deed counts load as saved; a 0 left today stays 0 (the daily reset refills them)
+            DarkNr = Math.Max(0, playerData.DarkNr),
+            ChivNr = Math.Max(0, playerData.ChivNr),
             
             // Status — v0.57.12: retroactive paired-movement heal for pre-v0.57.12 saves that exceeded AlignmentCap
             // through bypass mutation sites. HealOverflow reduces the opposite scale by excess/2 and clamps.
@@ -5769,9 +5825,10 @@ public partial class GameEngine
             AutoLevelUp = playerData.AutoLevelUp,
             AutoEquipDisabled = playerData.AutoEquipDisabled,
             AutoCombatHealPercent = GameConfig.ClampAutoCombatHealPercent(playerData.AutoCombatHealPercent), // v1.1.13: in range
-            ClassicMainStreet = playerData.ClassicMainStreet, // v1.1.14: Main Street layout preference
+            DistrictsMainStreet = playerData.DistrictsMainStreet, // 2.0: Main Street layout preference (ClassicMainStreet is not read)
             ClassicTipDraws = Math.Max(0, playerData.ClassicTipDraws), // v1.1.14: switch-to-classic tip count
             MenuKeysNeedEnter = playerData.MenuKeysNeedEnter, // v1.1.15: menu keys need Enter preference
+            WebMenuKeysNeedEnter = playerData.WebMenuKeysNeedEnter, // 1.3.9: the web client's menu keys preference
             DateFormatPreference = playerData.DateFormatPreference,
             AutoRedistributeXP = playerData.AutoRedistributeXP,
             Specialization = (ClassSpecialization)playerData.Specialization,
@@ -6030,6 +6087,7 @@ public partial class GameEngine
         player.BaseDefence = playerData.BaseDefence > 0 ? playerData.BaseDefence : playerData.Defence;
         player.BaseStamina = playerData.BaseStamina > 0 ? playerData.BaseStamina : playerData.Stamina;
         player.BaseAgility = playerData.BaseAgility > 0 ? playerData.BaseAgility : playerData.Agility;
+        RepairQuickStartBases(player, playerData);
 
         // If this is an old save without equipment data, initialize from WeapPow/ArmPow.
         // 1.3.1: only a save that carries no base stats is an old save. The base stats and the
@@ -6211,7 +6269,7 @@ public partial class GameEngine
         player.HasReinforcedDoor = playerData.HasReinforcedDoor;
         player.PermanentDamageBonus = playerData.PermanentDamageBonus;
         player.PermanentDefenseBonus = playerData.PermanentDefenseBonus;
-        player.BonusMaxHP = playerData.BonusMaxHP;
+        player.BonusMaxHP = Character.MigratedBonusMaxHP(playerData.HasVitalityFountain, playerData.BonusMaxHP);   // 1.3.10 (P11)
         player.BonusWeapPow = playerData.BonusWeapPow;
         player.BonusArmPow = playerData.BonusArmPow;
         player.HomeRestsToday = playerData.HomeRestsToday;
@@ -6271,6 +6329,7 @@ public partial class GameEngine
         player.SettlementBuffType = playerData.SettlementBuffType;
         player.SettlementBuffCombats = playerData.SettlementBuffCombats;
         player.SettlementBuffValue = playerData.SettlementBuffValue;
+        player.SmugglersCachePurchases = Math.Max(0, playerData.SmugglersCachePurchases);   // 1.3.10 (P6)
         player.SettlementGoldClaimedToday = playerData.SettlementGoldClaimedToday;
         player.SettlementHerbClaimedToday = playerData.SettlementHerbClaimedToday;
         player.SettlementShrineUsedToday = playerData.SettlementShrineUsedToday;
@@ -6382,6 +6441,8 @@ public partial class GameEngine
         player.ActivePetId = playerData.ActivePetId ?? "";
         player.LastPartnerBondingUtc = playerData.LastPartnerBondingUtc;
         player.LastRiteOfReturnUtc = playerData.LastRiteOfReturnUtc;
+        player.DyingMessages = playerData.DyingMessages?.Select(m => new DyingMessageSaveData { Recipient = m.Recipient, Elder = m.Elder, Gold = m.Gold }).ToList()
+            ?? new List<DyingMessageSaveData>();   // 1.3.10: an old save has none
         player.LoanAmount = playerData.LoanAmount;
         player.LoanDaysRemaining = playerData.LoanDaysRemaining;
         player.LoanInterestAccrued = playerData.LoanInterestAccrued;
@@ -6611,6 +6672,37 @@ public partial class GameEngine
             || playerData.BaseIntelligence > 0 || playerData.BaseWisdom > 0 || playerData.BaseCharisma > 0
             || playerData.BaseMaxHP > 0 || playerData.BaseMaxMana > 0 || playerData.BaseDefence > 0
             || playerData.BaseStamina > 0 || playerData.BaseAgility > 0;
+    }
+
+    /// <summary>
+    /// 1.3.11: true for a save whose rolled bases were lost: Quick Start used to skip InitializeBaseStats, so the first
+    /// recalculation zeroed Max HP, Max Mana, Defence, Stamina and Agility and later level ups built on those zeros.
+    /// A level 1 save with Agility above 0 cannot be told from one that has not fought and is left to the load below.
+    /// A base Agility above 0, which the repair itself leaves, stops it repeating.
+    /// </summary>
+    private static bool SaveLostQuickStartBases(PlayerData playerData)
+    {
+        return SaveCarriesBaseStats(playerData)
+            && playerData.BaseAgility == 0
+            && (playerData.Level > 1 || playerData.Agility == 0)
+            && CharacterCreationSystem.QuickStartAverageBases(playerData.Race, playerData.Class) != null;
+    }
+
+    /// <summary>
+    /// 1.3.11: adds the average roll once to the saved bases of such a save. It reads only the saved row, so the empty
+    /// base fallback's result (a saved MaxHP, or a negative saved Defence) never enters the new base. Current HP and
+    /// Mana are not raised. Only the owner's own load reaches this; PlayerCharacterLoader does not.
+    /// </summary>
+    private static void RepairQuickStartBases(Character player, PlayerData playerData)
+    {
+        if (!SaveLostQuickStartBases(playerData)) return;
+        var add = CharacterCreationSystem.QuickStartAverageBases(playerData.Race, playerData.Class)!.Value;
+        player.BaseMaxHP = playerData.BaseMaxHP + add.MaxHP;
+        player.BaseMaxMana = playerData.BaseMaxMana + add.MaxMana;
+        player.BaseDefence = playerData.BaseDefence + add.Defence;
+        player.BaseStamina = playerData.BaseStamina + add.Stamina;
+        player.BaseAgility = playerData.BaseAgility + add.Agility;
+        DebugLogger.Instance.LogInfo("MIGRATION", $"Quick Start bases repaired for {playerData.Name2}");
     }
 
     /// <summary>
@@ -8393,6 +8485,13 @@ public partial class GameEngine
         terminal.SetColor("bright_green");
         terminal.WriteLine("looneybinbbs.com:2023");
 
+        terminal.SetColor("bright_white");
+        terminal.Write("  UORealms                       ");
+        terminal.SetColor("gray");
+        terminal.Write("-          ");
+        terminal.SetColor("bright_green");
+        terminal.WriteLine("uorealms.com (web)");
+
         // --- End BBS Entries ---
 
         terminal.WriteLine("");
@@ -8421,6 +8520,24 @@ public partial class GameEngine
     }
 
     /// <summary>Helper to display a menu key option in the character selection screen.</summary>
+    /// <summary>1.3.10 (play test N6): a menu key that destroys something: red key and label, never the plain style.</summary>
+    private void WriteDangerKey(string key, string label)
+    {
+        if (GameConfig.ScreenReaderMode)
+        {
+            terminal.WriteLine($"  {key}. {label}", "bright_red");
+            return;
+        }
+        terminal.SetColor("darkgray");
+        terminal.Write("  [");
+        terminal.SetColor("bright_red");
+        terminal.Write(key);
+        terminal.SetColor("darkgray");
+        terminal.Write("] ");
+        terminal.SetColor("red");
+        terminal.WriteLine(label);
+    }
+
     private void WriteMenuKey(string key, string label)
     {
         if (GameConfig.ScreenReaderMode)

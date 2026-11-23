@@ -190,7 +190,6 @@ namespace UsurperRemake.Tests
             { "healer.handed_antidotes", new HashSet<string> { "{2}" } },
             { "inn.took_items", new HashSet<string> { "{1}" } },
             { "home.family_spouses_label", new HashSet<string> { "{0}" } },
-            { "love_street.potion_forget_effect", new HashSet<string> { "{1}" } },
         };
 
         [Fact]

@@ -50,6 +50,14 @@ public class SessionContext : IDisposable
     /// </summary>
     public bool GmcpEnabled { get; set; }
 
+    /// <summary>
+    /// 2.0: the session is the web client (ConnectionType "Web", from the X-Client header or the AUTH line) and
+    /// negotiated GMCP, so it is sent the web client's GMCP packages (GmcpBridge.WebClientPackages). Computed, so it
+    /// follows GmcpEnabled when repeated emit errors turn GMCP off. A DISPLAY PREFERENCE ONLY: X-Client is not
+    /// limited to loopback, so any raw client can claim it. No game rule may read it.
+    /// </summary>
+    public bool WebClient => GmcpEnabled && ConnectionType == "Web";
+
     // v0.60.3: per-session delta tracking for GMCP Char.Vitals so the bridge can
     // emit only when something actually changed. Previously these lived as instance
     // fields on BaseLocation, which meant combat (which doesn't re-enter LocationLoop
@@ -60,6 +68,13 @@ public class SessionContext : IDisposable
     public long LastGmcpMana { get; set; } = -1;
     public long LastGmcpMaxMana { get; set; } = -1;
     public long LastGmcpStamina { get; set; } = -1;
+    /// <summary>1.3.9: last emitted fight stamina and its maximum (Character.CurrentCombatStamina,
+    /// MaxCombatStamina), part of the same Char.Vitals change check. sp stays the Stamina stat.</summary>
+    public long LastGmcpCombatStamina { get; set; } = -1;
+    public long LastGmcpMaxCombatStamina { get; set; } = -1;
+    /// <summary>1.3.9: held around the Char.Vitals change check and its frame write, so a send from the
+    /// leader's thread for a grouped follower and the follower's own send cannot reorder.</summary>
+    internal readonly object GmcpVitalsLock = new();
     /// <summary>v1.1.15: last emitted Mental value, part of the same Char.Vitals change check.</summary>
     public int LastGmcpMental { get; set; } = -1;
 
@@ -79,6 +94,11 @@ public class SessionContext : IDisposable
     // as the party tracker. Round number is intentionally NOT part of the snapshot --
     // including it would force an emit every round and defeat the change-detection.
     public string LastGmcpEnemiesSnapshot { get; set; } = "";
+
+    /// <summary>2.0 phase 3a: the last Client.Enemies names and families, and the last Client.Footer values, sent to
+    /// this session (web client only), so each is sent again only when it changed.</summary>
+    public string LastWebEnemiesSnapshot { get; set; } = "";
+    public string LastWebFooterSnapshot { get; set; } = "";
 
     // v1.0 release prep (B1a): once-per-session gate for the reached_town
     // onboarding-funnel write so Main Street entry doesn't fire a DB write on

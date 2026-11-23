@@ -379,7 +379,7 @@ public class ArmorShopLocation : BaseLocation
         int num = 1;
         foreach (var item in pageItems)
         {
-            bool canAfford = currentPlayer.Gold >= item.Value;
+            bool canAfford = currentPlayer.Gold >= ShopPricing.Total(currentPlayer, item.Value, weaponShop: false);   // 1.3.10 (D2)
             bool meetsLevel = currentPlayer.Level >= item.MinLevel;
             bool meetsClass = MeetsClass(currentPlayer.Class, item);
             bool canBuy = canAfford && meetsLevel && meetsClass;
@@ -622,24 +622,11 @@ public class ArmorShopLocation : BaseLocation
 
         var item = items[actualIndex];
 
-        // Apply alignment and world event price modifiers
+        // 1.3.10 (D2): the one shop price (alignment, world event, city, faction, boon, difficulty)
         var alignmentModifier = AlignmentSystem.Instance.GetPriceModifier(currentPlayer, isShadyShop: false);
         var worldEventModifier = WorldEventSystem.Instance.GlobalPriceModifier;
         var totalModifier = alignmentModifier * worldEventModifier;
-        long adjustedPrice = (long)(item.Value * totalModifier);
-
-        // Apply city control discount if player's team controls the city
-        adjustedPrice = CityControlSystem.Instance.ApplyDiscount(adjustedPrice, currentPlayer);
-
-        // Apply faction discount (The Crown gets 10% off at shops)
-        adjustedPrice = (long)(adjustedPrice * FactionSystem.Instance.GetShopPriceModifier());
-
-        // Apply divine boon shop discount
-        if (currentPlayer.CachedBoonEffects?.ShopDiscountPercent > 0)
-            adjustedPrice = (long)(adjustedPrice * (1.0 - currentPlayer.CachedBoonEffects.ShopDiscountPercent));
-
-        // Apply difficulty-based price multiplier
-        adjustedPrice = DifficultySystem.ApplyShopPriceMultiplier(adjustedPrice);
+        long adjustedPrice = ShopPricing.Price(currentPlayer, item.Value, weaponShop: false);
 
         // Calculate total with tax
         var (armorKingTax, armorCityTax, armorTotalWithTax) = CityControlSystem.CalculateTaxedPrice(adjustedPrice);
@@ -765,6 +752,7 @@ public class ArmorShopLocation : BaseLocation
 
         // Process city tax share from this sale
         CityControlSystem.Instance.ProcessSaleTax(adjustedPrice);
+        SmugglersCache.Spend(currentPlayer);   // 1.3.10 (P6)
 
         if (canEquipPersonally && !currentPlayer.AutoEquipDisabled)
         {
@@ -1005,10 +993,142 @@ public class ArmorShopLocation : BaseLocation
         await Pause();
     }
 
+    /// <summary>1.3.10 (play test N4): one piece the auto-buy plan would buy: its price after discounts and with tax.</summary>
+    internal sealed record AutoBuyPick(EquipmentSlot Slot, Equipment Armor, long Price, long Total, int Gain);
+
+    /// <summary>
+    /// 1.3.10 (play test N4): what auto-buy buys when every offer is taken, slot by slot in ArmorSlots order: in each slot
+    /// the first upgrade the gold left still pays for (tax included), in the order the per-slot path offers them (armor
+    /// class, then value). The per-slot path asks the same questions in the same order.
+    /// </summary>
+    internal List<AutoBuyPick> PlanAutoBuy()
+    {
+        var picks = new List<AutoBuyPick>();
+        long gold = currentPlayer.Gold;
+        foreach (var slot in ArmorSlots)
+        {
+            int currentAC = currentPlayer.GetEquipment(slot)?.ArmorClass ?? 0;
+            foreach (var armor in AutoBuyOffers(slot, currentAC))
+            {
+                long price = AutoBuyPrice(armor, picks.Count);   // 1.3.10 (P6): a Smugglers' Cache purchase only while one is left
+                var (_, _, total) = CityControlSystem.CalculateTaxedPrice(price);
+                if (total > gold) continue;
+                picks.Add(new AutoBuyPick(slot, armor, price, total, armor.ArmorClass - currentAC));
+                gold -= total;
+                break;
+            }
+        }
+        return picks;
+    }
+
+    /// <summary>1.3.10: the upgrades auto-buy offers for a slot, best first (the filters the per-slot path used).</summary>
+    private List<Equipment> AutoBuyOffers(EquipmentSlot slot, int currentAC) =>
+        EquipmentDatabase.GetShopArmor(slot)
+            .Where(i => i.ArmorClass > currentAC)
+            .Where(i => i.CanEquip(currentPlayer, out _))
+            .Where(i => !i.RequiresGood || currentPlayer.Chivalry > currentPlayer.Darkness)
+            .Where(i => !i.RequiresEvil || currentPlayer.Darkness > currentPlayer.Chivalry)
+            .OrderByDescending(i => i.ArmorClass)
+            .ThenBy(i => i.Value)
+            .ToList();
+
+    /// <summary>1.3.10: an armor's price before tax; (D2) the one shop price, as the direct buy charges it, and (P6) a
+    /// Smugglers' Cache purchase only while one is left for the pieces already picked ahead of it.</summary>
+    private long AutoBuyPrice(Equipment armor, int cachePurchasesAhead = 0) =>
+        ShopPricing.Price(currentPlayer, armor.Value, weaponShop: false, cachePurchasesAhead);
+
+    /// <summary>
+    /// 1.3.10 (play test N4): auto-buy shows every piece it would buy and the total first, then asks once: buy all,
+    /// pick slot by slot (the old path, one question per offer), or cancel. It asked Y for each slot before.
+    /// </summary>
     private async Task AutoBuyBestArmor()
     {
         terminal.ClearScreen();
         WriteSectionHeader(Loc.Get("armor_shop.auto_buy"), "bright_magenta");
+        terminal.WriteLine("");
+
+        var plan = PlanAutoBuy();
+        if (plan.Count == 0)
+        {
+            terminal.SetColor("gray");
+            UsurperRemake.UI.UIHelper.WriteRow(terminal, Loc.Get("armor_shop.autobuy_plan_none"));
+            terminal.WriteLine("");
+            await Pause();
+            return;
+        }
+
+        terminal.SetColor("cyan");
+        UsurperRemake.UI.UIHelper.WriteRow(terminal, Loc.Get("armor_shop.autobuy_plan_title"));
+        foreach (var pick in plan)
+        {
+            terminal.SetColor("white");
+            UsurperRemake.UI.UIHelper.WriteRow(terminal, Loc.Get("armor_shop.autobuy_plan_row", pick.Slot.GetDisplayName(),
+                ItemNames.Display(pick.Armor), pick.Armor.ArmorClass, pick.Gain, FormatNumber(pick.Total)));
+        }
+        long planTotal = plan.Sum(p => p.Total);
+        terminal.WriteLine("");
+        terminal.SetColor("bright_yellow");
+        UsurperRemake.UI.UIHelper.WriteRow(terminal, Loc.Get("armor_shop.autobuy_plan_total", FormatNumber(planTotal), plan.Count,
+            FormatNumber(currentPlayer.Gold - planTotal), FormatNumber(currentPlayer.Gold)));
+        terminal.WriteLine("");
+        terminal.SetColor("bright_white");
+        terminal.WriteLine(Loc.Get("armor_shop.autobuy_plan_options"));
+        terminal.WriteLine("");
+
+        string choice = await terminal.GetValidChoice(Loc.Get("ui.your_choice"), new[] { "Y", "P", "C" }, "C");
+        if (choice == "P")
+        {
+            await AutoBuyPerSlot();
+            return;
+        }
+        if (choice != "Y")
+        {
+            terminal.SetColor("yellow");
+            terminal.WriteLine(Loc.Get("armor_shop.autobuy_cancelled"));
+            await Pause();
+            return;
+        }
+
+        int bought = 0;
+        long spent = 0;
+        foreach (var pick in plan)
+        {
+            if (pick.Total > currentPlayer.Gold) continue;
+            currentPlayer.Gold -= pick.Total;
+            if (currentPlayer.EquipItem(pick.Armor, out string equipMsg))
+            {
+                currentPlayer.Statistics.RecordPurchase(pick.Total);
+                CityControlSystem.Instance.ProcessSaleTax(pick.Price);
+                SmugglersCache.Spend(currentPlayer);   // 1.3.10 (P6)
+                QuestSystem.OnEquipmentPurchased(currentPlayer, pick.Armor);
+                bought++;
+                spent += pick.Total;
+                terminal.SetColor("bright_green");
+                terminal.WriteLine(Loc.Get("armor_shop.autobuy_purchased", ItemNames.Display(pick.Armor)));
+            }
+            else
+            {
+                currentPlayer.Gold += pick.Total;   // refunded, as the per-slot path does
+                terminal.SetColor("red");
+                UsurperRemake.UI.UIHelper.WriteRow(terminal, Loc.Get("armor_shop.autobuy_cant_equip", equipMsg));
+            }
+        }
+        if (bought > 0) AchievementSystem.CheckAchievements(currentPlayer);
+
+        terminal.WriteLine("");
+        terminal.SetColor("bright_cyan");
+        terminal.WriteLine(Loc.Get("armor_shop.autobuy_summary", bought, FormatNumber(spent)));
+        if (bought > 0)
+        {
+            currentPlayer.RecalculateStats();
+            await SaveSystem.Instance.AutoSave(currentPlayer);
+        }
+        await Pause();
+    }
+
+    /// <summary>The per-slot auto-buy (before 1.3.10 the only one): each offer asked Y, N, S or C.</summary>
+    private async Task AutoBuyPerSlot()
+    {
         terminal.WriteLine("");
 
         int purchased = 0;
@@ -1033,12 +1153,9 @@ public class ArmorShopLocation : BaseLocation
                 .ThenBy(i => i.Value)
                 .ToList();
 
-            // Filter to only affordable items based on current gold (include faction + boon discount)
-            var factionMod = FactionSystem.Instance.GetShopPriceModifier();
-            var boonDiscount = currentPlayer.CachedBoonEffects?.ShopDiscountPercent > 0
-                ? (1.0 - currentPlayer.CachedBoonEffects.ShopDiscountPercent) : 1.0;
+            // Filter to only affordable items based on current gold. 1.3.10 (D2): the price it charges, with tax
             var currentlyAffordable = affordableArmor
-                .Where(i => (long)(CityControlSystem.Instance.ApplyDiscount(i.Value, currentPlayer) * factionMod * boonDiscount) <= currentPlayer.Gold)
+                .Where(i => ShopPricing.Total(currentPlayer, i.Value, weaponShop: false) <= currentPlayer.Gold)
                 .ToList();
 
             if (currentlyAffordable.Count == 0)
@@ -1063,12 +1180,7 @@ public class ArmorShopLocation : BaseLocation
             {
                 // Re-check affordability since gold may have changed
                 var armor = currentlyAffordable[armorIndex];
-                long itemPrice = CityControlSystem.Instance.ApplyDiscount(armor.Value, currentPlayer);
-                // Apply faction discount (The Crown gets 10% off at shops)
-                itemPrice = (long)(itemPrice * FactionSystem.Instance.GetShopPriceModifier());
-                // Apply divine boon shop discount
-                if (currentPlayer.CachedBoonEffects?.ShopDiscountPercent > 0)
-                    itemPrice = (long)(itemPrice * (1.0 - currentPlayer.CachedBoonEffects.ShopDiscountPercent));
+                long itemPrice = AutoBuyPrice(armor);   // 1.3.10 (D2): the one shop price
 
                 // Calculate total with tax
                 var (_, _, abItemTotal) = CityControlSystem.CalculateTaxedPrice(itemPrice);
@@ -1133,6 +1245,7 @@ public class ArmorShopLocation : BaseLocation
                         {
                             purchased++;
                             CityControlSystem.Instance.ProcessSaleTax(itemPrice); // v1.1.1: after the equip check; a failed equip refunded the price but kept the tax
+                            SmugglersCache.Spend(currentPlayer);   // 1.3.10 (P6)
                             terminal.SetColor("bright_green");
                             terminal.WriteLine(Loc.Get("armor_shop.autobuy_purchased", ItemNames.Display(armor)));
 

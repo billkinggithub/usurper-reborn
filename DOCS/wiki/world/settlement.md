@@ -1,8 +1,14 @@
 ---
 title: The Outskirts settlement
 path: /wiki/en/world/settlement/
-checked: 1.3.8
+checked: 1.3.14
 sources: Scripts/Locations/SettlementLocation.cs, Scripts/Systems/SettlementSystem.cs, Scripts/Core/GameConfig.cs, Scripts/Locations/MainStreetDistricts.cs, Scripts/Systems/CombatEngine.cs, Scripts/Locations/DungeonLocation.cs, Scripts/Systems/GodBoonSystem.cs
+history: 1.3.14 | none
+history: 1.3.13 | none
+history: 1.3.12 | none
+history: 1.3.11 | none
+history: 1.3.10 | The Barracks sends a settler militia fighter into each of your next 3 fights, the Smugglers' Cache takes 10 percent off your next 5 shop purchases, and the Market Stall trades potions and buys backpack gear.
+history: 1.3.9 | none
 history: 1.3.8 | none
 history: 1.3.7 | none
 history: 1.3.6 | none
@@ -14,7 +20,7 @@ history: 1.2.5 | Watchtower scout reports name monsters in the player's language
 history: 1.2.4 | none
 history: 1.2.3 | The settlement workshop, the watchtower scout report and settlement news are translated into all five languages, and long scout report rows wrap.
 ---
-The Settlement on Castle Grounds leads to the Outskirts, an NPC-built community beyond the city gates. It is not one of the safe [outposts](/wiki/en/world/dungeon/#dungeon-outposts) found inside the dungeon. The numbers below are per step of the world simulation, the same steps in which NPCs act.
+The Outskirts is an NPC-built community beyond the city gates. With the classic Main Street, which is the default, press > for the Outskirts. With the district layout, open the Castle Grounds district with C, then press E for the Settlement. It is not one of the safe [outposts](/wiki/en/world/dungeon/#dungeon-outposts) found inside the dungeon. The numbers below are per step of the world simulation, the same steps in which NPCs act.
 
 ## When the Outskirts appears
 
@@ -32,10 +38,10 @@ Your gold goes to the core building under construction; with none, to the propos
 
 ## Settlement services
 
-A service opens when its building reaches the tier below. You can hold only one of the timed settlement buffs at a time (Tavern, Palisade, Arena, Thieves' Den, Prison or Library); it lasts {{balance:SettlementBuffDuration}} fights.
+A service opens when its building reaches the tier below. You can hold only one of the timed settlement buffs at a time (Tavern, Palisade, Arena, Thieves' Den, Prison, Library or Barracks); it lasts {{balance:SettlementBuffDuration}} fights, the Barracks 3.
 
 - **Tavern (Built):** +10 percent experience from fights.
-- **Market Stall (Built):** says trading will come later; it sells nothing.
+- **Market Stall (Built):** sells healing and mana potions one at a time at the [Healer's](/wiki/en/world/healer/) full price for your level, tax included (the Faith's Healer discount does not apply here), up to what you can carry, and buys an identified, uncursed weapon, shield, armor piece or accessory from your backpack for half its value, as the town shops do (the Shadows fence bonus included).
 - **Council Hall (Built):** once a day, 10 percent of (the treasury x your share of all player contributions), at least 50 gold and at most the treasury; with no contribution of yours, 50 gold. Terran's boon can add to it.
 - **Shrine (Upgraded):** once a day, heals 30 percent of your maximum HP.
 - **Palisade (Upgraded):** +5 percent defense.
@@ -60,7 +66,8 @@ Each is listed with what it needs to be proposed and the tier its service needs.
 - **Gambling Hall** (needs a Tavern Built; Built): bet up to {{balance:SettlementGambleMaxBet}} gold; you win double the bet back 50 percent of the time.
 - **Oracle's Sanctum** (needs a Mystic Circle Built; Upgraded): a hint about the dungeon.
 - **Memorial** (always possible): no service. When it passes, settler gifts are 25 percent larger for 10 steps.
-- **Barracks** (needs a Palisade Built) and **Smugglers' Cache** (needs no Council Hall Built yet): no service and no effect.
+- **Barracks** (needs a Palisade Built; Built): a settler militia fighter at your level minus 2 (at least level 1) fights at your side in each of your next 3 monster fights and leaves at the end of each; it takes no experience and never joins your dungeon party. It does not join the Pit, the Gauntlet, the bank guards or an arrest, and a duel counts one of the 3 fights, as it does for every timed settlement buff.
+- **Smugglers' Cache** (needs no Council Hall Built yet; Built): your next 5 purchases in the Weapon, Armor and Magic shops cost 10 percent less (see [shops](/wiki/en/items/shops/)). It is not a timed buff and does not count fights; you can take it again once the 5 are spent.
 
 ## Changing world state
 

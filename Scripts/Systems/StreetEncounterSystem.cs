@@ -48,6 +48,33 @@ public class StreetEncounterSystem
     private async Task TerminalPressAnyKey(TerminalEmulator terminal) => await terminal.PressAnyKey();
 
     /// <summary>
+    /// 1.3.9 (play test B5): the start of an encounter, before its first line. Whatever was typed before it (a key
+    /// meant for the screen the encounter interrupted, a line the reader holds, a line kept from a pause) is
+    /// discarded, so its prompt reads a key typed once the encounter began, including one typed while its options
+    /// were still drawing. Every random encounter starts in ProcessEncounter and every consequence encounter in
+    /// CheckForConsequenceEncounter, and both call this first.
+    /// </summary>
+    internal static void BeginEncounter(TerminalEmulator terminal) => terminal.FlushPendingInput(alsoReaderBuffer: true);
+
+    /// <summary>
+    /// 1.3.10 (play test G1): an encounter's one-key prompt that asks again on a key it does not offer, instead of reading
+    /// it as the hostile choice (an invalid key started the fight). Reads one key as before (GetKeyInput). After
+    /// TerminalEmulator.MaxInvalidChoiceAttempts invalid keys, or when the connection is gone, returns the fallback (the
+    /// encounter's old answer to junk), so a dead peer cannot spin here.
+    /// </summary>
+    internal static async Task<string> ReadEncounterKey(TerminalEmulator terminal, IReadOnlyList<string> keys, string fallback)
+    {
+        for (int attempt = 0; attempt < TerminalEmulator.MaxInvalidChoiceAttempts; attempt++)
+        {
+            string key = (await terminal.GetKeyInput()).Trim().ToUpperInvariant();
+            if (keys.Contains(key)) return key;
+            if (UsurperRemake.BBS.DoorMode.IsDisconnected) break;
+            terminal.WriteLine(Loc.Get("ui.invalid_choice_choose", string.Join(", ", keys)), "red");
+        }
+        return fallback;
+    }
+
+    /// <summary>
     /// Types of street encounters
     /// </summary>
     public enum EncounterType
@@ -217,6 +244,7 @@ public class StreetEncounterSystem
     private async Task ProcessEncounter(Character player, EncounterType type, GameLocation location,
         EncounterResult result, TerminalEmulator terminal)
     {
+        BeginEncounter(terminal);   // 1.3.9: before the encounter's first line
         switch (type)
         {
             case EncounterType.HostileNPC:
@@ -311,7 +339,7 @@ public class StreetEncounterSystem
         terminal.WriteLine($"]{Loc.Get("street_encounter.hostile.opt_talk")}", "white");
         terminal.WriteLine("");
 
-        string choice = (await terminal.GetKeyInput()).ToUpperInvariant();
+        string choice = await ReadEncounterKey(terminal, new[] { "F", "R", "B", "T" }, "F");   // 1.3.10 (G1): a typo asks again
 
         switch (choice)
         {
@@ -607,9 +635,9 @@ public class StreetEncounterSystem
         terminal.WriteLine($"]{Loc.Get("street_encounter.mugging.opt_run")}", "white");
         terminal.WriteLine("");
 
-        string choice = (await terminal.GetKeyInput()).ToUpperInvariant();
+        // 1.3.10 (G1): a typo asks again; after three, or with the connection gone, it is the fight (you can't ignore thugs)
+        string choice = await ReadEncounterKey(terminal, new[] { "F", "S", "R" }, "F");
 
-        // Invalid input defaults to fight — you can't ignore thugs
         if (choice != "S" && choice != "R")
         {
             terminal.SetColor("red");
@@ -1010,7 +1038,13 @@ public class StreetEncounterSystem
         if (int.TryParse(choice, out int itemChoice) && itemChoice >= 1 && itemChoice <= items.Count)
         {
             var item = items[itemChoice - 1];
-            if (player.Gold >= item.Price)
+            string? carryFull = MerchantCarryFullLine(player, item.Name);   // 1.3.10 (D3): the carry limit before the charge
+            if (carryFull != null)
+            {
+                terminal.SetColor("yellow");
+                terminal.WriteLine(carryFull);
+            }
+            else if (player.Gold >= item.Price)
             {
                 player.Gold -= item.Price;
                 player.Statistics?.RecordPurchase(item.Price);
@@ -2080,7 +2114,7 @@ public class StreetEncounterSystem
     private List<MerchantItem> GenerateMerchantItems(int playerLevel, bool shady)
     {
         var items = new List<MerchantItem>();
-        int potionPrice = 40 + playerLevel * 3;
+        long potionPrice = GameConfig.GetSettlementHealingPotionCost(playerLevel);   // 1.3.10 (P12): the town price x1.25, was 40 + 3 x level
 
         // v0.65.1: Name stays the English logic key (ApplyMerchantItem switch); DisplayKey/DescKey
         // are localized for display. Player report: town merchant item names rendered in English.
@@ -2112,6 +2146,15 @@ public class StreetEncounterSystem
         return items;
     }
 
+    /// <summary>
+    /// 1.3.10 (D3): the Healer's line when the potions the merchant sells are already at the carry limit, or null when
+    /// one more fits. Checked before the gold is taken (it was taken and nothing given). A pack that only partly fits
+    /// still sells and gives what fits.
+    /// </summary>
+    internal static string? MerchantCarryFullLine(Character player, string itemName) =>
+        itemName is "Healing Potion" or "Healing Potions (x3)" or "Healing Potions (x5)" && player.Healing >= player.MaxPotions
+            ? Loc.Get("healer.max_potions", player.MaxPotions) : null;
+
     private void ApplyMerchantItem(Character player, MerchantItem item)
     {
         switch (item.Name)
@@ -2137,7 +2180,7 @@ public class StreetEncounterSystem
                 // The poison value on the player is repurposed here temporarily
                 break;
             case "Smoke Bomb":
-                // Gives a free flee for next combat — minor darkness boost as token
+                // 1.3.11 (K7): Darkness +2 and nothing else; it does not help you flee, and the text says so
                 player.Darkness += 2;
                 break;
             case "Fortifying Elixir":
@@ -2270,6 +2313,7 @@ public class StreetEncounterSystem
             if (grudgeNpc != null)
             {
                 MarkConsequenceFired();
+                BeginEncounter(terminal);   // 1.3.9: before the encounter's first line
                 await ExecuteGrudgeConfrontation(grudgeNpc, player, terminal, result);
                 return result;
             }
@@ -2281,6 +2325,7 @@ public class StreetEncounterSystem
             if (jealousSpouse != null)
             {
                 MarkConsequenceFired();
+                BeginEncounter(terminal);   // 1.3.9: before the encounter's first line
                 await ExecuteSpouseConfrontation(jealousSpouse, player, terminal, result);
                 return result;
             }
@@ -2538,11 +2583,12 @@ public class StreetEncounterSystem
             UIHelper.DrawMenuOption(terminal, "R", Loc.Get("street_encounter.grudge.opt_run"), "dark_red", "bright_yellow", "gray");
             UIHelper.DrawBoxBottom(terminal, "dark_red");
 
-            var choice = await terminal.GetInput(Loc.Get("street_encounter.grudge.your_response"));
+            // 1.3.11 (G1): a typo asks again instead of starting the fight; the fight stays the answer after three
+            var choice = await terminal.GetValidChoice(Loc.Get("street_encounter.grudge.your_response"), new[] { "F", "R" }, "F");
 
             // v1.2.0: a clean escape is no fight, so neither the victory nor the defeat branch applies
             bool fought = false;
-            if (choice.Trim().ToUpper() == "R")
+            if (choice == "R")
             {
                 int fleeChance = Math.Min(50, 20 + (int)(player.Dexterity * 1.5)); // Harder to flee murder revenge
                 if (_random.Next(100) < fleeChance)
@@ -2560,7 +2606,7 @@ public class StreetEncounterSystem
             }
             else
             {
-                // Fight (default for any input)
+                // Fight: F, or three invalid keys
                 await FightNPC(player, grudgeNpc, result, terminal, rageStrengthMult: murderRage, rageHpMult: murderRageHp);
                 fought = true;
             }
@@ -2863,7 +2909,8 @@ public class StreetEncounterSystem
         UIHelper.DrawMenuOption(terminal, "F", Loc.Get("street_encounter.grudge.opt_fight"), "bright_red", "bright_yellow", "white");
         UIHelper.DrawBoxBottom(terminal, "bright_red");
 
-        var choice = await terminal.GetInput(Loc.Get("street_encounter.grudge.your_response"));
+        // 1.3.10 (G1): a typo asks again instead of starting the fight; the fight stays the answer after three
+        var choice = await terminal.GetValidChoice(Loc.Get("street_encounter.grudge.your_response"), new[] { "D", "A", "T", "F" }, "F");
 
         switch (choice.ToUpper())
         {
@@ -3300,13 +3347,15 @@ public class StreetEncounterSystem
 
         if (result.Victory)
         {
-            // === PERMANENT DEATH (deliberate murder = always permadeath) ===
+            // === DEATH (the victim respawns like any NPC; the murder memory and the family grudge stay) ===
             npc.HP = 0;
             if (realNpc != null)
             {
                 realNpc.HP = 0;
+                WorldSnapshotCounters.CountNpcDeath(realNpc);   // O2: a murder for the hourly world snapshot
                 realNpc.IsDead = true;
                 // realNpc.IsPermaDead = true;  // Disabled — NPCs now respawn after death
+                WorldSimulator.RecordFamilyDeath(realNpc, player.Name2);   // 1.3.10: the victim's kin remember
             }
 
             // === GOLD THEFT ===
@@ -3386,11 +3435,9 @@ public class StreetEncounterSystem
                 result.GoldGained += bountyReward;
             }
 
-            // === NEWS (permadeath — this one isn't coming back) ===
+            // === NEWS (1.3.10: the line says the victim will be back) ===
             NewsSystem.Instance?.Newsy(
                 "\u2620 " + Loc.Get("street_encounter.news.murdered", player.Name2, npc.Name2 ?? npc.Name));
-
-            // No respawn queue — deliberate murder is always permanent (IsPermaDead blocks respawn)
 
             // === BLOOD PRICE (adjusted by bounty type) ===
             if (realNpc != null)

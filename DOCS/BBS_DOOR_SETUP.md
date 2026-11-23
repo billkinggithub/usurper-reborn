@@ -1,4 +1,4 @@
-<!-- doc: checked 1.3.8; sources: Scripts/BBS, Console/Bootstrap/Program.cs, Scripts/Core/GameEngine.cs, Scripts/Systems/SysOpConsoleManager.cs, Scripts/Systems/SysOpConfigSystem.cs, Scripts/Systems/AccountMail.cs, Scripts/Server/MudServer.cs, scripts-server/updatecheck.sh, scripts-server/updatecheck.ps1 -->
+<!-- doc: checked 1.3.12; sources: Scripts/BBS, Console/Bootstrap/Program.cs, Scripts/Core/GameEngine.cs, Scripts/Systems/SysOpConsoleManager.cs, Scripts/Systems/SysOpConfigSystem.cs, Scripts/Systems/AccountMail.cs, Scripts/Server/MudServer.cs, scripts-server/updatecheck.sh, scripts-server/updatecheck.ps1 -->
 # Usurper Reborn - BBS Door Setup Guide
 
 This guide explains how to configure Usurper Reborn to run as a door game on BBS software like Synchronet, Mystic, EleBBS, WWIV, GameSrv, ENiGMA, or other systems that support DOOR32.SYS drop files.
@@ -82,7 +82,8 @@ terminal, SSH, and local modes are unaffected. No configuration needed.
 
 | Flag | Description |
 |------|-------------|
-| `--auto-provision` | On a trusted (loopback) auth connection, auto-create the account for the given username instead of requiring a separate register step. Used by the local SSH relay / BBS gateway. |
+| `--allow-trusted-auth` | Accept the password-free `AUTH:user:type` form from a gateway on the same machine. Off by default (1.3.11): a local BBS gateway or a relay started with `--user` that logs players in without a password needs this flag on the game server. It is accepted only from a loopback connection that sent no PROXY header and no `X-Client:` line. |
+| `--auto-provision` | On a trusted (loopback) auth connection, auto-create the account for the given username instead of requiring a separate register step. Used by the local SSH relay / BBS gateway. Needs `--allow-trusted-auth`. |
 | `--online --stdio` | Run the game in per-process online mode over stdin/stdout (the "Simple" self-hosted server model; see `DOCS/SERVER_DEPLOYMENT.md`). |
 
 Note on the standalone world simulator: older guides describe running a separate `--worldsim`

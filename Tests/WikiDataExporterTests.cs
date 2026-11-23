@@ -36,7 +36,7 @@ public class WikiDataExporterTests : IClassFixture<WikiDataFixture>
         Assert.Equal("Rusty Dagger", dagger.GetProperty("name").GetProperty("en").GetString());
         Assert.Equal(2, dagger.GetProperty("stats").GetProperty("weaponPower").GetInt32());
         // v1.2.5: every language its own name (ItemNames keys), the English one is the stored name
-        Assert.Equal(5, dagger.GetProperty("name").EnumerateObject().Count());
+        Assert.Equal(6, dagger.GetProperty("name").EnumerateObject().Count());   // the fork adds zh
         Assert.Equal("Rozsdás Tőr", dagger.GetProperty("name").GetProperty("hu").GetString());
     }
 
@@ -719,17 +719,21 @@ public class WikiDataExporterTests : IClassFixture<WikiDataFixture>
     public void WorldOutpostsPriceAsTheDungeonDoes()
     {
         var outposts = World("outposts");
-        Assert.Equal(new[] { 10, 20, 35, 65 }, outposts.Select(o => o.GetProperty("floor").GetInt32()));
+        Assert.Equal(new[] { 10, 20, 35, 65, 85 }, outposts.Select(o => o.GetProperty("floor").GetInt32()));
         // (10 + floor x 5) x the outpost's factor
         Assert.Equal(30, One(outposts, "10", "floor").GetProperty("healCost").GetInt64());
         Assert.Equal(JsonValueKind.Null, One(outposts, "20", "floor").GetProperty("healCost").ValueKind);
         Assert.Equal(74, One(outposts, "35", "floor").GetProperty("healCost").GetInt64());
         Assert.Equal(201, One(outposts, "65", "floor").GetProperty("healCost").GetInt64());
+        Assert.Equal(261, One(outposts, "85", "floor").GetProperty("healCost").GetInt64());
         Assert.Equal(0.4, One(outposts, "35", "floor").GetProperty("healShareOfMissing").GetDouble(), 3);
-        // base price x (1 + floor / 10)
+        // base price x (1 + floor / 10); 1.3.10: a potion is the town price for the buyer's level x 1.25, no floor price
         var goods = One(outposts, "65", "floor").GetProperty("goods").EnumerateArray().ToArray();
-        Assert.Equal(25 * 7, One(goods, "heal_potion").GetProperty("price").GetInt64());
+        Assert.Equal(JsonValueKind.Null, One(goods, "heal_potion").GetProperty("price").ValueKind);
+        Assert.Equal(1.25, One(goods, "heal_potion").GetProperty("townPriceFactor").GetDouble(), 3);
+        Assert.Equal(1.25, One(goods, "mana_potion").GetProperty("townPriceFactor").GetDouble(), 3);
         Assert.Equal(60 * 7, One(goods, "firebloom").GetProperty("price").GetInt64());
+        Assert.Equal(JsonValueKind.Null, One(goods, "firebloom").GetProperty("townPriceFactor").ValueKind);
     }
 
     [Fact]
@@ -1026,7 +1030,7 @@ public class WikiDataExporterTests : IClassFixture<WikiDataFixture>
         Assert.Equal(WikiDataExporter.SchemaVersion, document.RootElement.GetProperty("schemaVersion").GetInt32());
         Assert.Equal(GameConfig.Version, document.RootElement.GetProperty("gameVersion").GetString());
         Assert.True(DateTimeOffset.TryParse(document.RootElement.GetProperty("generatedAtUtc").GetString(), out _));
-        Assert.Equal(5, document.RootElement.GetProperty("languages").GetArrayLength());
+        Assert.Equal(6, document.RootElement.GetProperty("languages").GetArrayLength());   // the fork adds zh
     }
 }
 

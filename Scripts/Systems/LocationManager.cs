@@ -14,6 +14,9 @@ public class LocationManager
 {
     private Dictionary<GameLocation, BaseLocation> locations;
     private GameLocation currentLocationId;
+
+    /// <summary>1.3.10 (play test N3): the location the player was in before the current one was entered.</summary>
+    internal GameLocation PreviousLocationId { get; set; }
     private BaseLocation currentLocation;
     private TerminalEmulator terminal;
     private Character currentPlayer;
@@ -140,6 +143,28 @@ public class LocationManager
     /// cardinal exits if a current room is set; otherwise falls back to the static
     /// navigation table. Returns an empty dictionary if neither is available.
     /// </summary>
+    /// <summary>
+    /// GMCP Room.Info for a town location: its id, its name, the area and its exits. Sent on every location change, and
+    /// again by Main Street when the player leaves a district for the street (1.3.10, play test A2), since the district
+    /// screen sent its own Room.Info. A no-op when GMCP is not negotiated.
+    /// </summary>
+    internal void EmitRoomInfo(GameLocation locationId)
+    {
+        if (!UsurperRemake.Server.GmcpBridge.IsActive) return;
+        UsurperRemake.Server.GmcpBridge.Emit("Room.Info", new
+        {
+            num = (int)locationId,
+            name = (locations.TryGetValue(locationId, out var at) ? at : null)?.LocationName ?? locationId.ToString(),
+            area = "Usurper Reborn",
+            exits = BuildGmcpExitsForLocation(locationId)
+        });
+    }
+
+    /// <summary>The key of an exit to a town location in Room.Info: the destination's lowercase enum name.</summary>
+    internal static string GmcpExitName(GameLocation dest) =>
+        // LoveCorner and RoyalOrphanage share the value 77; the exit is Love Street's
+        dest == GameLocation.LoveCorner ? "lovecorner" : dest.ToString().ToLowerInvariant();
+
     private Dictionary<string, int> BuildGmcpExitsForLocation(GameLocation locationId)
     {
         var exits = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -162,20 +187,41 @@ public class LocationManager
             }
         }
 
-        // Town locations: pull from the static navigation table. Key by the
-        // destination's enum name so Mudlet's mapper script can label edges
-        // sensibly (Inn, Church, Bank, etc.) -- single-word locations are the
-        // common case and read cleanly.
-        if (navigationTable != null && navigationTable.TryGetValue(locationId, out var dests))
+        // Town locations: the exits the menus really offer (1.3.10; the Pascal navigation table named places
+        // that are not registered and left out ones Main Street reaches). Key by the destination's enum name so
+        // Mudlet's mapper script can label edges sensibly (Inn, Church, Bank, etc.).
+        bool settlement = SettlementSystem.Instance?.State.IsEstablished == true;
+        foreach (var dest in TownExits(locationId, currentPlayer?.Level ?? 1, UsurperRemake.BBS.DoorMode.IsOnlineMode, settlement, locations.ContainsKey))
         {
-            foreach (var dest in dests)
-            {
-                string destName = dest.ToString().ToLowerInvariant();
-                exits[destName] = (int)dest;
-            }
+            exits[GmcpExitName(dest)] = (int)dest;
         }
 
         return exits;
+    }
+
+    /// <summary>
+    /// 1.3.10: the town exits a screen's menu offers. Main Street's are the places its keys open for this player
+    /// (the StreetEntries table both Main Street layouts draw, unlocked by the player's menu tier, online mode and an
+    /// established settlement); every other registered town screen leaves to Main Street. The prison, the Pantheon
+    /// and the SysOp console have no walking exit. The navigation table stays for /train and wizard goto.
+    /// </summary>
+    internal static List<GameLocation> TownExits(GameLocation from, int level, bool online, bool settlement, Func<GameLocation, bool> registered)
+    {
+        if (!registered(from)) return new List<GameLocation>();
+        if (from == GameLocation.MainStreet)
+        {
+            var view = new MainStreetLocation.StreetView(MainStreetLocation.TierForLevel(level), online, settlement);
+            return MainStreetLocation.StreetEntries
+                .Where(e => MainStreetLocation.IsUnlocked(e, view))
+                .Select(e => MainStreetLocation.DestinationOf(e.Place, online))
+                .Where(d => d.HasValue && registered(d.Value))
+                .Select(d => d!.Value)
+                .Distinct()
+                .ToList();
+        }
+        if (from is GameLocation.Prison or GameLocation.Prisoner or GameLocation.Pantheon or GameLocation.SysOpConsole)
+            return new List<GameLocation>();
+        return new List<GameLocation> { GameLocation.MainStreet };
     }
 
     private void InitializeNavigationTable()
@@ -326,6 +372,7 @@ public class LocationManager
         
         // Update current location
         var previousLocation = currentLocationId;
+        PreviousLocationId = previousLocation;   // 1.3.10 (N3): Main Street reads where the player came from
         currentLocationId = locationId;
         currentLocation = locations[locationId];
         
@@ -348,13 +395,7 @@ public class LocationManager
         // Mudlet's mapper consumes this to draw the navigation graph automatically.
         if (UsurperRemake.Server.GmcpBridge.IsActive)
         {
-            UsurperRemake.Server.GmcpBridge.Emit("Room.Info", new
-            {
-                num = (int)locationId,
-                name = currentLocation?.LocationName ?? locationId.ToString(),
-                area = "Usurper Reborn",
-                exits = BuildGmcpExitsForLocation(locationId)
-            });
+            EmitRoomInfo(locationId);
 
             // v0.60.3: Char.StatusVars schema descriptor, emitted once per session
             // before the first Char.Status. Tells generic GMCP clients how to

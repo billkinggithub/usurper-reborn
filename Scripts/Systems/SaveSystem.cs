@@ -857,9 +857,11 @@ namespace UsurperRemake.Systems
                 AutoLevelUp = player.AutoLevelUp,
                 AutoEquipDisabled = player.AutoEquipDisabled,
                 AutoCombatHealPercent = player.AutoCombatHealPercent, // v1.1.13: auto-combat potion threshold
-                ClassicMainStreet = player.ClassicMainStreet, // v1.1.14: Main Street layout preference
+                ClassicMainStreet = player.ClassicMainStreet, // v1.1.14: true when classic is shown, for older builds
+                DistrictsMainStreet = player.DistrictsMainStreet, // 2.0: Main Street layout preference
                 ClassicTipDraws = player.ClassicTipDraws, // v1.1.14: switch-to-classic tip count
                 MenuKeysNeedEnter = player.MenuKeysNeedEnter, // v1.1.15: menu keys need Enter preference
+                WebMenuKeysNeedEnter = player.WebMenuKeysNeedEnter, // 1.3.9: the web client's menu keys preference
                 DateFormatPreference = player.DateFormatPreference,
                 AutoRedistributeXP = player.AutoRedistributeXP,
                 Specialization = (int)player.Specialization,
@@ -1036,6 +1038,7 @@ namespace UsurperRemake.Systems
                 SettlementBuffType = player.SettlementBuffType,
                 SettlementBuffCombats = player.SettlementBuffCombats,
                 SettlementBuffValue = player.SettlementBuffValue,
+                SmugglersCachePurchases = player.SmugglersCachePurchases,   // 1.3.10 (P6)
                 SettlementGoldClaimedToday = player.SettlementGoldClaimedToday,
                 SettlementHerbClaimedToday = player.SettlementHerbClaimedToday,
                 SettlementShrineUsedToday = player.SettlementShrineUsedToday,
@@ -1122,6 +1125,8 @@ namespace UsurperRemake.Systems
                 ActivePetId = player.ActivePetId ?? "",
                 LastPartnerBondingUtc = player.LastPartnerBondingUtc,
                 LastRiteOfReturnUtc = player.LastRiteOfReturnUtc,
+                DyingMessages = player.DyingMessages?.Select(m => new DyingMessageSaveData { Recipient = m.Recipient, Elder = m.Elder, Gold = m.Gold }).ToList()
+                    ?? new List<DyingMessageSaveData>(),   // 1.3.10
                 LoanAmount = player.LoanAmount,
                 LoanDaysRemaining = player.LoanDaysRemaining,
                 LoanInterestAccrued = player.LoanInterestAccrued,
@@ -1575,7 +1580,6 @@ namespace UsurperRemake.Systems
             {
                 // Economic state
                 BankInterestRate = GameConfig.DefaultBankInterest,
-                TownPotValue = GameConfig.DefaultTownPot,
 
                 // Political state
                 CurrentRuler = GameEngine.Instance?.CurrentPlayer?.King == true ?
@@ -1740,7 +1744,8 @@ namespace UsurperRemake.Systems
                         RequiredProgress = objective.RequiredProgress,
                         CurrentProgress = objective.CurrentProgress,
                         IsOptional = objective.IsOptional,
-                        BonusReward = objective.BonusReward
+                        BonusReward = objective.BonusReward,
+                        TargetFloor = objective.TargetFloor   // 1.3.10
                     });
                 }
 
@@ -1956,8 +1961,7 @@ namespace UsurperRemake.Systems
                         ["FestivalActive"] = WorldEventSystem.Instance.FestivalActive,
                         ["GlobalPriceModifier"] = WorldEventSystem.Instance.GlobalPriceModifier,
                         ["GlobalXPModifier"] = WorldEventSystem.Instance.GlobalXPModifier,
-                        ["GlobalGoldModifier"] = WorldEventSystem.Instance.GlobalGoldModifier,
-                        ["GlobalStatModifier"] = WorldEventSystem.Instance.GlobalStatModifier
+                        ["GlobalGoldModifier"] = WorldEventSystem.Instance.GlobalGoldModifier
                     }
                 };
                 eventDataList.Add(stateData);
@@ -2094,6 +2098,10 @@ namespace UsurperRemake.Systems
                     .Where(kvp => kvp.Value.HasBeenEncountered)
                     .Select(kvp => (int)kvp.Key)
                     .ToList();
+                // 1.3.10: the chapter, the StoryFlag bits and the major choices
+                data.CurrentChapter = (int)story.CurrentChapter;
+                data.StoryFlagBits = story.StoryFlags;
+                data.MajorChoices = story.ExportMajorChoices();
                 if (data.OldGodStates.Count > 0)
                 {
                 }
@@ -2289,7 +2297,8 @@ namespace UsurperRemake.Systems
                             Conspirators = p.Conspirators,
                             Target = p.Target,
                             Progress = p.Progress,
-                            IsDiscovered = p.IsDiscovered
+                            IsDiscovered = p.IsDiscovered,
+                            DaysDiscovered = p.DaysDiscovered
                         }).ToList(),
 
                         DesignatedHeir = king.DesignatedHeir ?? "",
@@ -2597,6 +2606,9 @@ namespace UsurperRemake.Systems
                 // Restore cycle count
                 story.CurrentCycle = data.CurrentCycle;
 
+                // 1.3.10: restore the chapter, the StoryFlag bits and the major choices (an old save has none)
+                story.RestoreProgress(data.CurrentChapter, data.StoryFlagBits, data.MajorChoices);
+
                 // Restore completed endings
                 if (data.CompletedEndings != null)
                 {
@@ -2856,7 +2868,8 @@ namespace UsurperRemake.Systems
                             Conspirators = p.Conspirators ?? new List<string>(),
                             Target = p.Target,
                             Progress = p.Progress,
-                            IsDiscovered = p.IsDiscovered
+                            IsDiscovered = p.IsDiscovered,
+                            DaysDiscovered = p.DaysDiscovered
                         }).ToList() ?? new List<CourtIntrigue>();
 
                         king.DesignatedHeir = data.RoyalCourt.DesignatedHeir;

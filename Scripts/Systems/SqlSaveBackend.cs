@@ -881,6 +881,22 @@ namespace UsurperRemake.Systems
                     -- marriages, throne) that the owner process re-applies after stale writes. See WorldEditLog.
                     CREATE TABLE IF NOT EXISTS world_edits (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now')), created_by TEXT, applied_at TEXT, applied_by TEXT);
                     CREATE INDEX IF NOT EXISTS idx_world_edits_created ON world_edits(created_at);
+
+                    -- O2: one row per UTC hour for the public Observatory page's trends, written by the MUD's world
+                    -- sim (WriteWorldSnapshot). taken_at is the top of the hour, 'yyyy-MM-ddTHH:00:00Z'. Gauges as of
+                    -- that hour; births, deaths and marriages counted since the previous row. Kept 90 days.
+                    CREATE TABLE IF NOT EXISTS world_snapshots (
+                        taken_at TEXT PRIMARY KEY,
+                        npcs_alive INTEGER,
+                        npcs_dead INTEGER,
+                        npcs_married INTEGER,
+                        children INTEGER,
+                        treasury INTEGER,
+                        players_online INTEGER,
+                        births INTEGER,
+                        deaths INTEGER,
+                        marriages INTEGER
+                    );
                 ";
                 cmd.ExecuteNonQuery();
             }
@@ -3269,7 +3285,12 @@ namespace UsurperRemake.Systems
             }
         }
 
-        /// <summary>Remove orphaned rows from tables that reference deleted players.</summary>
+        /// <summary>
+        /// Remove orphaned rows from tables that reference deleted players. Names compare as ulower folds them (C#
+        /// ToLowerInvariant, v1.3.10), so a stored case can never orphan a live row. 1.3.13: the fold happens here in
+        /// C#, not through the ulower SQL function: a prune ran it once per row from inside SQLite, and a door process
+        /// that exited mid-prune crashed on Windows (0xC0000005 in sqlite3_step) when SQLite called back into .NET.
+        /// </summary>
         public async Task PruneOrphanedPlayerData()
         {
             try
@@ -3277,25 +3298,62 @@ namespace UsurperRemake.Systems
                 using var conn = new SqliteConnection(connectionString);
                 await conn.OpenAsync();
 
-                // sleeping_players, online_players, combat_events keyed on username/player_name
-                string[] orphanQueries = new[]
+                var usernames = new HashSet<string>(StringComparer.Ordinal);
+                var displayNames = new HashSet<string>(StringComparer.Ordinal);
+                using (var cmd = conn.CreateCommand())
                 {
-                    "DELETE FROM sleeping_players WHERE username NOT IN (SELECT username FROM players)",
-                    "DELETE FROM online_players WHERE username NOT IN (SELECT username FROM players)",
-                    "DELETE FROM combat_events WHERE player_name NOT IN (SELECT username FROM players) AND player_name NOT IN (SELECT display_name FROM players)",
-                    // v0.65.0 (save-state-review F1): reap pending wire transfers + inheritance
-                    // whose recipient permadied/was deleted before delivery. The gold was already
-                    // a sink (sender paid, recipient gone); this just stops dead rows accumulating.
-                    // Both columns are stored lowercase, matching players.username (also lowercase).
-                    "DELETE FROM pending_gold_transfers WHERE recipient_username NOT IN (SELECT username FROM players)",
-                    "DELETE FROM pending_inheritance WHERE player_username NOT IN (SELECT username FROM players)",
+                    cmd.CommandText = "SELECT username, display_name FROM players";
+                    using var reader = await cmd.ExecuteReaderAsync();
+                    while (await reader.ReadAsync())
+                    {
+                        if (!reader.IsDBNull(0)) usernames.Add(reader.GetString(0).ToLowerInvariant());
+                        if (!reader.IsDBNull(1)) displayNames.Add(reader.GetString(1).ToLowerInvariant());
+                    }
+                }
+
+                // sleeping_players, online_players, combat_events keyed on username/player_name.
+                // v0.65.0 (save-state-review F1): also reap pending wire transfers and inheritance whose recipient
+                // permadied or was deleted before delivery. The gold was already a sink (sender paid, recipient
+                // gone); this just stops dead rows accumulating.
+                var targets = new (string Table, string Column, bool AlsoDisplayName)[]
+                {
+                    ("sleeping_players", "username", false),
+                    ("online_players", "username", false),
+                    ("combat_events", "player_name", true),
+                    ("pending_gold_transfers", "recipient_username", false),
+                    ("pending_inheritance", "player_username", false),
                 };
 
-                foreach (var sql in orphanQueries)
+                foreach (var (table, column, alsoDisplayName) in targets)
                 {
-                    using var cmd = conn.CreateCommand();
-                    cmd.CommandText = sql;
-                    await cmd.ExecuteNonQueryAsync();
+                    var orphans = new List<string>();
+                    using (var cmd = conn.CreateCommand())
+                    {
+                        cmd.CommandText = $"SELECT DISTINCT {column} FROM {table} WHERE {column} IS NOT NULL";
+                        using var reader = await cmd.ExecuteReaderAsync();
+                        while (await reader.ReadAsync())
+                        {
+                            string stored = reader.GetString(0);
+                            string folded = stored.ToLowerInvariant();
+                            if (!usernames.Contains(folded) && !(alsoDisplayName && displayNames.Contains(folded)))
+                                orphans.Add(stored);
+                        }
+                    }
+                    if (orphans.Count == 0) continue;
+
+                    using var tx = conn.BeginTransaction();
+                    using (var del = conn.CreateCommand())
+                    {
+                        del.Transaction = tx;
+                        del.CommandText = $"DELETE FROM {table} WHERE {column} = @name";
+                        var p = del.Parameters.Add("@name", SqliteType.Text);
+                        foreach (var name in orphans)
+                        {
+                            p.Value = name;
+                            await del.ExecuteNonQueryAsync();
+                        }
+                    }
+                    tx.Commit();
                 }
             }
             catch (Exception ex)
@@ -6472,9 +6530,9 @@ namespace UsurperRemake.Systems
             {
                 cmd.CommandText = @"
                     SELECT t.team_name, t.created_by,
-                           (SELECT COUNT(*) FROM pending_inheritance pi WHERE pi.player_username = t.created_by)
+                           (SELECT COUNT(*) FROM pending_inheritance pi WHERE ulower(pi.player_username) = ulower(t.created_by))
                     FROM player_teams t
-                    WHERE t.created_by NOT IN (SELECT username FROM players)
+                    WHERE ulower(t.created_by) NOT IN (SELECT ulower(username) FROM players)
                     ORDER BY t.team_name;";
                 using var reader = cmd.ExecuteReader();
                 while (reader.Read())

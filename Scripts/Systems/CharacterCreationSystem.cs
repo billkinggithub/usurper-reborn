@@ -415,6 +415,7 @@ public class CharacterCreationSystem
         var savedRoll = LoadRoll(character);
         if (savedRoll != null) ApplyDice(character, savedRoll.Dice);
         else RollStats(character);
+        FinishRolledStats(character);
 
         GeneratePhysicalAppearance(character);
         SetStartingConfiguration(character);
@@ -467,6 +468,9 @@ public class CharacterCreationSystem
             WeapPow = 0,
             ArmPow = 0,
             AutoHeal = false,
+            // 1.3.10: a new character starts on Fast combat speed; a loaded save keeps its own (a save with no
+            // CombatSpeed field reads Normal, PlayerData's default)
+            CombatSpeed = CombatSpeed.Fast,
             Loyalty = GameConfig.DefaultLoyalty,
             Haunt = 0,
             Master = '1',
@@ -1691,13 +1695,24 @@ public class CharacterCreationSystem
 
         // Try side-by-side portrait layout if a portrait exists for this class
         // (skip portrait when player disabled character/monster art — use card layout instead)
-        var portrait = GameConfig.DisableCharacterMonsterArt ? null : RacePortraits.GetCroppedClassPortrait(characterClass, 38);
+        // 1.3.10: every class has a portrait; a BBS session (a door, a door player on the online server, or a BBS
+        // terminal on the game port) gets the 16 colour set of the converted ones
+        var portrait = GameConfig.DisableCharacterMonsterArt ? null : RacePortraits.GetCroppedClassPortrait(characterClass, 38,
+            ClassPortraitSixteenColours(UsurperRemake.BBS.DoorMode.IsInDoorMode, UsurperRemake.Server.SessionContext.Current?.ConnectionType, terminal.UseCp437));
         if (portrait != null)
             return await ShowClassPreviewSideBySide(characterClass, portrait);
 
         // Fallback: original card layout (no portrait)
         return await ShowClassPreviewCard(characterClass);
     }
+
+    /// <summary>
+    /// 1.3.10: true when the class preview uses the 16 colour portraits: a BBS door session, a session on the
+    /// online server that a BBS door opened (connection type "BBS"), or a BBS terminal (SyncTERM, NetRunner and the
+    /// like, sent CP437) connected straight to the game port. Every other session gets 256 colours.
+    /// </summary>
+    internal static bool ClassPortraitSixteenColours(bool inDoorMode, string? connectionType, bool cp437Terminal) =>
+        inDoorMode || connectionType == "BBS" || cp437Terminal;
 
     /// <summary>
     /// Side-by-side class preview: ANSI art portrait (left) + stats panel (right).
@@ -2661,6 +2676,14 @@ public class CharacterCreationSystem
             }
         }
 
+        FinishRolledStats(character);
+    }
+
+    /// <summary>
+    /// 1.3.11: the setup every new character gets once its roll is final, on both the custom and the Quick Start path.
+    /// </summary>
+    private static void FinishRolledStats(Character character)
+    {
         // CRITICAL: Initialize base stats from the rolled values
         // This prevents RecalculateStats() from resetting stats to 0
         character.InitializeBaseStats();
@@ -2699,7 +2722,7 @@ public class CharacterCreationSystem
     }
 
     /// <summary>v1.1.15: set the character's stats from rolled dice plus its class and race modifiers.</summary>
-    private void ApplyDice(Character character, int[] dice)
+    private static void ApplyDice(Character character, int[] dice)
     {
         // Get class base attributes (these are now modifiers, not fixed values)
         var classAttrib = GameConfig.ClassStartingAttributes[character.Class];
@@ -2743,6 +2766,29 @@ public class CharacterCreationSystem
             character.Mana = 0;
             character.MaxMana = 0;
         }
+    }
+
+    private const int Average3d6 = 10;   // 10.5 rounded down
+    private const int Average2d6 = 7;
+
+    /// <summary>
+    /// 1.3.11: what load adds to the bases of a save that lost them (GameEngine.RepairQuickStartBases): ApplyDice on
+    /// the average roll, because the real roll was not kept. Null unless the pair is one of the three Quick Start
+    /// archetypes.
+    /// </summary>
+    internal static (long MaxHP, long MaxMana, long Defence, long Stamina, long Agility)? QuickStartAverageBases(CharacterRace race, CharacterClass characterClass)
+    {
+        bool archetype = (race, characterClass) is (CharacterRace.Human, CharacterClass.Warrior)
+            or (CharacterRace.Elf, CharacterClass.Magician)
+            or (CharacterRace.Dwarf, CharacterClass.Cleric);
+        if (!archetype) return null;
+
+        var dice = new int[DiceCount];
+        Array.Fill(dice, Average3d6);
+        dice[DiceCount - 1] = Average2d6;
+        var average = new Character { Race = race, Class = characterClass };
+        ApplyDice(average, dice);
+        return (average.MaxHP, average.MaxMana, average.Defence, average.Stamina, average.Agility);
     }
 
     /// <summary>
@@ -2821,7 +2867,6 @@ public class CharacterCreationSystem
         character.PKills = 0;
         character.PDefeats = 0;
         character.Interest = 0;
-        character.AliveBonus = 0;
         character.Expert = false;
         character.MaxTime = 60; // Default max time per session
         character.Ear = 1; // global_ear_all

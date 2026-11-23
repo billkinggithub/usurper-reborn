@@ -696,7 +696,6 @@ namespace UsurperConsole
             var username = DoorMode.OnlineUsername ?? "anonymous";
             var connectionType = DetectConnectionType();
 
-            Console.Error.WriteLine($"[RELAY] Connecting to MUD server on port {DoorMode.MudPort} as '{username}' ({connectionType})");
 
             using var cts = new CancellationTokenSource();
 

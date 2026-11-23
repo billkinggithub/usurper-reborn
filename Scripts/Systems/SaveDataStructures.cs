@@ -82,6 +82,12 @@ namespace UsurperRemake.Systems
         // encountered-tracking on the Main Street [P] Progress screen. List of god-type ints.
         public List<int>? OldGodsEncountered { get; set; }
 
+        // 1.3.10: the story chapter (StoryChapter as int), the StoryFlag bits and the major choices. An old save
+        // has none of them and loads at the first chapter with no bits and no choices.
+        public int CurrentChapter { get; set; }
+        public int StoryFlagBits { get; set; }
+        public List<MajorChoiceSaveData> MajorChoices { get; set; } = new();
+
         // God worship - player name -> god name
         public Dictionary<string, string> PlayerGods { get; set; } = new();
 
@@ -185,6 +191,14 @@ namespace UsurperRemake.Systems
         public DateTime LastInteraction { get; set; }
     }
 
+
+    /// <summary>1.3.10: one major story choice as saved (StoryProgressionSystem.MajorChoices).</summary>
+    public class MajorChoiceSaveData
+    {
+        public string ChoiceId { get; set; } = "";
+        public string SelectedOption { get; set; } = "";
+        public int AlignmentImpact { get; set; }
+    }
 
     public class CompanionSaveInfo
     {
@@ -510,8 +524,10 @@ namespace UsurperRemake.Systems
         public bool AutoLevelUp { get; set; } = true;  // Auto-level on XP threshold (default on)
         public bool AutoEquipDisabled { get; set; }  // Shop purchases go to inventory
         public int AutoCombatHealPercent { get; set; } = 50;  // v1.1.13: auto-combat potion threshold, HP %; old saves read 50
-        public bool ClassicMainStreet { get; set; }  // v1.1.14: classic Main Street layout; old saves read false (districts)
+        public bool ClassicMainStreet { get; set; }  // v1.1.14: true when the classic layout is shown; still written for older builds, no longer read for the layout
+        public bool DistrictsMainStreet { get; set; }  // 2.0: districts Main Street layout; old saves read false (classic)
         public bool MenuKeysNeedEnter { get; set; } = true;  // v1.1.15: console menus wait for Enter; old saves read true
+        public bool WebMenuKeysNeedEnter { get; set; } = false;  // 1.3.9: web client menus wait for Enter; old saves read false (one key)
         public int ClassicTipDraws { get; set; }  // v1.1.14: switch-to-classic tip draws so far; old saves read 0
         public int DateFormatPreference { get; set; }  // 0=MM/DD, 1=DD/MM, 2=YYYY-MM-DD
         public bool AutoRedistributeXP { get; set; } = true; // Auto-redistribute XP when teammates die
@@ -701,6 +717,7 @@ namespace UsurperRemake.Systems
         public int SettlementBuffType { get; set; }
         public int SettlementBuffCombats { get; set; }
         public float SettlementBuffValue { get; set; }
+        public int SmugglersCachePurchases { get; set; }   // 1.3.10 (P6)
         public bool SettlementGoldClaimedToday { get; set; }
         public bool SettlementHerbClaimedToday { get; set; }
         public bool SettlementShrineUsedToday { get; set; }
@@ -790,6 +807,7 @@ namespace UsurperRemake.Systems
         public string ActivePetId { get; set; } = "";
         public DateTime LastPartnerBondingUtc { get; set; }
         public DateTime LastRiteOfReturnUtc { get; set; } // v0.65.6 Temple Rite of Return wall-clock cooldown
+        public List<DyingMessageSaveData> DyingMessages { get; set; } = new();   // 1.3.10: dying wish messages to deliver
         public long LoanAmount { get; set; }
         public int LoanDaysRemaining { get; set; }
         public long LoanInterestAccrued { get; set; }
@@ -899,6 +917,17 @@ namespace UsurperRemake.Systems
                     EndsOn = (StatBuffEnd)r.EndsOn,
                     CombatsLeft = r.CombatsLeft
                 }).ToList();
+    }
+
+    /// <summary>
+    /// 1.3.10: a dying wish message the player promised to deliver (NPCPetitionSystem): talking to the recipient
+    /// delivers it and pays the elder's savings. An old save has none.
+    /// </summary>
+    public class DyingMessageSaveData
+    {
+        public string Recipient { get; set; } = "";   // the recipient NPC's Name2
+        public string Elder { get; set; } = "";       // the elder who asked
+        public long Gold { get; set; }                // the elder's savings, paid on delivery
     }
 
     /// <summary>
@@ -1388,7 +1417,7 @@ namespace UsurperRemake.Systems
         public long BankVaultReserve { get; set; } = GameConfig.BankVaultInitial; // v1.2: single-player robbery reserve; online lives in world_state
         public int BankRobberiesToday { get; set; }        // 1.2.4: single-player robbery attempts counter; online lives in world_state
         public string BankRobberiesDate { get; set; } = ""; // 1.2.4: the day BankRobberiesToday belongs to (yyyy-MM-dd)
-        public int TownPotValue { get; set; }
+        public int TownPotValue { get; set; }   // 1.3.10 (P14): the town pot is gone; kept so old saves and the editor read it, never written
 
         // Political state
         public string? CurrentRuler { get; set; }
@@ -1513,6 +1542,8 @@ namespace UsurperRemake.Systems
         public int CurrentProgress { get; set; }
         public bool IsOptional { get; set; }
         public int BonusReward { get; set; }
+        // 1.3.10: the dungeon floor a placed quest target waits on; 0 (and every save before 1.3.10) for none
+        public int TargetFloor { get; set; }
     }
 
     /// <summary>
@@ -2131,6 +2162,7 @@ namespace UsurperRemake.Systems
         public string Target { get; set; } = "";
         public int Progress { get; set; }
         public bool IsDiscovered { get; set; }
+        public int DaysDiscovered { get; set; }   // 1.3.10: an old save reads 0, so its discovered plot lapses 7 days after the load
     }
 
     /// <summary>

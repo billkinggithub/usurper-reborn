@@ -28,8 +28,8 @@ public class DataChars125Tests
     private const BindingFlags F = BindingFlags.NonPublic | BindingFlags.Instance;
     private const BindingFlags SNP = BindingFlags.NonPublic | BindingFlags.Static;
     private const int MaxWidth = 79;
-    private static readonly string[] AllLanguages = { "en", "es", "fr", "hu", "it" };
-    private static readonly string[] OtherLanguages = { "es", "fr", "hu", "it" };
+    private static readonly string[] AllLanguages = { "en", "es", "fr", "hu", "it", "zh" };
+    private static readonly string[] OtherLanguages = { "es", "fr", "hu", "it", "zh" };
 
     // GameConfig.MaxNameLength (30) characters, the longest name a player can have.
     private const string LongName = "Bartholomew Thistlewood Grande";

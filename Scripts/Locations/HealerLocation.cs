@@ -30,13 +30,51 @@ public class HealerLocation : BaseLocation
     // Healing costs
     private const int FullHealCostPerHP = 2;       // Cost per HP restored
 
+    /// <summary>1.3.10: the gold an HP of healing costs here: nothing while Blessed Rain falls.</summary>
+    internal static long HealCostPerHP => WorldEventSystem.Instance.HealingIsFree ? 0 : FullHealCostPerHP;
+
+    /// <summary>1.3.10: a healing price with its taxes; free healing carries no tax (the tax has a 1 gold floor).</summary>
+    private static (long kingTax, long cityTax, long total) Taxed(long price) =>
+        price > 0 ? CityControlSystem.CalculateHealingTaxedPrice(price) : (0, 0, 0);
+
+    /// <summary>
+    /// 1.3.11 (K11, his pick): what the player pays here before tax. Members of The Faith pay less by
+    /// FactionSystem.GetHealingPriceModifier, 15 to 35 percent by rank (FactionSystem.Instance is this session's online);
+    /// everyone else pays the base price. Every Healer price and every menu line goes through this, so they agree.
+    /// A free price stays free.
+    /// </summary>
+    internal static long FaithPrice(long basePrice) =>
+        basePrice > 0 ? Math.Max(1, (long)Math.Round(basePrice * FaithShare, MidpointRounding.AwayFromZero)) : basePrice;
+
+    private static decimal FaithShare => (decimal)UsurperRemake.Systems.FactionSystem.Instance.GetHealingPriceModifier();
+
+    /// <summary>1.3.11 (K11): the gold an HP costs as the menu states it: 2, or for a member 1.7 at rank 0 down to 1.3 at rank 8.</summary>
+    private static string HpRateText() => (FullHealCostPerHP * FaithShare).ToString("0.##");
+
+    /// <summary>1.3.11 (K11): the most HP a member's gold pays for, tax included; a member's rate is not a whole number of gold.</summary>
+    private static long FaithAffordableHp(long gold, long hpNeeded, long perHp)
+    {
+        long fullPrice = Taxed(FaithPrice(hpNeeded * perHp)).total;
+        long hp = fullPrice > 0 ? Math.Min(hpNeeded, (long)(gold * (decimal)hpNeeded / fullPrice)) : hpNeeded;
+        while (hp > 0 && Taxed(FaithPrice(hp * perHp)).total > gold) hp--;
+        while (hp < hpNeeded && Taxed(FaithPrice((hp + 1) * perHp)).total <= gold) hp++;
+        return hp;
+    }
+
+    /// <summary>1.3.11 (K11): the mana potion price here.</summary>
+    private static int ManaPotionCost(int playerLevel) => (int)FaithPrice(GameConfig.GetManaPotionCost(playerLevel));
+
+    /// <summary>1.3.11 (K11): the rehab price here before tax; its base and surcharge are each discounted, so the quote's parts add up.</summary>
+    private static long RehabCost(Character player) =>
+        FaithPrice(GameConfig.RehabBaseCost) + FaithPrice(player.Addict * GameConfig.RehabPerAddictionCost);
+
     /// <summary>
     /// Calculate healing potion cost scaled by player level.
     /// Uses GameConfig.HealingPotion* constants so Healer stays in sync with shops and dungeon merchants.
     /// </summary>
     private static int GetHealingPotionCost(int playerLevel)
     {
-        return (int)GameConfig.GetHealingPotionCost(playerLevel);
+        return (int)FaithPrice(GameConfig.GetHealingPotionCost(playerLevel));
     }
 
     /// <summary>
@@ -47,19 +85,7 @@ public class HealerLocation : BaseLocation
     {
         // Formula: baseCost * (1 + level^0.6)
         // Level 1: ~2x, Level 50: ~13x, Level 100: ~17x
-        return (long)(baseCost * (1 + Math.Pow(playerLevel, 0.6)));
-    }
-
-    /// <summary>
-    /// Get adjusted price with alignment, world event, and faction modifiers
-    /// </summary>
-    private long GetAdjustedPrice(long basePrice, Character player)
-    {
-        var alignmentModifier = AlignmentSystem.Instance.GetPriceModifier(player, isShadyShop: false);
-        var worldEventModifier = WorldEventSystem.Instance.GlobalPriceModifier;
-        // Apply faction discount (The Faith gets 25% off at healers)
-        var factionModifier = UsurperRemake.Systems.FactionSystem.Instance.GetHealingPriceModifier();
-        return (long)(basePrice * alignmentModifier * worldEventModifier * factionModifier * DifficultySystem.GetShopPriceMultiplier());
+        return FaithPrice((long)(baseCost * (1 + Math.Pow(playerLevel, 0.6))));
     }
 
     public HealerLocation() : base(
@@ -287,164 +313,94 @@ public class HealerLocation : BaseLocation
 
     private void ShowMenu()
     {
-        var player = GetCurrentPlayer();
-
-        // Show alignment price modifier
-        var alignmentModifier = AlignmentSystem.Instance.GetPriceModifier(player, isShadyShop: false);
-        if (alignmentModifier != 1.0f)
+        // 1.3.10: Blessed Rain makes healing free
+        if (WorldEventSystem.Instance.HealingIsFree)
         {
-            var (alignText, alignColor) = AlignmentSystem.Instance.GetAlignmentDisplay(player);
-            terminal.SetColor(alignColor);
-            if (alignmentModifier < 1.0f)
-                terminal.WriteLine($"  {Loc.Get("healer.alignment_discount", alignText, (int)((1.0f - alignmentModifier) * 100))}");
-            else
-                terminal.WriteLine($"  {Loc.Get("healer.alignment_markup", alignText, (int)((alignmentModifier - 1.0f) * 100))}");
+            terminal.SetColor("bright_green");
+            terminal.WriteLine($"  {Loc.Get("healer.blessed_rain_free")}");
         }
 
-        // Show world event price modifier
-        var worldEventModifier = WorldEventSystem.Instance.GlobalPriceModifier;
-        if (Math.Abs(worldEventModifier - 1.0f) > 0.01f)
-        {
-            if (worldEventModifier < 1.0f)
-            {
-                terminal.SetColor("bright_green");
-                terminal.WriteLine($"  {Loc.Get("healer.world_discount", (int)((1.0f - worldEventModifier) * 100))}");
-            }
-            else
-            {
-                terminal.SetColor("red");
-                terminal.WriteLine($"  {Loc.Get("healer.world_markup", (int)((worldEventModifier - 1.0f) * 100))}");
-            }
-        }
         terminal.WriteLine("");
 
         terminal.SetColor("cyan");
         terminal.WriteLine(Loc.Get("healer.services_available"));
         terminal.WriteLine("");
 
-        // Row 1 - Healing services
-        terminal.SetColor("darkgray");
-        terminal.Write(" [");
-        terminal.SetColor("bright_yellow");
-        terminal.Write("H");
-        terminal.SetColor("darkgray");
-        terminal.Write("]");
-        terminal.SetColor("white");
-        terminal.Write(Loc.Get("healer.menu_heal_suffix"));
-
-        terminal.SetColor("darkgray");
-        terminal.Write("[");
-        terminal.SetColor("bright_yellow");
-        terminal.Write("F");
-        terminal.SetColor("darkgray");
-        terminal.Write("]");
-        terminal.SetColor("white");
-        terminal.Write(Loc.Get("healer.menu_full_suffix"));
-
-        terminal.SetColor("darkgray");
-        terminal.Write("[");
-        terminal.SetColor("bright_yellow");
-        terminal.Write("B");
-        terminal.SetColor("darkgray");
-        terminal.Write("]");
-        terminal.SetColor("white");
-        terminal.Write(Loc.Get("healer.menu_potions_suffix"));
-
-        terminal.SetColor("darkgray");
-        terminal.Write("[");
-        terminal.SetColor("bright_yellow");
-        terminal.Write("M");
-        terminal.SetColor("darkgray");
-        terminal.Write("]");
-        terminal.SetColor("white");
-        terminal.WriteLine(Loc.Get("healer.menu_mana_suffix"));
-
-        // Row 2 - Disease services
-        terminal.SetColor("darkgray");
-        terminal.Write(" [");
-        terminal.SetColor("bright_yellow");
-        terminal.Write("P");
-        terminal.SetColor("darkgray");
-        terminal.Write("]");
-        terminal.SetColor("white");
-        terminal.Write(Loc.Get("healer.menu_poison_suffix"));
-
-        terminal.SetColor("darkgray");
-        terminal.Write("[");
-        terminal.SetColor("bright_yellow");
-        terminal.Write("C");
-        terminal.SetColor("darkgray");
-        terminal.Write("]");
-        terminal.SetColor("white");
-        terminal.Write(Loc.Get("healer.menu_disease_suffix"));
-
-        terminal.SetColor("darkgray");
-        terminal.Write("[");
-        terminal.SetColor("bright_yellow");
-        terminal.Write("D");
-        terminal.SetColor("darkgray");
-        terminal.Write("]");
-        terminal.SetColor("white");
-        terminal.Write(Loc.Get("healer.menu_decurse_suffix"));
-
-        terminal.SetColor("darkgray");
-        terminal.Write("[");
-        terminal.SetColor("bright_yellow");
-        terminal.Write("N");
-        terminal.SetColor("darkgray");
-        terminal.Write("]");
-        terminal.SetColor("white");
-        terminal.WriteLine(Loc.Get("healer.menu_antidotes_suffix"));
-
-        // Row 3 - Addiction & Navigation
-        terminal.SetColor("darkgray");
-        terminal.Write(" [");
-        terminal.SetColor("bright_yellow");
-        terminal.Write("A");
-        terminal.SetColor("darkgray");
-        terminal.Write("]");
-        terminal.SetColor("white");
-        terminal.Write(Loc.Get("healer.menu_addiction_suffix"));
-
-        terminal.SetColor("darkgray");
-        terminal.Write("[");
-        terminal.SetColor("bright_yellow");
-        terminal.Write("T");
-        terminal.SetColor("darkgray");
-        terminal.Write("]");
-        terminal.SetColor("white");
-        terminal.Write(Loc.Get("healer.menu_therapy_suffix"));
-
-        terminal.SetColor("darkgray");
-        terminal.Write("[");
-        terminal.SetColor("bright_yellow");
-        terminal.Write("W");
-        terminal.SetColor("darkgray");
-        terminal.Write("]");
-        terminal.SetColor("white");
-        terminal.WriteLine(Loc.Get("healer.menu_willow_suffix"));
-
-        // Row 4 - Status & Navigation
-        terminal.SetColor("darkgray");
-        terminal.Write(" [");
-        terminal.SetColor("bright_yellow");
-        terminal.Write("S");
-        terminal.SetColor("darkgray");
-        terminal.Write("]");
-        terminal.SetColor("white");
-        terminal.Write(Loc.Get("healer.menu_status_suffix"));
-
-        terminal.SetColor("darkgray");
-        terminal.Write("[");
-        terminal.SetColor("bright_yellow");
-        terminal.Write("R");
-        terminal.SetColor("darkgray");
-        terminal.Write("]");
-        terminal.SetColor("white");
-        terminal.WriteLine(Loc.Get("healer.menu_return_suffix"));
+        // 1.3.10 (play test B16): the rows as cells, laid out by MenuGridRows, so no label runs into the next key
+        // ("[D] Decurse Item[N] Buy Antidotes") in any language
+        foreach (var row in MenuGridRows(MenuRows(), 79))
+        {
+            foreach (var (key, label, pad) in row)
+            {
+                terminal.SetColor("darkgray");
+                terminal.Write(" [");
+                terminal.SetColor("bright_yellow");
+                terminal.Write(key);
+                terminal.SetColor("darkgray");
+                terminal.Write("]");
+                terminal.SetColor("white");
+                terminal.Write(" " + label + new string(' ', pad));
+            }
+            terminal.WriteLine("");
+        }
         terminal.WriteLine("");
 
         ShowStatusLine();
+    }
+
+    /// <summary>1.3.10 (play test B16): the visual menu's four rows of (key, label) cells.</summary>
+    internal static List<List<(string Key, string Label)>> MenuRows()
+    {
+        (string, string) C(string key, string suffix) => (key, Loc.Get($"healer.menu_{suffix}_suffix").Trim());
+        return new()
+        {
+            new() { C("H", "heal"), C("F", "full"), C("B", "potions"), C("M", "mana") },
+            new() { C("P", "poison"), C("C", "disease"), C("D", "decurse"), C("N", "antidotes") },
+            new() { C("A", "addiction"), C("T", "therapy"), C("W", "willow") },
+            new() { C("S", "status"), C("R", "return") },
+        };
+    }
+
+    /// <summary>
+    /// 1.3.10 (play test B16): menu rows laid out as " [K] Label" cells, each cell followed by its padding. Columns are
+    /// as wide as the widest label in them plus two spaces, when every row then fits the width; otherwise each row's
+    /// cells are packed two spaces apart and wrap to a new line before the width. A cell never touches the next key.
+    /// </summary>
+    internal static List<List<(string Key, string Label, int Pad)>> MenuGridRows(List<List<(string Key, string Label)>> rows, int width)
+    {
+        int cols = rows.Max(r => r.Count);
+        var colWidth = new int[cols];
+        foreach (var r in rows)
+            for (int i = 0; i < r.Count - 1; i++)
+                colWidth[i] = Math.Max(colWidth[i], r[i].Label.Length + 2);
+        bool fits = rows.All(r => r.Select((c, i) => i < r.Count - 1 ? 5 + colWidth[i] : 5 + c.Label.Length).Sum() <= width);
+        var outRows = new List<List<(string, string, int)>>();
+        foreach (var r in rows)
+        {
+            if (fits)
+            {
+                outRows.Add(r.Select((c, i) => (c.Key, c.Label, i < r.Count - 1 ? colWidth[i] - c.Label.Length : 0)).ToList());
+                continue;
+            }
+            var line = new List<(string, string, int)>();
+            int used = 0;
+            foreach (var c in r)
+            {
+                int len = 5 + c.Label.Length;
+                if (line.Count > 0 && used + 2 + len > width)
+                {
+                    line[^1] = (line[^1].Item1, line[^1].Item2, 0);
+                    outRows.Add(line);
+                    line = new List<(string, string, int)>();
+                    used = 0;
+                }
+                if (line.Count > 0) { line[^1] = (line[^1].Item1, line[^1].Item2, 2); used += 2; }
+                line.Add((c.Key, c.Label, 0));
+                used += len;
+            }
+            outRows.Add(line);
+        }
+        return outRows;
     }
 
     private void ShowFullMenu()
@@ -457,10 +413,10 @@ public class HealerLocation : BaseLocation
 
         WriteSectionHeader(Loc.Get("healer.section_healing"), "cyan");
         terminal.SetColor("white");
-        terminal.WriteLine(Loc.Get("healer.menu_heal_hp", FullHealCostPerHP));
+        terminal.WriteLine(Loc.Get("healer.menu_heal_hp", HpRateText()));
         terminal.WriteLine(Loc.Get("healer.menu_full_heal"));
         terminal.WriteLine(Loc.Get("healer.menu_buy_potions", GetHealingPotionCost(player.Level)));
-        terminal.WriteLine(Loc.Get("healer.menu_mana_potions", GameConfig.GetManaPotionCost(player.Level)));
+        terminal.WriteLine(Loc.Get("healer.menu_mana_potions", ManaPotionCost(player.Level)));
         terminal.WriteLine(Loc.Get("healer.menu_poison_cure", $"{CalculateDiseaseCost(PoisonBaseCost, player.Level):N0}"));
         terminal.WriteLine("");
 
@@ -478,10 +434,10 @@ public class HealerLocation : BaseLocation
         WriteSectionHeader(Loc.Get("healer.section_other"), "cyan");
         terminal.SetColor("white");
         terminal.WriteLine(Loc.Get("healer.menu_decurse", $"{CalculateDiseaseCost(CursedItemBaseCost, player.Level):N0}"));
-        long rehabCost = GameConfig.RehabBaseCost + (player.Addict * GameConfig.RehabPerAddictionCost);
+        long rehabCost = RehabCost(player);
         terminal.WriteLine(Loc.Get("healer.menu_addiction", $"{rehabCost:N0}"));
-        terminal.WriteLine(Loc.Get("healer.menu_therapy", $"{CityControlSystem.CalculateHealingTaxedPrice(MentalSystem.TherapyCost(player)).total:N0}"));
-        terminal.WriteLine(Loc.Get("healer.menu_willow", $"{CityControlSystem.CalculateHealingTaxedPrice(MentalSystem.WillowDraughtPrice(player.Level)).total:N0}", GameConfig.MentalWillowDraughtGain, GameConfig.MaxWillowDraughts));
+        terminal.WriteLine(Loc.Get("healer.menu_therapy", $"{CityControlSystem.CalculateHealingTaxedPrice(FaithPrice(MentalSystem.TherapyCost(player))).total:N0}"));
+        terminal.WriteLine(Loc.Get("healer.menu_willow", $"{CityControlSystem.CalculateHealingTaxedPrice(FaithPrice(MentalSystem.WillowDraughtPrice(player.Level))).total:N0}", GameConfig.MentalWillowDraughtGain, GameConfig.MaxWillowDraughts));
         terminal.WriteLine(Loc.Get("healer.menu_status"));
         terminal.WriteLine(Loc.Get("healer.menu_return"));
         terminal.WriteLine("");
@@ -558,17 +514,19 @@ public class HealerLocation : BaseLocation
         }
 
         long hpNeeded = player.MaxHP - player.HP;
-        long maxCost = hpNeeded * FullHealCostPerHP;
-        var (_, _, maxCostWithTax) = CityControlSystem.CalculateHealingTaxedPrice(maxCost);
+        long perHp = HealCostPerHP;   // 1.3.10: 0 while Blessed Rain falls
+        long maxCost = FaithPrice(hpNeeded * perHp);
+        var (_, _, maxCostWithTax) = Taxed(maxCost);
         // Calculate effective per-HP cost including taxes for affordability
-        long effectivePerHP = hpNeeded > 0 ? maxCostWithTax / hpNeeded : FullHealCostPerHP;
-        if (effectivePerHP < FullHealCostPerHP) effectivePerHP = FullHealCostPerHP;
+        long effectivePerHP = hpNeeded > 0 ? maxCostWithTax / hpNeeded : perHp;
+        if (effectivePerHP < perHp) effectivePerHP = perHp;
 
         terminal.WriteLine(Loc.Get("healer.how_much_hp"), "cyan");
         terminal.WriteLine(Loc.Get("healer.asks", Manager), "gray");
         terminal.WriteLine("");
         terminal.WriteLine(Loc.Get("shop.healing_cost", hpNeeded, $"{maxCostWithTax:N0}"), "gray");
-        terminal.WriteLine(Loc.Get("healer.base_cost_info", FullHealCostPerHP), "gray");
+        if (perHp == 0) terminal.WriteLine(Loc.Get("healer.blessed_rain_free"), "bright_green");
+        else terminal.WriteLine(Loc.Get("healer.base_cost_info", HpRateText()), "gray");
         terminal.WriteLine("");
 
         var input = await terminal.GetInput(Loc.Get("healer.hp_prompt"));
@@ -584,25 +542,26 @@ public class HealerLocation : BaseLocation
         if (hpToHeal > hpNeeded)
             hpToHeal = hpNeeded;
 
-        long cost = hpToHeal * FullHealCostPerHP;
-        var (healKingTax, healCityTax, healTotalWithTax) = CityControlSystem.CalculateHealingTaxedPrice(cost);
+        long cost = FaithPrice(hpToHeal * perHp);
+        var (healKingTax, healCityTax, healTotalWithTax) = Taxed(cost);
 
         if (player.Gold < healTotalWithTax)
         {
-            long canAfford = effectivePerHP > 0 ? player.Gold / effectivePerHP : 0;
+            long canAfford = FaithShare < 1m ? FaithAffordableHp(player.Gold, hpNeeded, perHp)
+                : effectivePerHP > 0 ? player.Gold / effectivePerHP : 0;
             terminal.WriteLine(Loc.Get("healer.cant_afford_healing"), "red");
             terminal.WriteLine(Loc.Get("healer.can_afford_up_to", canAfford), "yellow");
             await terminal.PressAnyKey();
             return;
         }
 
-        CityControlSystem.Instance.DisplayTaxBreakdown(terminal, Loc.Get("healer.tax_healing"), cost);
+        if (cost > 0) CityControlSystem.Instance.DisplayTaxBreakdown(terminal, Loc.Get("healer.tax_healing"), cost);
 
         // Perform healing
         player.Gold -= healTotalWithTax;
         player.Statistics.RecordGoldSpent(healTotalWithTax);
         player.Statistics.RecordHealthRestored(hpToHeal);
-        CityControlSystem.Instance.ProcessSaleTax(cost);
+        if (cost > 0) CityControlSystem.Instance.ProcessSaleTax(cost);
         player.HP += (int)hpToHeal;
         if (player.HP > player.MaxHP) player.HP = player.MaxHP;
 
@@ -643,13 +602,14 @@ public class HealerLocation : BaseLocation
         }
 
         long hpNeeded = player.MaxHP - player.HP;
-        long cost = hpNeeded * FullHealCostPerHP;
-        var (fullHealKingTax, fullHealCityTax, fullHealTotalWithTax) = CityControlSystem.CalculateHealingTaxedPrice(cost);
+        long cost = FaithPrice(hpNeeded * HealCostPerHP);   // 1.3.10: 0 while Blessed Rain falls
+        var (fullHealKingTax, fullHealCityTax, fullHealTotalWithTax) = Taxed(cost);
 
         terminal.WriteLine(Loc.Get("healer.full_restore_cost", $"{fullHealTotalWithTax:N0}", Manager), "cyan");
+        if (cost == 0) terminal.WriteLine(Loc.Get("healer.blessed_rain_free"), "bright_green");
         terminal.WriteLine("");
 
-        CityControlSystem.Instance.DisplayTaxBreakdown(terminal, Loc.Get("healer.tax_full_healing"), cost);
+        if (cost > 0) CityControlSystem.Instance.DisplayTaxBreakdown(terminal, Loc.Get("healer.tax_full_healing"), cost);
 
         // v1.1.15: yesno-convert-a, strict (Y/N)
         if (!await terminal.AskYesNoAsync(Loc.Get("healer.proceed_full_heal")))
@@ -670,7 +630,7 @@ public class HealerLocation : BaseLocation
         player.Gold -= fullHealTotalWithTax;
         player.Statistics.RecordGoldSpent(fullHealTotalWithTax);
         player.Statistics.RecordHealthRestored(hpNeeded);
-        CityControlSystem.Instance.ProcessSaleTax(cost);
+        if (cost > 0) CityControlSystem.Instance.ProcessSaleTax(cost);
         player.HP = player.MaxHP;
 
         terminal.WriteLine("");
@@ -773,7 +733,7 @@ public class HealerLocation : BaseLocation
         // v0.52.5: Non-casters can buy mana potions to give to teammates via Aid Ally
         // (restriction removed — was blocking non-mana classes entirely)
 
-        int potionPrice = (int)GameConfig.GetManaPotionCost(player.Level);
+        int potionPrice = ManaPotionCost(player.Level);
         int manaRestored = 30 + player.Level * 5;
         var (_, _, singleManaWithTax) = CityControlSystem.CalculateHealingTaxedPrice(potionPrice);
 
@@ -840,7 +800,7 @@ public class HealerLocation : BaseLocation
     private async Task BuyAntidotes()
     {
         var player = GetCurrentPlayer();
-        int antidoteBaseCost = 75;
+        int antidoteBaseCost = (int)FaithPrice(75);
         var (_, _, antidotePriceWithTax) = CityControlSystem.CalculateHealingTaxedPrice(antidoteBaseCost);
 
         terminal.WriteLine("");
@@ -1359,7 +1319,7 @@ public class HealerLocation : BaseLocation
         {
             terminal.SetColor("red");
             terminal.WriteLine(Loc.Get("healer.addicted_level", player.Addict));
-            long rehabCost = GameConfig.RehabBaseCost + (player.Addict * GameConfig.RehabPerAddictionCost);
+            long rehabCost = RehabCost(player);
             terminal.SetColor("yellow");
             terminal.WriteLine(Loc.Get("healer.rehab_available", $"{rehabCost:N0}"));
         }
@@ -1388,6 +1348,7 @@ public class HealerLocation : BaseLocation
         }
 
         long cost = MentalSystem.TherapyCost(player);
+        cost = FaithPrice(cost);
         var (_, _, costWithTax) = CityControlSystem.CalculateHealingTaxedPrice(cost);
         WriteSectionHeader(Loc.Get("healer.therapy_title"), "bright_magenta");
         terminal.WriteLine("");
@@ -1444,6 +1405,7 @@ public class HealerLocation : BaseLocation
         }
 
         long price = MentalSystem.WillowDraughtPrice(player.Level);
+        price = FaithPrice(price);
         var (_, _, priceWithTax) = CityControlSystem.CalculateHealingTaxedPrice(price);
         terminal.WriteLine(Loc.Get("healer.willow_desc", Manager, GameConfig.MentalWillowDraughtGain), "cyan");
         terminal.WriteLine(Loc.Get("healer.willow_price", $"{priceWithTax:N0}", player.WillowDraughts, GameConfig.MaxWillowDraughts), "gray");
@@ -1487,8 +1449,8 @@ public class HealerLocation : BaseLocation
             return;
         }
 
-        long baseCost = GameConfig.RehabBaseCost;
-        long addictionCost = player.Addict * GameConfig.RehabPerAddictionCost;
+        long baseCost = FaithPrice(GameConfig.RehabBaseCost);
+        long addictionCost = FaithPrice(player.Addict * GameConfig.RehabPerAddictionCost);
         long totalCost = baseCost + addictionCost;
         var (_, _, totalWithTax) = CityControlSystem.CalculateHealingTaxedPrice(totalCost);
 

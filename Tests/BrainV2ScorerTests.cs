@@ -52,7 +52,8 @@ public class BrainV2ScorerTests
             BaseArmPow = armPow,
             ArmPow = armPow,
         };
-        var profile = PersonalityProfile.GenerateForArchetype("commoner");
+        // Scorer assertions depend on which seeded goal is on top, so turn off the v1.3.9 trait noise.
+        var profile = PersonalityProfile.GenerateForArchetype("commoner", jitter: false);
         profile.Impulsiveness = impulsiveness;
         npc.Personality = profile;
         npc.Brain = new NPCBrain(npc, profile);

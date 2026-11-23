@@ -1,8 +1,14 @@
 ---
 title: Crime, prison and the law
 path: /wiki/en/world/law/
-checked: 1.3.8
+checked: 1.3.14
 sources: Scripts/Locations/PrisonLocation.cs, Scripts/Systems/PrisonActivitySystem.cs, Scripts/Systems/StreetEncounterSystem.cs, Scripts/Locations/BaseLocation.cs, Scripts/Locations/CastleLocation.cs, Scripts/Systems/QuestSystem.cs, Scripts/Locations/QuestHallLocation.cs, Scripts/Locations/PrisonWalkLocation.cs, Scripts/Systems/DailySystemManager.cs, Scripts/Systems/WorldSimulator.cs, Scripts/Locations/MagicShopLocation.cs, Scripts/Locations/ChurchLocation.cs, Scripts/Locations/HomeLocation.cs, Scripts/Locations/InnLocation.cs, Scripts/Locations/DungeonLocation.cs, Scripts/Systems/SocialInfluenceSystem.cs, Scripts/Core/NPC.cs, Scripts/Systems/CombatEngine.cs, Scripts/Core/GameConfig.cs
+history: 1.3.14 | none
+history: 1.3.13 | none
+history: 1.3.12 | none
+history: 1.3.11 | none
+history: 1.3.10 | A murdered townsperson comes back after a while and remembers the killer, a bounty another player claimed is not paid to you, and paying bail no longer ends the session.
+history: 1.3.9 | A guard patrol or any other street encounter no longer takes keys typed before it appeared.
 history: 1.3.8 | none
 history: 1.3.7 | none
 history: 1.3.6 | none
@@ -31,7 +37,7 @@ A badly failed pickpocket attempt or an undercover guard in the Dark Alley can a
 
 ## What happens if I murder someone in town
 
-After a murder in town that is not a bounty kill, 5 royal guards of your level + 5 come for you. You can surrender or fight. Win the fight and you go free with 100 more Darkness. Lose it, or surrender, and a coin is flipped: on one side you are executed, on the other you go to prison. Execution kills the character; in single-player the normal death and resurrection choices follow. Prison for murder takes half your gold on hand and lasts 2 days with no escape attempt, no bail and no demand for release.
+A murdered townsperson comes back after a while like any NPC who dies, and remembers who killed them. After a murder in town that is not a bounty kill, 5 royal guards of your level + 5 come for you. You can surrender or fight. Win the fight and you go free with 100 more Darkness. Lose it, or surrender, and a coin is flipped: on one side you are executed, on the other you go to prison. Execution kills the character; in single-player the normal death and resurrection choices follow. Prison for murder takes half your gold on hand and lasts 2 days with no escape attempt, no bail and no demand for release.
 
 Self-defense against a street attacker is not murder. Neither is an honor duel: the NPC you beat keeps the HP it had before the fight and stays where it is. Honor duels in town and duels at the Inn share one daily cap of 3 wins.
 
@@ -82,7 +88,7 @@ You can do 3 activities a day. Each one but Shadow Boxing raises an attribute by
 - **Meditation:** Wisdom, and a tenth of your maximum HP back.
 - **Stretching:** Stamina, and a twentieth of your maximum HP back.
 - **Planning:** Charisma.
-- **Shadow Boxing:** 10 combat stamina back, up to 100.
+- **Shadow Boxing:** 10 combat stamina back, up to your maximum.
 - **Praying:** 10 to 20 Chivalry when your Chivalry is higher than your Darkness, otherwise 10 to 20 Darkness.
 
 ## Getting out of prison
@@ -95,6 +101,6 @@ You can do 3 activities a day. Each one but Shadow Boxing raises an attribute by
 
 ## Bounties
 
-The ruler posts bounties on criminals, and a citizen can report a crime at a royal audience. An unpaid royal loan can put a bounty on you. Read the bounty board at the Quest Hall. Defeating a bounty target pays the reward, but a win in an honor duel does not pay a kill contract on the NPC; a bounty on a player goes to whoever beats them in a duel or the [Arena](/wiki/en/online/arena/). Very feared characters can also meet bounty hunters in the street.
+The ruler posts bounties on criminals, and a citizen can report a crime at a royal audience. An unpaid royal loan can put a bounty on you. Read the bounty board at the Quest Hall. Defeating a bounty target pays the reward unless another player claimed that bounty, but a win in an honor duel does not pay a kill contract on the NPC; a bounty on a player goes to whoever beats them in a duel or the [Arena](/wiki/en/online/arena/). Very feared characters can also meet bounty hunters in the street.
 
 Judicar rewards appropriate prison orders and treats theft as a taboo. See the [god pages](/wiki/en/gods/) for deeds and taboos.

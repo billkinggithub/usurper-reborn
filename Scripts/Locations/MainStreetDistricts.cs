@@ -266,28 +266,114 @@ public partial class MainStreetLocation
 
     /// <summary>
     /// v1.1.13: a district or hub. Shows its unlocked places, takes one valid key (a typo asks again),
-    /// and does it. Every place is left back to Main Street, and so is every screen shown here.
+    /// and does it. 1.3.10 (play test N3): a place left with its own return key comes back to this district (the
+    /// district is kept in _returnDistrict and drawn again on the way back), and a screen shown here returns to it too;
+    /// R leaves to Main Street. A district with one open place opens that place at once (Castle Grounds and Home and
+    /// Hearth at menu tier 2), so there is no screen with a single choice, and that place leads back to Main Street.
     /// </summary>
     private async Task<bool> EnterDistrict(District district)
     {
-        var places = PlacesIn(district.Group, CurrentStreetView());
-        if (places.Count == 0) return false;
-        DrawDistrict(district, places);
-        var keys = places.Select(p => p.Key).Append(ReturnKey).ToList();
-        string pick = await terminal.GetValidChoice(Loc.Get("ui.your_choice"), keys, ReturnKey);
-        if (pick == ReturnKey) return false;
-        return await VisitPlace(places.First(p => p.Key == pick).Place);
+        while (true)
+        {
+            var places = PlacesIn(district.Group, CurrentStreetView());
+            if (places.Count == 0) return false;
+            if (places.Count == 1) return await VisitPlace(places[0].Place);
+            DrawDistrict(district, places);
+            var keys = places.Select(p => p.Key).Append(ReturnKey).ToList();
+            string pick = await terminal.GetValidChoice(Loc.Get("ui.your_choice"), keys, ReturnKey);
+            if (pick == ReturnKey)
+            {
+                // 1.3.10 (play test A2): the district sent its own Room.Info, so the street is named again
+                LocationManager.Instance.EmitRoomInfo(GameLocation.MainStreet);
+                return false;
+            }
+            var place = places.First(p => p.Key == pick).Place;
+            var destination = DestinationOf(place, DoorMode.IsOnlineMode);
+            if (destination != null) { _returnDistrict = district; _returnFrom = destination.Value; }
+            bool left = await VisitPlace(place);   // a place with its own screen is left by LocationExitException
+            _returnDistrict = null;
+            if (left) return true;
+        }
+    }
+
+    /// <summary>
+    /// 1.3.10 (play test A2): GMCP Room.Info for a district screen, so a client (the web page's plate and status line, a
+    /// MUD mapper) names the district the player stands in. Its num is a text id ("district:MerchantRow"), not a town
+    /// location number, as a dungeon room's is; its exits are the places it lists that are town locations, and Main
+    /// Street. Leaving to the street sends Main Street's Room.Info again (EnterDistrict). A no-op without GMCP.
+    /// </summary>
+    private void EmitDistrictRoomInfo(District district, string name, List<StreetEntry> places)
+    {
+        if (!UsurperRemake.Server.GmcpBridge.IsActive) return;
+        bool online = DoorMode.IsOnlineMode;
+        var exits = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in places)
+            if (DestinationOf(p.Place, online) is GameLocation dest) exits[LocationManager.GmcpExitName(dest)] = (int)dest;
+        exits[LocationManager.GmcpExitName(GameLocation.MainStreet)] = (int)GameLocation.MainStreet;
+        UsurperRemake.Server.GmcpBridge.Emit("Room.Info", new
+        {
+            num = DistrictRoomId(district),
+            name,
+            area = "Usurper Reborn",
+            exits
+        });
+    }
+
+    /// <summary>1.3.10 (play test A2): a district's Room.Info num.</summary>
+    internal static string DistrictRoomId(District district) => "district:" + district.Group;
+
+    /// <summary>1.3.10 (play test N3): the district a place was entered from, and the location that place is.</summary>
+    private District? _returnDistrict;
+    private GameLocation _returnFrom;
+
+    /// <summary>
+    /// 1.3.10 (play test N3): the district to show on entering Main Street, taken once: the one a place was entered
+    /// from, when the player comes straight back from that place, still has the districts layout and nothing more
+    /// urgent waits (alive, not jailed, no collapse due); null otherwise.
+    /// </summary>
+    internal District? TakeReturnDistrict(GameLocation cameFrom)
+    {
+        var district = _returnDistrict;
+        _returnDistrict = null;
+        if (district == null || cameFrom != _returnFrom || UseClassicLayout || currentPlayer == null || !currentPlayer.IsAlive
+            || currentPlayer.DaysInPrison > 0 || MentalSystem.CollapseDue(currentPlayer)) return null;
+        return district;
+    }
+
+    /// <summary>1.3.10 (play test N3): back from a place to the district it was entered from. True when a place is left to.</summary>
+    internal async Task<bool> ShowReturnDistrict(GameLocation cameFrom)
+    {
+        var district = TakeReturnDistrict(cameFrom);
+        return district != null && await EnterDistrict(district);
+    }
+
+    protected override async Task LocationLoop()
+    {
+        if (await ShowReturnDistrict(LocationManager.Instance.PreviousLocationId)) return;
+        await base.LocationLoop();
+    }
+
+    /// <summary>
+    /// 1.3.10 (play test B17): the description a district shows: its ".early" text while some of its places are still
+    /// locked by the menu tier (Guild Row's names priests and bankers, whose Temple and Bank open at tier 2).
+    /// </summary>
+    internal static string DistrictDescKey(District d, StreetView v)
+    {
+        string early = d.DescKey + ".early";
+        bool allOpen = StreetEntries.Where(e => e.Group == d.Group).All(e => e.Tier <= v.Tier);
+        return !allOpen && Loc.Has(early) ? early : d.DescKey;
     }
 
     private void DrawDistrict(District district, List<StreetEntry> places)
     {
         terminal.ClearScreen();
         string name = DistrictName(district, OnlinePlayerCount());
+        EmitDistrictRoomInfo(district, name, places);
         string back = Loc.Get("location.return_main_street");
         if (IsScreenReader)
         {
             terminal.WriteLine(name, "bright_white");
-            terminal.WriteLine(Loc.Get(district.DescKey), "gray");
+            terminal.WriteLine(Loc.Get(DistrictDescKey(district, CurrentStreetView())), "gray");
             terminal.WriteLine("");
             foreach (var p in places) terminal.WriteLine($"  {p.Key} - {Loc.Get(p.LabelKey)}", "white");
             terminal.WriteLine($"  {ReturnKey} - {back}", "white");
@@ -302,7 +388,7 @@ public partial class MainStreetLocation
             terminal.Write(name);
             terminal.SetColor("bright_blue");
             terminal.WriteLine(" ═══");
-            terminal.WriteLine(Loc.Get(district.DescKey), "gray");
+            terminal.WriteLine(Loc.Get(DistrictDescKey(district, CurrentStreetView())), "gray");
             WritePackedRow(places.Select(p => (p.Key, Loc.Get(p.LabelKey), p.Color))
                 .Append((ReturnKey, back, "gray")));
             terminal.WriteLine("");
@@ -310,7 +396,7 @@ public partial class MainStreetLocation
         }
         WriteBoxHeader(name, "bright_cyan");
         terminal.WriteLine("");
-        terminal.WriteLine($"  {Loc.Get(district.DescKey)}", "gray");
+        terminal.WriteLine($"  {Loc.Get(DistrictDescKey(district, CurrentStreetView()))}", "gray");
         terminal.WriteLine("");
         foreach (var p in places) WriteKeyedLine(p.Key, Loc.Get(p.LabelKey), p.Color);
         terminal.WriteLine("");
@@ -439,7 +525,7 @@ public partial class MainStreetLocation
         bool firstSeen = !player.HintsShown.Contains("menu_tier_1");
         var added = Enumerable.Range(1, tier).Where(t => player.HintsShown.Add($"menu_tier_{t}")).ToList();
         if (firstSeen || added.Count == 0) return new List<string>();
-        if (player.ClassicMainStreet) return ClassicUnlockLines(added.Min() - 1, tier); // v1.1.14: no districts to name
+        if (!player.DistrictsMainStreet) return ClassicUnlockLines(added.Min() - 1, tier); // v1.1.14: no districts to name
         return UnlockLines(added.Min() - 1, tier);
     }
 
@@ -463,9 +549,42 @@ public partial class MainStreetLocation
     /// </summary>
     internal static string? TakeClassicLayoutTip(Character player, bool noticeShown)
     {
-        if (player == null || player.ClassicMainStreet || noticeShown || player.ClassicTipDraws >= ClassicTipDrawLimit) return null;
+        if (player == null || !player.DistrictsMainStreet || noticeShown || player.ClassicTipDraws >= ClassicTipDrawLimit) return null;
         player.ClassicTipDraws++;
         return Loc.Get("main_street.classic_tip");
+    }
+
+    /// <summary>
+    /// 2.0: the text keys that name a district key path (Guild Row [G], Level Master [V] and the like). Each has a
+    /// "&lt;key&gt;.classic" variant in every language giving the classic keys and places instead.
+    /// </summary>
+    internal static readonly HashSet<string> ClassicTextKeys = new()
+    {
+        "church.marriage_step1", "church.marriage_step3",
+        "journal.next_heal", "journal.next_level_up", "journal.next_turn_in", "journal.next_merc_turn_in", "journal.next_training",
+        "journal.line_training_points", "journal.line_level_ready", "journal.line_free_blessing",
+        "base.training_points_hint", "base.train_how", "base.stat_awakening_hint",
+        "hint.awakening.msg", "hint.low_hp.msg", "hint.first_level_up.msg", "hint.level_master.msg", "hint.mana_spells.msg",
+        "hint.quest_system.msg", "hint.getting_started.msg",
+        "castle.visit_quest_hall",
+    };
+
+    /// <summary>
+    /// 2.0: the one place that picks a Main Street key text for the player's layout: the ".classic" variant of a
+    /// ClassicTextKeys key unless the player chose the districts (DistrictsMainStreet); any other key unchanged.
+    /// </summary>
+    public static string StreetTextKey(string key, Character? player) =>
+        player?.DistrictsMainStreet != true && ClassicTextKeys.Contains(key) ? key + ".classic" : key;
+
+    /// <summary>
+    /// 1.3.10: the awakening pointers (base.stat_awakening_hint, hint.awakening.msg) for this player. The districts
+    /// open Progress [P] at the full menu tier, so a districts player below it gets the ".early" text, which says from
+    /// which level; classic takes P at any level.
+    /// </summary>
+    internal static string AwakeningTextKey(string key, Character? player)
+    {
+        string k = StreetTextKey(key, player);
+        return k == key && player != null && TierForLevel(player.Level) < 3 ? key + ".early" : k;
     }
 
     /// <summary>v1.1.13: the help screen: every unlocked place under the key path that reaches it.</summary>

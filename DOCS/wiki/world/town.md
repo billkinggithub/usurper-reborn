@@ -1,8 +1,14 @@
 ---
 title: Main Street directory
 path: /wiki/en/world/town/
-checked: 1.3.8
+checked: 1.3.14
 sources: Scripts/Locations/MainStreetLocation.cs, Scripts/Locations/MainStreetDistricts.cs, Scripts/Locations/MainStreetClassic.cs, Scripts/Locations/DormitoryLocation.cs, Scripts/Locations/LevelMasterLocation.cs, Scripts/Locations/QuestHallLocation.cs, Scripts/Locations/TeamCornerLocation.cs, Scripts/Locations/MarketplaceLocation.cs, Scripts/Locations/NewsLocation.cs, Scripts/Systems/LocationManager.cs, Scripts/Core/GameConfig.cs, Scripts/Systems/MarketplaceSystem.cs, Scripts/Locations/BaseLocation.cs
+history: 1.3.14 | none
+history: 1.3.13 | none
+history: 1.3.12 | none
+history: 1.3.11 | The Dormitory and Love Street menu rows fit within 79 columns in every language.
+history: 1.3.10 | Good Deeds (G) is on the classic Main Street menu and giving gold to the poor costs your level x 20 gold, leaving a place returns you to the district you came from, sleeping in the single-player Dormitory waits for the evening, and the offline Auction House lets you take a listing back.
+history: 1.3.9 | Main Street opens in the classic layout by default, with the districts layout a choice in Settings.
 history: 1.3.8 | none
 history: 1.3.7 | none
 history: 1.3.6 | none
@@ -15,7 +21,7 @@ history: 1.2.6 | A new team's name at Team Corner cannot contain < > & or a doub
 history: 1.2.5 | Main Street, the Dormitory, the Level Master, Team Corner and the Marketplace are shown in all five languages, and Dormitory murder mail reaches the victim in the victim's language.
 history: 1.2.4 | Long news rows wrap at 79 columns, and the notice to a sleeper you attack in the Dormitory reaches their mailbox.
 ---
-Main Street shows a few places and a list of districts. Press a district's key to open it, then the place's key; R goes back. More places appear as you gain your first levels. The classic single-screen layout can be chosen in Settings (`~`).
+Main Street shows the classic single-screen menu by default, with a key for each place. More places appear as you gain your first levels. The district layout can be chosen in Settings (`~`, then S): it shows a few places and a list of districts. Press a district's key to open it, then the place's key; R goes back. Leaving a place you opened from a district brings you back to that district. A district with only one place open opens that place at once: until the full menu at level 5 that is the Castle in Castle Grounds and Home in Home and Hearth. The sections below follow the district layout.
 
 ## Main Street
 
@@ -47,7 +53,7 @@ Online only: press O, then W Who's Online, C Chat, A [Arena](/wiki/en/online/are
 
 ## Lodging
 
-Lodging is the Dormitory. You can list and examine the other sleepers and sleep there. In single-player sleeping is free, restores you fully and starts a new day. Online a Dormitory bed costs {{balance:DormitorySleepCost}} gold; sleeping saves and logs you out, and leaves you open to attack while you sleep. Online you can also attack a sleeper for gold. The Inn also rents rooms online; see [the Inn](/wiki/en/world/rest/).
+Lodging is the Dormitory. You can list and examine the other sleepers and sleep there. In single-player sleeping is free and, as at the Inn and Home, only in the evening: you recover fully and wake the next morning. Online a Dormitory bed costs {{balance:DormitorySleepCost}} gold; sleeping saves and logs you out, and leaves you open to attack while you sleep. Online you can also attack a sleeper for gold. The Inn also rents rooms online; see [the Inn](/wiki/en/world/rest/).
 
 ## Level Master
 
@@ -63,6 +69,6 @@ Create, join or leave a team, recruit NPCs for a daily wage, equip and resurrect
 
 ## Auction House and News
 
-Offline, the Auction House lets you list an item at your own price and buy other listings; a listing expires after 30 real days. Online, a listing runs 12, 24, 48 or 72 hours for a fee of 5, 4, 3 or 2 percent of the price plus the king's tax. The [shops guide](/wiki/en/items/shops/) has the details. News is the town's newsboard, newest first.
+Offline, the Auction House lets you list an item at your own price, take a listing back (W) and buy other listings; a listing unsold after 30 real days comes back to you. Online, a listing runs 12, 24, 48 or 72 hours for a fee of 5, 4, 3 or 2 percent of the price plus the king's tax. The [shops guide](/wiki/en/items/shops/) has the details. News is the town's newsboard, newest first.
 
 The Gym from older versions was removed and cannot be reached.

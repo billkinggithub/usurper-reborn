@@ -174,8 +174,10 @@ public class Character
     public bool AutoLevelUp { get; set; } = true;  // auto-level when XP threshold met (on by default)
     public bool AutoEquipDisabled { get; set; }      // when true, shop purchases go straight to inventory
     public int AutoCombatHealPercent { get; set; } = GameConfig.AutoCombatHealPercentDefault; // v1.1.13: auto-combat drinks a potion at or below this HP %
-    public bool ClassicMainStreet { get; set; }      // v1.1.14: Main Street in the pre-1.1.13 layout instead of districts (off by default)
+    public bool DistrictsMainStreet { get; set; }    // 2.0: Main Street in districts instead of the classic layout (off by default, chosen in Settings)
+    public bool ClassicMainStreet => !DistrictsMainStreet; // v1.1.14 save field, now derived: true when the classic layout is shown
     public bool MenuKeysNeedEnter { get; set; } = true; // v1.1.15: single-player console menus wait for Enter (on by default)
+    public bool WebMenuKeysNeedEnter { get; set; } = false; // 1.3.9: web client menus wait for Enter; off by default (one-key menus on the web)
     public int ClassicTipDraws { get; set; }         // v1.1.14: district Main Street draws that showed the switch-to-classic tip (stops at 10)
     public int DateFormatPreference { get; set; }    // 0=MM/DD/YYYY, 1=DD/MM/YYYY, 2=YYYY-MM-DD
     public bool AutoRedistributeXP { get; set; } = true; // auto-redistribute XP when teammates die in combat
@@ -596,7 +598,26 @@ public class Character
 
     // Combat Stamina System - resource for special abilities
     // Formula: MaxCombatStamina = 50 + (Stamina stat * 2) + (Level * 3) + armor weight bonus
-    public long CurrentCombatStamina { get; set; } = 100;
+    /// <summary>1.3.10 (C5): the line "A life was spent. Lives left: N of M." from the last death, shown once by the
+    /// Temple's hall, where a death lands; run time only, never saved.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? PendingLifeNotice { get; set; }
+
+    // 1.3.10 (G6): the fight stamina is not saved, and it started at a fixed 100 on every new or loaded character,
+    // above the maximum of a low level character (100/78 on the status line). Until something sets it, it is now the
+    // maximum; RecalculateStats lowers it to a maximum that dropped (level, Stamina, armor).
+    private long? _currentCombatStamina;
+    public long CurrentCombatStamina
+    {
+        get => _currentCombatStamina ?? MaxCombatStamina;
+        set => _currentCombatStamina = value;
+    }
+
+    /// <summary>1.3.10 (G6): lowers the fight stamina to the maximum when the maximum is below it.</summary>
+    public void ClampCombatStamina()
+    {
+        if (_currentCombatStamina is long v && v > MaxCombatStamina) _currentCombatStamina = MaxCombatStamina;
+    }
     public long MaxCombatStamina
     {
         get
@@ -947,6 +968,7 @@ public class Character
     public int SettlementBuffType { get; set; }       // 0=None, 1=XPBonus, 2=DefenseBonus
     public int SettlementBuffCombats { get; set; }    // Remaining combats
     public float SettlementBuffValue { get; set; }    // Buff multiplier
+    public int SmugglersCachePurchases { get; set; }  // 1.3.10 (P6): Smugglers' Cache purchases left at the discount
     public bool HasSettlementBuff => SettlementBuffType > 0 && SettlementBuffCombats > 0;
     public bool SettlementGoldClaimedToday { get; set; }
     public bool SettlementHerbClaimedToday { get; set; }
@@ -1325,6 +1347,7 @@ public class Character
         return Random.Shared.Next(100) < 25;
     }
     public DateTime LastPartnerBondingUtc { get; set; } = DateTime.MinValue;  // v0.57.7: Wall-clock gate on Home "quality time with partner" rewards (XP/HP/Mana). Shared across dinner/walk/cuddle — one bonding event per 20 real hours. Rage reported "romantic dinner is infinite XP" — was looping Level*50 with no cooldown.
+    public List<DyingMessageSaveData> DyingMessages { get; set; } = new();   // 1.3.10: dying wish messages the player promised to deliver (NPCPetitionSystem)
     public DateTime LastRiteOfReturnUtc { get; set; } = DateTime.MinValue;   // v0.65.6: Wall-clock gate on the Temple's Rite of Return (gold-priced resurrection refill, online permadeath mode). One rite per GameConfig.RiteOfReturnCooldownHours real hours. Wall-clock beats day-counter in MUD mode (v0.57.6 lesson).
     public long LoanAmount { get; set; } = 0;                   // Active loan balance (principal + interest)
     public int LoanDaysRemaining { get; set; } = 0;             // Days until enforcer attack
@@ -2074,6 +2097,10 @@ public class Character
         // 1.3.1: the Wisdom of completed companion griefs, added the same way; never stored
         Wisdom += GriefWisdomNow();
 
+        // 1.3.10: the New Game+ stat unlock (Ocean's Blessing, +15 percent to all stats), the player's only,
+        // before the stats feed HP, mana and defence; never stored
+        if (IsPlayer) ApplyMetaStatMultiplier(UsurperRemake.Systems.MetaProgressionSystem.Instance.GetStatMultiplier());
+
         // Apply stat-based bonuses AFTER equipment (stats may have been modified)
         // Constitution bonus to HP
         MaxHP += StatEffectsSystem.GetConstitutionHPBonus(Constitution, Level);
@@ -2120,11 +2147,12 @@ public class Character
         _boonOutMaxMana = MaxMana;
         _boonRecorded = true;
 
-        // Apply Fountain of Vitality bonus HP, then (1.3.6) Titan's Resolve. The inputs are recorded
-        // so RecalculateBoonShare carries a boon change through the same steps.
+        // Apply the flat bonus HP and (1.3.10, P11) the Fountain of Vitality's 10 percent, then (1.3.6) Titan's Resolve.
+        // The inputs are recorded so RecalculateBoonShare carries a boon change through the same steps.
         _boonTailBonusMaxHP = BonusMaxHP;
+        _boonTailFountain = HasVitalityFountain;
         _boonTailTitanItems = EquippedTitanResolveCount();
-        MaxHP = AfterBoonSegmentMaxHP(MaxHP, _boonTailBonusMaxHP, _boonTailTitanItems);
+        MaxHP = AfterBoonSegmentMaxHP(MaxHP, _boonTailBonusMaxHP, _boonTailFountain, _boonTailTitanItems);
 
         // Apply permanent weapon/armor power bonuses (Infernal Forge, artifacts, etc.)
         if (BonusWeapPow > 0)
@@ -2161,6 +2189,17 @@ public class Character
             UsurperRemake.Systems.DebugLogger.Instance.LogDebug("STATS", $"HP clamped: {hpBefore} -> {HP} (MaxHP={MaxHP}, BaseMaxHP={BaseMaxHP})");
         }
         Mana = Math.Min(Mana, MaxMana);
+        ClampCombatStamina();   // 1.3.10 (G6): a maximum that dropped (level, Stamina, armor) lowers the fight stamina too
+    }
+
+    /// <summary>1.3.10: the New Game+ stat unlock on the nine attributes, inside RecalculateStats.</summary>
+    private void ApplyMetaStatMultiplier(float multiplier)
+    {
+        if (multiplier <= 1.0f) return;
+        long Up(long v) => (long)Math.Round(v * (double)multiplier);   // rounded: 1.15f is a hair under 1.15
+        Strength = Up(Strength); Dexterity = Up(Dexterity); Constitution = Up(Constitution);
+        Intelligence = Up(Intelligence); Wisdom = Up(Wisdom); Charisma = Up(Charisma);
+        Defence = Up(Defence); Stamina = Up(Stamina); Agility = Up(Agility);
     }
 
     // 1.2.0: what the last RecalculateStats put in and got out of the god boon segment. Runtime
@@ -2170,6 +2209,7 @@ public class Character
     private bool _boonRecorded;
     // 1.3.6: the inputs of the steps after the boon segment (Fountain bonus, Titan's Resolve items)
     private long _boonTailBonusMaxHP;
+    private bool _boonTailFountain;
     private int _boonTailTitanItems;
 
     /// <summary>1.3.6: Titan's Resolve gives 5 percent more max HP, once however many equipped items carry it.</summary>
@@ -2179,14 +2219,29 @@ public class Character
     internal int EquippedTitanResolveCount() =>
         EquippedItems.Values.Count(id => id > 0 && EquipmentDatabase.GetById(id)?.HasTitanResolve == true);
 
-    /// <summary>1.3.6: max HP after the boon segment, before the floor of 1: the Fountain bonus, then Titan's Resolve.</summary>
-    private static long AfterBoonSegmentMaxHP(long boonOut, long bonusMaxHP, int titanItems)
+    /// <summary>1.3.10 (P11): the Fountain of Vitality gives 10 percent more max HP, at every level.</summary>
+    public const double VitalityFountainMaxHPMultiplier = 1.10;
+
+    /// <summary>
+    /// 1.3.6: max HP after the boon segment, before the floor of 1: the flat bonus, the Fountain of Vitality (1.3.10: a
+    /// 10 percent multiplier; it was a flat snapshot in BonusMaxHP), then Titan's Resolve.
+    /// </summary>
+    private static long AfterBoonSegmentMaxHP(long boonOut, long bonusMaxHP, bool fountain, int titanItems)
     {
         long hp = boonOut;
         if (bonusMaxHP > 0) hp += bonusMaxHP;
+        if (fountain) hp = (long)(hp * VitalityFountainMaxHPMultiplier);
         if (titanItems > 0) hp = (long)(hp * TitanResolveMaxHPMultiplier);
         return hp;
     }
+
+    /// <summary>
+    /// 1.3.10 (P11): a save from before 1.3.10 holds the Fountain of Vitality as a flat snapshot in BonusMaxHP, and the
+    /// fountain was the only thing that wrote BonusMaxHP; with the fountain now a multiplier that snapshot is dropped on
+    /// load, so the old bonus is not counted twice. Both load paths (single player and online) call this.
+    /// </summary>
+    public static long MigratedBonusMaxHP(bool hasVitalityFountain, long savedBonusMaxHP) =>
+        hasVitalityFountain ? 0 : savedBonusMaxHP;
 
     /// <summary>1.2.0: max HP after the configured boon, the awakening and Terran, from the pre-boon max HP.</summary>
     private long BoonSegmentMaxHP(long pre, double awakeningHP)
@@ -2228,7 +2283,7 @@ public class Character
         long hp = BoonSegmentMaxHP(_boonPreMaxHP, _boonAwakeningHP);
         long mana = BoonSegmentMaxMana(_boonPreMaxMana, _boonAwakeningMana);
         // 1.3.6: the difference is taken after the Fountain bonus and Titan's Resolve, as a full recalculation applies them
-        MaxHP = Math.Max(1, MaxHP + AfterBoonSegmentMaxHP(hp, _boonTailBonusMaxHP, _boonTailTitanItems) - AfterBoonSegmentMaxHP(_boonOutMaxHP, _boonTailBonusMaxHP, _boonTailTitanItems));
+        MaxHP = Math.Max(1, MaxHP + AfterBoonSegmentMaxHP(hp, _boonTailBonusMaxHP, _boonTailFountain, _boonTailTitanItems) - AfterBoonSegmentMaxHP(_boonOutMaxHP, _boonTailBonusMaxHP, _boonTailFountain, _boonTailTitanItems));
         MaxMana = Math.Max(0, MaxMana + mana - _boonOutMaxMana);
         _boonOutMaxHP = hp;
         _boonOutMaxMana = mana;
@@ -2534,7 +2589,6 @@ public class Character
     
     // New for version 0.08+
     public long Interest { get; set; }              // accumulated bank interest
-    public long AliveBonus { get; set; }            // staying alive bonus
     public bool Expert { get; set; }                // expert menus ON/OFF
     public int MaxTime { get; set; }                // max minutes per session
     public byte Ear { get; set; }                   // internode message handling
@@ -2726,6 +2780,7 @@ public class Character
     public List<string> ChastisedToday { get; set; } = new();                    // 1.2.0 piece 5b, an immortal: followers chastised today (ImmortalDeedSystem.ChastiseKey); cleared with the deeds
     [System.Text.Json.Serialization.JsonIgnore] public bool MiracleCritPending { get; set; }   // 1.2.0: Valorian's Miracle, the next swing is a critical hit (transient)
     [System.Text.Json.Serialization.JsonIgnore] public bool IsMiracleAlly { get; set; }        // 1.2.0: Sylvana's beast, a teammate for one fight only (transient)
+    [System.Text.Json.Serialization.JsonIgnore] public bool IsSettlementMilitia { get; set; }  // 1.3.10 (P6): the Barracks militia, a teammate for one fight only (transient)
     // 1.2.0 Temple gods piece 4, single-player: standing lost by each god to desecration this week
     // (GodStandingPenalty). Kept for the week GodStandingPenaltyWeek only; online it is in SQL.
     public Dictionary<string, int> GodStandingPenalties { get; set; } = new();

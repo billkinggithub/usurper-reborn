@@ -120,9 +120,10 @@ public class WorldSimulator
     /// 1.3.2, the activity guard: the NPC runs none of its own world sim activities (shopping, moves, dungeon runs
     /// and the rest): a player team member, a member of the player's dungeon party, an NPC in conversation. The
     /// spouse and lovers are not held here: they keep their activities and go home to the player (NPCGoHome).
+    /// 1.3.10: nor does a jailed NPC (DaysInPrison above 0): it stays in its cell until released.
     /// </summary>
     internal static bool IsOutOfActivityPass(NPC npc) =>
-        IsPlayerTeam(npc.Team) || npc.IsInConversation || IsInPlayerDungeonParty(npc);
+        IsPlayerTeam(npc.Team) || npc.IsInConversation || IsInPlayerDungeonParty(npc) || npc.DaysInPrison > 0;
 
     /// <summary>
     /// 1.3.2, the gear guard: the world sim never changes this NPC's equipment or gear power, and never sends it
@@ -763,19 +764,7 @@ public class WorldSimulator
                 SocialInfluenceSystem.Instance?.ProcessPlayerReputationSpread(npcs, currentPlayer.Name, _currentTick);
         }
 
-        // Track dead NPCs for respawn (check both HP <= 0 and IsDead flag)
-        // Skip age-dead and perma-dead NPCs - they don't come back
-        // 1.3.3 party survival: an NPC ally Downed in a player's fight is at 0 HP but not dead; the sim leaves it alone
-        foreach (var npc in npcs.Where(n => (!n.IsAlive || n.IsDead) && !n.IsDowned && !n.IsAgedDeath && !n.IsPermaDead).ToList()) // v1.1.1: snapshot; sessions add NPCs mid-tick
-        {
-            var respawnKey = npc.Id ?? npc.Name;
-            if (!deadNPCRespawnTimers.ContainsKey(respawnKey))
-            {
-                deadNPCRespawnTimers[respawnKey] = NPC_RESPAWN_TICKS;
-                if (!IsCatchUpMode)
-                    UsurperRemake.Systems.DebugLogger.Instance.LogDebug("NPC", $"{npc.Name} added to respawn queue ({NPC_RESPAWN_TICKS} ticks)");
-            }
-        }
+        TrackDeadNPCsForRespawn();   // O2: moved into its own method, unchanged, with the death marks cleared
 
         // Tick counter (always incremented, even during catch-up, for rate-limiters)
         _currentTick++;
@@ -1020,6 +1009,7 @@ public class WorldSimulator
             return false;
         }
 
+        WorldSnapshotCounters.CountNpcDeath(npc);   // O2: one death for the hourly world snapshot
         npc.IsDead = true;
         npc.HP = 0;
         npc.PregnancyDueDate = null;
@@ -1063,6 +1053,7 @@ public class WorldSimulator
             // HandleSpouseBereavement below only fires when married and only handles the spouse case.
             // Keyed on npc.ID, matching the combat path + the affair keys ("marriedNpcId:seducerId").
             // Idempotent for non-romance NPCs.
+            bool playersSpouse = RomanceTracker.Instance?.IsPlayerMarriedTo(npc.ID) == true;   // 1.3.10: read before the release below
             RomanceTracker.Instance?.OnNPCPermadied(npc.ID);
             NPCMarriageRegistry.Instance.OnNPCPermadied(npc.ID);
 
@@ -1076,6 +1067,11 @@ public class WorldSimulator
                 NotifyPlayerSpouseOfDeath(npc, killerName, location);
                 HandleSpouseBereavement(npc);
             }
+
+            // 1.3.10: the player grieves a spouse who died away from the player's fights (after the notice); a fall
+            // in the player's own fight is grieved by CombatEngine.HandleNpcTeammateDeath
+            if (playersSpouse && !atPlayersSide)
+                GriefSystem.BeginSpouseGrief(GameEngine.Instance?.CurrentPlayer, npc.ID, npc.Name2 ?? npc.Name, DeathType.Combat);
 
             // Check if this NPC's children are now orphaned (both parents dead)
             CheckForOrphanedChildren(npc);
@@ -1297,6 +1293,27 @@ public class WorldSimulator
     }
 
     /// <summary>
+    /// The dead scan of each step: every dead NPC that can come back is queued for respawn once. O2: it neither
+    /// counts a death (counted where it happened) nor touches the death mark (reset where the NPC is revived).
+    /// </summary>
+    internal void TrackDeadNPCsForRespawn()
+    {
+        // Track dead NPCs for respawn (check both HP <= 0 and IsDead flag)
+        // Skip age-dead and perma-dead NPCs: they don't come back
+        // 1.3.3 party survival: an NPC ally Downed in a player's fight is at 0 HP but not dead; the sim leaves it alone
+        foreach (var npc in npcs.Where(n => (!n.IsAlive || n.IsDead) && !n.IsDowned && !n.IsAgedDeath && !n.IsPermaDead).ToList()) // v1.1.1: snapshot; sessions add NPCs mid-tick
+        {
+            var respawnKey = npc.Id ?? npc.Name;
+            if (!deadNPCRespawnTimers.ContainsKey(respawnKey))
+            {
+                deadNPCRespawnTimers[respawnKey] = NPC_RESPAWN_TICKS;
+                if (!IsCatchUpMode)
+                    UsurperRemake.Systems.DebugLogger.Instance.LogDebug("NPC", $"{npc.Name} added to respawn queue ({NPC_RESPAWN_TICKS} ticks)");
+            }
+        }
+    }
+
+    /// <summary>
     /// Process NPC respawns - resurrect dead NPCs after a cooldown period
     /// </summary>
     private void ProcessNPCRespawns()
@@ -1331,12 +1348,15 @@ public class WorldSimulator
                 // healed, or a Downed ally back up) drops its timer: no full heal, no gold loss, no news line.
                 if (!((!npc.IsAlive || npc.IsDead) && !npc.IsDowned))
                 {
+                    // O2: brought back by another path (a heal, a release), so its next death counts
+                    if (npc.IsAlive && !npc.IsDead) UsurperRemake.Systems.WorldSnapshotCounters.NpcRevived(npc);
                     deadNPCRespawnTimers.Remove(npcName);
                     continue;
                 }
 
                 // Respawn the NPC - clear permanent death flag
                 npc.IsDead = false;
+                UsurperRemake.Systems.WorldSnapshotCounters.NpcRevived(npc);   // O2: revived here, so its next death counts
 
                 // CRITICAL FIX: Ensure base stats are valid before RecalculateStats
                 // If base stats are 0 (from old saves or corruption), RecalculateStats
@@ -1544,6 +1564,7 @@ public class WorldSimulator
                     }
 
                     // Natural death - permanent, no respawn
+                    WorldSnapshotCounters.CountNpcDeath(npc);   // O2: a death of old age for the hourly world snapshot
                     npc.IsDead = true;
                     npc.IsAgedDeath = true;
                     npc.DeathDate = DateTime.UtcNow; // for PrunePermanentlyDeadNPCs grace window
@@ -1559,6 +1580,7 @@ public class WorldSimulator
                     // state here too (lover/FWB/affair, not just spouse). Same unconditional call
                     // as the MarkNPCDead permadeath branch -- aging does not route through
                     // MarkNPCDead, so it needs its own hook. Idempotent for non-romance NPCs.
+                    bool playersSpouse = RomanceTracker.Instance?.IsPlayerMarriedTo(npc.ID) == true;   // 1.3.10: read before the release below
                     RomanceTracker.Instance?.OnNPCPermadied(npc.ID);
                     NPCMarriageRegistry.Instance.OnNPCPermadied(npc.ID);
 
@@ -1572,6 +1594,10 @@ public class WorldSimulator
                         NotifyPlayerSpouseOfDeath(npc, null, npc.CurrentLocation, "worldsim.cause_old_age", "worldsim.place_home");
                         HandleSpouseBereavement(npc);
                     }
+
+                    // 1.3.10: the player grieves a spouse who died of old age (after the notice)
+                    if (playersSpouse)
+                        GriefSystem.BeginSpouseGrief(GameEngine.Instance?.CurrentPlayer, npc.ID, npc.Name2 ?? npc.Name, DeathType.Inevitable);
 
                     // v0.61.5: If the deceased was on a player's team, bequeath
                     // their equipment + inventory + gold to the team leader.
@@ -1648,6 +1674,11 @@ public class WorldSimulator
                 raceCounts[npc.Race]++;
         }
 
+        // v1.3.12: every arrival comes as the sex the living town has fewer of (FewerSex), counted again
+        // after each arrival, so a skewed town moves back toward even as it turns over
+        int livingMale = aliveNPCs.Count(n => n.Sex == CharacterSex.Male);
+        int livingFemale = aliveNPCs.Count(n => n.Sex == CharacterSex.Female);
+
         // Phase 1: Extinction prevention — races below 5 get immediate immigrants (always active)
         foreach (var kvp in raceCounts)
         {
@@ -1657,8 +1688,13 @@ public class WorldSimulator
 
             for (int i = 0; i < needed; i++)
             {
-                var sex = (i % 2 == 0) ? CharacterSex.Male : CharacterSex.Female;
-                SpawnImmigrant(kvp.Key, sex, avgLevel);
+                // v1.3.12: before, (i % 2) decided and one arrival was always male; now a tie is a coin,
+                // drawn only on a tie
+                var sex = FewerSex(livingMale, livingFemale, random);
+                if (SpawnImmigrant(kvp.Key, sex, avgLevel))
+                {
+                    if (sex == CharacterSex.Female) livingFemale++; else livingMale++;
+                }
             }
         }
 
@@ -1681,11 +1717,28 @@ public class WorldSimulator
             var targetRace = raceCounts.OrderBy(kv => kv.Value).First();
             if (targetRace.Value < diversityThreshold)
             {
-                var sex = random.Next(2) == 0 ? CharacterSex.Male : CharacterSex.Female;
+                // v1.3.12: the coin is still drawn, and now only breaks a tie (FewerSex)
+                var sex = FewerSex(livingMale, livingFemale, random.Next(2) == 0 ? CharacterSex.Male : CharacterSex.Female);
                 SpawnImmigrant(targetRace.Key, sex, avgLevel);
             }
         }
     }
+
+    /// <summary>
+    /// v1.3.12: the sex of an arrival: the one the living town has fewer of; on a tie, tieBreak. A town that
+    /// leans one way gets the other until it is even. Phase 2 and the recruit pool pass their drawn coin as
+    /// tieBreak; Phase 1 uses the overload below, which draws a coin only on a tie.
+    /// </summary>
+    internal static CharacterSex FewerSex(int livingMale, int livingFemale, CharacterSex tieBreak) =>
+        livingFemale < livingMale ? CharacterSex.Female
+        : livingMale < livingFemale ? CharacterSex.Male
+        : tieBreak;
+
+    /// <summary>v1.3.12: FewerSex with a coin from rng for a tie, drawn only on a tie.</summary>
+    internal static CharacterSex FewerSex(int livingMale, int livingFemale, Random rng) =>
+        livingMale == livingFemale
+            ? (rng.Next(2) == 0 ? CharacterSex.Male : CharacterSex.Female)
+            : FewerSex(livingMale, livingFemale, CharacterSex.Male);
 
     /// <summary>
     /// Spawn a single immigrant NPC of the given race and sex.
@@ -1763,7 +1816,9 @@ public class WorldSimulator
         int race = 0;
         for (int r = 1; r < raceCount; r++)
             if (raceCounts[r] < raceCounts[race]) race = r;
-        var sex = random.Next(2) == 0 ? CharacterSex.Male : CharacterSex.Female;
+        // v1.3.12: the coin is still drawn, and now only breaks a tie (FewerSex)
+        var sex = FewerSex(aliveNPCs.Count(n => n.Sex == CharacterSex.Male), aliveNPCs.Count(n => n.Sex == CharacterSex.Female),
+            random.Next(2) == 0 ? CharacterSex.Male : CharacterSex.Female);
 
         if (SpawnImmigrant((CharacterRace)race, sex, level, forRecruitPool: true))
             _lastRecruitPoolArrivalTick = _currentTick;
@@ -2417,12 +2472,16 @@ public class WorldSimulator
     /// added to each relative's Enemies list. Surfaces downstream as the
     /// relative refusing to talk to / join the killer's team, attacking on
     /// sight when alignment is dark. Sparse + idempotent.
+    /// 1.3.10: static, and also called on a player kill (street murder, death spell, execution) with the
+    /// player's Name2 as killer, whether or not the death is permanent: only the grudge, never the permadeath
+    /// cascade (spouse notice, bereavement, orphans), which stays inside MarkNPCDead's permadeath branch.
     /// </summary>
-    private void RecordFamilyDeath(NPC deceased, string killerName)
+    internal static void RecordFamilyDeath(NPC deceased, string killerName)
     {
         try
         {
             if (deceased == null) return;
+            var npcs = UsurperRemake.Systems.NPCSpawnSystem.Instance?.ActiveNPCs ?? new List<NPC>();
 
             // Walk all NPCs once and classify by relation to the deceased.
             string deceasedName = deceased.Name2 ?? deceased.Name1 ?? deceased.Name;
@@ -5537,8 +5596,9 @@ public class WorldSimulator
     // floors); NPCs never did. This is the minimal "narrative theater"
     // version: the NPC reads the available board, picks a level-appropriate
     // bounty, rolls success based on level matching, and applies the
-    // reward + news on success. Does NOT claim or remove the quest from
-    // questDatabase -- players still see the same bounty on the board.
+    // reward + news on success. 1.3.10: a bounty the NPC finishes leaves the
+    // board (it is marked done); before, the news said the hunt was won and
+    // the same bounty stayed open for players.
     //
     // Future slice could promote this to real competition (NPC sets Occupier,
     // quest disappears from player board, takes N ticks to complete) but
@@ -5604,6 +5664,15 @@ public class WorldSimulator
 
         if (succeeded)
         {
+            // 1.3.10: the finished bounty leaves the board. A player who claimed it since the NPC read the board keeps
+            // it, and the NPC comes back with nothing.
+            if (pick.Deleted || !string.IsNullOrEmpty(pick.Occupier))
+            {
+                npc.CurrentActivity = "returning empty-handed from the hunt";
+                return;
+            }
+            pick.Deleted = true;
+
             // Reward scales on the QUEST's intended level (so NPCs hunting
             // big bounties get paid like big bounties).
             long goldReward = 0;
@@ -6675,7 +6744,8 @@ public class WorldSimulator
     
     private void ExecuteJoinGang(NPC npc, string targetId, WorldState world)
     {
-        if (string.IsNullOrEmpty(targetId) || npc.GangId != null) return;
+        // 1.3.10: no gang is an empty id (every loader sets ""), not only null
+        if (string.IsNullOrEmpty(targetId) || !string.IsNullOrEmpty(npc.GangId)) return;
         
         var gangLeader = world.GetNPCById(targetId);
         if (gangLeader == null || gangLeader.CurrentLocation != npc.CurrentLocation) return;
@@ -7031,7 +7101,8 @@ public class WorldSimulator
             .Where(c => c.LoyaltyToKing < 40 && !c.IsPlotting)
             .ToList();
 
-        if (unhappyMembers.Count >= 2 && working.ActivePlots.Count < 3)
+        // 1.3.10: a discovered plot waits in ActivePlots for the king's arrest; only the plots in motion count
+        if (unhappyMembers.Count >= 2 && working.ActivePlots.Count(p => !p.IsDiscovered) < 3)
         {
             // Start a new plot
             var conspirators = unhappyMembers.Take(Random.Shared.Next(2, (Math.Min(4, unhappyMembers.Count)) + 1)).ToList();
@@ -7118,7 +7189,7 @@ public class WorldSimulator
             plot.IsDiscovered = true;
             plot.DiscoveredBy = "Royal Spymaster";
 
-            // Conspirators go to prison
+            // The conspirators leave the court (the king's Arrest Plotter jails any who is a real NPC)
             foreach (var conspirator in plot.Conspirators)
             {
                 var member = working.CourtMembers.FirstOrDefault(m => m.Name == conspirator);
@@ -7141,7 +7212,7 @@ public class WorldSimulator
             };
             news.Add((true, Loc.Get(plotKey, CourtTitle(working), working.Name)));
 
-            working.ActivePlots.Remove(plot);
+            // 1.3.10: the discovered plot stays listed (it no longer advances) until the king arrests it
             return;
         }
 

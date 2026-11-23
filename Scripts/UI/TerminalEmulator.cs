@@ -262,6 +262,23 @@ public partial class TerminalEmulator
     public TerminalEmulator() { }
 
     /// <summary>
+    /// 1.3.9: runs <paramref name="action"/> holding the writer lock, after flushing any pending text,
+    /// so bytes another thread writes straight to this terminal's stream (a GMCP frame for a grouped
+    /// player) never land inside a text write. The action must not take this lock again from another
+    /// thread or wait on one that does.
+    /// </summary>
+    internal void RunUnderWriterLock(Action action)
+    {
+        lock (_streamWriterLock)
+        {
+            try { _streamWriter?.Flush(); }
+            catch (System.IO.IOException) { }
+            catch (ObjectDisposedException) { }
+            action();
+        }
+    }
+
+    /// <summary>
     /// Create a stream-backed terminal for MUD server sessions.
     /// Each player session gets its own TerminalEmulator connected to their TCP stream.
     /// </summary>
@@ -999,6 +1016,10 @@ public partial class TerminalEmulator
 
     public async Task<string> GetInput(string prompt = "> ")
     {
+        // 1.3.9: a web client session's footer values (HP, level, gold, potions, XP) as they are now, before
+        // every prompt and pause; a no-op on every other session
+        UsurperRemake.Server.GmcpBridge.EmitWebRefreshIfChanged(this);
+
         // v1.1.13: a command typed at a pause is the answer to this prompt
         if (_pendingLine != null)
         {
@@ -1710,6 +1731,9 @@ public partial class TerminalEmulator
     /// <summary>v1.1.13: MUD stream (MUD, telnet, web, relay) and BBS socket modes read a whole line at a pause.</summary>
     private bool IsLineBasedPause => (_streamWriter != null && _streamReader != null) || ShouldUseBBSAdapter();
 
+    /// <summary>1.3.10 (play test B13): true when a pause here waits for Enter (a line), not for any one key.</summary>
+    internal bool PauseNeedsEnter => IsLineBasedPause;
+
     /// <summary>v1.1.13: a pause that reads a line; a non-empty line is kept as the next prompt's answer.</summary>
     private async Task PauseForLine(string message)
     {
@@ -1843,6 +1867,9 @@ public partial class TerminalEmulator
             await _streamReadLock.WaitAsync();
             try
             {
+                // 1.3.9: tell a web client session the game is reading input, once per line read
+                UsurperRemake.Server.GmcpBridge.EmitWebWaiting(this);
+
                 var buffer = new System.Text.StringBuilder();
                 var charBuf = new char[1];
 
@@ -2126,7 +2153,7 @@ public partial class TerminalEmulator
     private static bool StreamHasReadableData(Stream stream) => stream switch
     {
         System.Net.Sockets.NetworkStream ns => ns.DataAvailable,
-        UsurperRemake.Server.PrependedStream ps => ps.HasReadableData,
+        UsurperRemake.Server.IReadableDataStream rs => rs.HasReadableData,   // 1.3.9: PrependedStream, and a test stream
         _ => false
     };
 
@@ -2169,7 +2196,10 @@ public partial class TerminalEmulator
     /// Consume any pending input without blocking. Call after IsInputAvailable() returns true
     /// to clear the buffer so the input doesn't leak into the next prompt.
     /// </summary>
-    public void FlushPendingInput()
+    /// <param name="alsoReaderBuffer">1.3.9: also drop the lines the stream reader already holds (two lines that
+    /// arrived in one read leave the second there, where the byte discard never sees it). An encounter's prompt
+    /// asks for this; the older callers keep the byte discard alone.</param>
+    public void FlushPendingInput(bool alsoReaderBuffer = false)
     {
         _pendingLine = null; // v1.1.13: a flush discards a line kept from a pause too
         try
@@ -2190,6 +2220,13 @@ public partial class TerminalEmulator
                 while (StreamHasReadableData(_streamReader.BaseStream))
                 {
                     _streamReader.BaseStream.Read(discard, 0, discard.Length);
+                }
+                // 1.3.9: and, when asked, what the reader already pulled off the stream. No read is outstanding
+                // here: a line read returns only after its last read completed.
+                if (alsoReaderBuffer)
+                {
+                    try { _streamReader.DiscardBufferedData(); }
+                    catch (InvalidOperationException) { }
                 }
                 return;
             }
@@ -2266,6 +2303,9 @@ public partial class TerminalEmulator
     private async Task<string> ReadLineInteractiveAsync(string prompt)
     {
         if (_streamReader == null || _streamWriter == null) return string.Empty;
+
+        // 1.3.9: tell a web client session the game is reading input, once per line read
+        UsurperRemake.Server.GmcpBridge.EmitWebWaiting(this);
 
         // Ensure all pending output is flushed to the TCP stream before blocking on input.
         // Without this, MUD clients (Mudlet) may not render the prompt text because it's

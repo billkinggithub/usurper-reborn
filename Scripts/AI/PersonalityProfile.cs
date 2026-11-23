@@ -96,7 +96,10 @@ public class PersonalityProfile
     public List<string> Desires { get; set; } = new List<string>();
     public string Archetype { get; set; } = "";
     
-    public static PersonalityProfile GenerateRandom(string npcArchetype)
+    /// <param name="jitter">Add the v1.3.9 individual noise. Tests that pin a goal or a score turn it
+    /// off: the noise can raise Ambition or Vengefulness past the archetype's seeded goal priorities,
+    /// which changes which goal is on top and makes those tests flaky.</param>
+    public static PersonalityProfile GenerateRandom(string npcArchetype, bool jitter = true)
     {
         var profile = new PersonalityProfile();
         profile.Archetype = npcArchetype;
@@ -295,7 +298,7 @@ public class PersonalityProfile
         // and any system that reads a trait got the same answer for all thugs. A little individual
         // noise makes each NPC statistically their own person, and every system that reads a trait
         // picks it up: greetings, flirting, grudges, marriage, pricing.
-        profile.Jitter(0.15f);
+        if (jitter) profile.Jitter(0.15f);
 
         return profile;
     }
@@ -484,9 +487,9 @@ public class PersonalityProfile
     /// <summary>
     /// Generate personality profile for specific archetype - alias for GenerateRandom for API compatibility
     /// </summary>
-    public static PersonalityProfile GenerateForArchetype(string archetype)
+    public static PersonalityProfile GenerateForArchetype(string archetype, bool jitter = true)
     {
-        return GenerateRandom(archetype);
+        return GenerateRandom(archetype, jitter);
     }
     
     public float GetCompatibility(PersonalityProfile other)
