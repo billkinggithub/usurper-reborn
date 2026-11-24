@@ -1732,7 +1732,7 @@ public abstract class BaseLocation
 
             // Append fatigue tier label when Tired or Exhausted
             var (fatigueLabel, fatigueColor) = currentPlayer.GetFatigueTier();
-            int headerLen = locDisplayName.Length + 4 + timePeriod.Length;
+            int headerLen = TextWidth.Width(locDisplayName) + 4 + TextWidth.Width(timePeriod);
             if (!string.IsNullOrEmpty(fatigueLabel) && currentPlayer.Fatigue >= GameConfig.FatigueTiredThreshold)
             {
                 terminal.SetColor("gray");
@@ -1741,7 +1741,7 @@ public abstract class BaseLocation
                 terminal.Write(fatigueLabel);
                 terminal.SetColor("gray");
                 terminal.Write(")");
-                headerLen += 3 + fatigueLabel.Length; // " (" + label + ")"
+                headerLen += 3 + TextWidth.Width(fatigueLabel); // " (" + label + ")"
             }
             // Mental band tag (both modes; Strained and below)
             if (!string.IsNullOrEmpty(mentalTagLabel))
@@ -1752,7 +1752,7 @@ public abstract class BaseLocation
                 terminal.Write(mentalTagLabel);
                 terminal.SetColor("gray");
                 terminal.Write(")");
-                headerLen += 3 + mentalTagLabel.Length;
+                headerLen += 3 + TextWidth.Width(mentalTagLabel);
             }
             terminal.WriteLine("");
 
@@ -1776,7 +1776,7 @@ public abstract class BaseLocation
                 terminal.Write(fatigueLabel);
                 terminal.SetColor("gray");
                 terminal.Write(")");
-                int headerLen = Name.Length + 3 + fatigueLabel.Length;
+                int headerLen = TextWidth.Width(Name) + 3 + TextWidth.Width(fatigueLabel);
                 // Mental band tag (both modes; Strained and below)
                 if (!string.IsNullOrEmpty(mentalTagLabel))
                 {
@@ -1786,7 +1786,7 @@ public abstract class BaseLocation
                     terminal.Write(mentalTagLabel);
                     terminal.SetColor("gray");
                     terminal.Write(")");
-                    headerLen += 3 + mentalTagLabel.Length;
+                    headerLen += 3 + TextWidth.Width(mentalTagLabel);
                 }
                 terminal.WriteLine("");
                 if (!IsScreenReader)
@@ -1801,7 +1801,7 @@ public abstract class BaseLocation
                 // the Dungeons header keeps its raw Name because it carries the floor number.
                 string hdrName = LocationId == GameLocation.Dungeons ? Name : GetLocationName(LocationId);
                 terminal.Write(hdrName);
-                int headerLen = hdrName.Length;
+                int headerLen = TextWidth.Width(hdrName);
                 // Mental band tag (both modes; Strained and below): this leaf is reached in
                 // online mode (dungeon and non-dungeon) and in single-player dungeon without
                 // fatigue, so it is the one place the online header actually gets a tag.
@@ -1813,7 +1813,7 @@ public abstract class BaseLocation
                     terminal.Write(mentalTagLabel);
                     terminal.SetColor("gray");
                     terminal.Write(")");
-                    headerLen += 3 + mentalTagLabel.Length;
+                    headerLen += 3 + TextWidth.Width(mentalTagLabel);
                 }
                 terminal.WriteLine("");
                 if (!IsScreenReader)
@@ -9438,6 +9438,10 @@ public abstract class BaseLocation
     /// v1.3.8: measured in display columns, so a Chinese label stays in its field.</summary>
     internal static string Cell(string text, int width) =>
         TextWidth.PadRight(TextWidth.Truncate(text, width), width);
+
+    /// <summary>A right-aligned column cell, measured in display columns.</summary>
+    internal static string CellRight(string text, int width) =>
+        TextWidth.PadLeft(TextWidth.Truncate(text, width), width);
 
     /// <summary>One inbox row; v1.2.4 clips the sender to its 16-column field so a long name keeps the row inside 79.
     /// v1.3.8: every field is padded by display columns, not characters.</summary>
