@@ -314,7 +314,7 @@ namespace UsurperRemake.Systems
         public static string PurifiedName(string name)
         {
             if (string.IsNullOrEmpty(name)) return name ?? "";
-            foreach (var lang in new[] { "en", "es", "fr", "hu", "it" })
+            foreach (var lang in new[] { "en", "es", "fr", "hu", "it", "zh" })
             {
                 string cursed = Loc.GetIn(lang, "item.rarity.cursed") + " ";
                 if (name.StartsWith(cursed, StringComparison.Ordinal) && name.Length > cursed.Length)

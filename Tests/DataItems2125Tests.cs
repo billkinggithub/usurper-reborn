@@ -748,6 +748,9 @@ public class DataItems2125Tests
             string legacy = $"{L(lang, "item.rarity.cursed")} {L(lang, "item.long_sword")}";
             ItemNames.PurifiedName(legacy).Should().Be($"{L(lang, "item.effect.poison_resist.prefix")} {L(lang, "item.long_sword")}", lang);
         }
+        string zhLegacy = $"{L("zh", "item.rarity.cursed")} {L("zh", "item.long_sword")}";
+        ItemNames.PurifiedName(zhLegacy).Should().Be(
+            $"{L("zh", "item.effect.poison_resist.prefix")} {L("zh", "item.long_sword")}", "zh");
         ItemNames.PurifiedName("Long Sword").Should().Be("Long Sword");
         ItemNames.PurifiedName("Cursed").Should().Be("Cursed");
         // a purified English drop reads in each language

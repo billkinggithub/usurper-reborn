@@ -95,7 +95,7 @@ Opt-in JSON mods drop into a `GameData/` folder next to the executable: NPCs, mo
 - **Screen reader mode:** auto-detected on Windows for the standard console launch (NVDA / JAWS / Narrator), or pass `--screen-reader` explicitly. Strips box-drawing, decorative Unicode, color-bracketed menus; all locations have plain-text paths.
 - **Compact mode:** smaller terminals (mobile SSH, narrow windows). Toggle with `[Z]` on the main menu or `/compact` anywhere.
 - **Steam launcher:** `Play.bat` is the default; `Play-Accessible.bat` opts into screen-reader mode at launch.
-- **5 languages:** English, Spanish, French, Hungarian, Italian. Swap via in-game preferences. Per-character language preference saved.
+- **6 languages:** English, Spanish, French, Hungarian, Italian, Simplified Chinese (falls back to English for a key it does not carry yet). Swap via in-game preferences. Per-character language preference saved.
 
 ### Graphical Client (Beta)
 An optional Electron-based graphical client exists as a beta, with Darkest Dungeon-style combat sprites, a dungeon map overlay, paperdoll inventory, party panels, status overlays and an audio layer. It is not in active development; text mode is the supported way to play.

@@ -4009,7 +4009,8 @@ public abstract class BaseLocation
                 var langNames = new Dictionary<string, string>
                 {
                     { "en", "English" }, { "es", "Español" }, { "fr", "Français" },
-                    { "hu", "Magyar" }, { "it", "Italiano" }, { "ar", "العربية" }
+                    { "hu", "Magyar" }, { "it", "Italiano" }, { "zh", "中文" },
+                    { "ar", "العربية" }
                 };
                 foreach (var f in System.IO.Directory.EnumerateFiles(locDir, "*.json"))
                 {
