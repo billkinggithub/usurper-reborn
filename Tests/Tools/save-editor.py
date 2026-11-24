@@ -257,7 +257,7 @@ LABELS = {
     "teamXPIsExplicit": "手动队伍经验", "teamXPEvenSplit": "队伍经验均分",
     "loyalty": "忠诚", "haunt": "怨念", "master": "主人", "wellWish": "水井愿望",
     "height": "身高", "weight": "体重", "eyes": "眼睛", "hair": "头发", "skin": "肤色",
-    "phrases": "台词短语", "description": "外观描述", "romanceData": "恋爱数据",
+    "phrases": "台词短语", "description": "描述", "romanceData": "恋爱数据",
     "achievementsData": "成就数据", "learnedAbilities": "已学能力", "quickbar": "快捷栏",
     "trains": "训练次数", "skillProficiencies": "技能熟练度",
     "skillTrainingProgress": "技能训练进度", "statTrainingCounts": "属性训练次数",
@@ -722,7 +722,7 @@ FIELD_NOTES = {
     "achievementsData": "成就进度数据。",
     "statistics": "生涯统计；主要供界面展示。",
     "phrases": "角色台词/外观短语，长度固定。",
-    "description": "角色四行外观描述，长度固定。",
+    "description": "该条目的描述文本，具体含义随所在对象而定。",
     "relationships": "与 NPC 的关系数据。",
     "romanceData": "恋爱、婚姻和家庭数据。",
     "teammateStances": "每名队友的战斗姿态。",
@@ -1195,6 +1195,8 @@ def label_of(path: tuple) -> str:
         if len(path) < 2:
             return str(part)
         part = path[-2]
+    if str(part) == "description" and path[:-1] in (("player",), ("player", "description")):
+        return "外观描述"
     return LABELS.get(str(part), str(part))
 
 
@@ -1832,9 +1834,10 @@ class EditorWindow:
         if leaf.is_container:
             text = f"列表「{label_of(path)}」，共 {leaf.list_length} 项。"
             if leaf.scalar_list:
-                text += "每个元素都是简单值，选中本行后可在右侧添加元素。"
                 if path in FIXED_LISTS:
-                    text += " 这是固定长度列表，不能增删元素。"
+                    text += " 这是固定长度列表，只能修改已有元素，不能增删。"
+                else:
+                    text += "每个元素都是简单值，选中本行后可在右侧添加元素。"
                 if path in PAIRED_LISTS:
                     text += f" 它与 {path_text(PAIRED_LISTS[path])} 成对，必须一一对应。"
             elif leaf.list_length == 0:
@@ -1847,6 +1850,8 @@ class EditorWindow:
         if isinstance(part, int):
             parent = path[-2] if len(path) > 1 else ""
             text = f"「{label_of(path[:-1])}」列表中的第 {part + 1} 项。"
+            if path[:-1] == ("player", "description"):
+                return text + " 玩家外观描述的其中一行。"
             parent_note = FIELD_NOTES.get(str(parent))
             if parent_note:
                 text += " " + parent_note
@@ -1870,6 +1875,13 @@ class EditorWindow:
                 return f"与「{key}」的关系数据。"
             return (f"字典「{LABELS.get(parent, parent)}」中的键「{key}」。"
                     "这是名称或标识，不是字段名；它对应的值按该字典的含义解读。")
+
+        if key == "description":
+            if path == ("player", "description"):
+                return "玩家的四行外观描述（身高、体型、服饰等），长度固定。"
+            if "memories" in path:
+                return "这条记忆的描述文本，记录 NPC 记住的事件经过。"
+            return "该条目的描述文本，具体含义随所在对象而定。"
 
         note = FIELD_NOTES.get(key)
         if note:
