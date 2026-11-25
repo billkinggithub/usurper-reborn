@@ -69,6 +69,21 @@ public class CombatWideLayoutTests
         }
     }
 
+    [Fact]
+    public void QuickbarRow_StaysFortyOneColumns_WithAChineseName()
+    {
+        var (engine, term, output) = Engine();
+        typeof(CombatEngine).GetMethod("WriteQuickbarBoxRows", F)!
+            .Invoke(engine, new object?[] { "1", "强力打击 (15 体力)", true });
+        string text = Shown(term, output);
+        var rows = text.Split('\n').Select(line => line.TrimEnd('\r'))
+            .Where(line => line.Length > 0)
+            .ToList();
+        rows.Should().NotBeEmpty();
+        foreach (string row in rows)
+            TextWidth.Width(row).Should().Be(41, $"the quickbar row must keep the menu frame: [{row}]");
+    }
+
     [Theory]
     [InlineData("en")]
     [InlineData("zh")]
