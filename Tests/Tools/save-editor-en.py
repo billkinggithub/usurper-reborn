@@ -1944,6 +1944,7 @@ GAME_DATA_FILES = [
     ("Dreams", "dreams.json"),
     ("Dialogue", "dialogue.json"),
     ("Balance", "balance.json"),
+    ("Mod translations (English)", "Localization/en.json"),
 ]
 
 
@@ -4006,11 +4007,16 @@ class GameDataWindow:
         body.add(right, weight=5)
         self.path_label = ttk.Label(right, text="", foreground="#555")
         self.path_label.pack(anchor="w")
+        self.hint_label = ttk.Label(right, text="", foreground="#887", wraplength=940,
+                                    justify="left")
+        self.hint_label.pack(anchor="w")
         self.text = tk.Text(right, wrap="none", undo=True)
         self.text.pack(fill="both", expand=True, pady=(4, 6))
         bar = ttk.Frame(right)
         bar.pack(fill="x")
         ttk.Button(bar, text="Form Editor", command=self.open_forms).pack(side="left")
+        ttk.Button(bar, text="Mod translations", command=self.open_mod_translations).pack(
+            side="left", padx=(6, 0))
         ttk.Button(bar, text="Validate JSON", command=self.validate).pack(side="left", padx=(6, 0))
         ttk.Button(bar, text="Save (with backup)", command=self.save).pack(side="left", padx=6)
         ttk.Button(bar, text="Reload", command=self.load).pack(side="left")
@@ -4022,6 +4028,10 @@ class GameDataWindow:
     def open_forms(self) -> None:
         from save_editor_lib.game_data_forms import GameDataFormsWindow
         GameDataFormsWindow(self.top, language="en")
+
+    def open_mod_translations(self) -> None:
+        from save_editor_lib.game_data_forms import GameDataFormsWindow
+        GameDataFormsWindow(self.top, language="en", select_file="Localization/en.json")
 
     def selected_file(self) -> tuple[str, str] | None:
         selection = self.files.curselection()
@@ -4035,6 +4045,22 @@ class GameDataWindow:
         path = game_data_directory() / name
         self.current = path
         self.path_label.configure(text=str(path))
+        is_mod_loc = name.startswith("Localization/")
+        if is_mod_loc:
+            if not path.exists():
+                try:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text("{}\n", encoding="utf-8")
+                except OSError as error:
+                    self.app.messagebox.showerror("Create Failed", str(error), parent=self.top)
+                    return
+            self.hint_label.configure(
+                text="Key formats: dream.<Id>.title / content.<n> / hint; dialogue "
+                     "npc_dialogue.<Id>; equipment mod.equipment.<Id>.name/.description; NPC "
+                     "mod.npc.<Name>.name/.lore; monster mod.monster.<Family>.name/.description; "
+                     "tier mod.monster.tier.<Tier>.name.")
+        else:
+            self.hint_label.configure(text="")
         try:
             text = path.read_text(encoding="utf-8") if path.exists() else "{\n}\n"
         except OSError as error:

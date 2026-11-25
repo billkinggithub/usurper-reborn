@@ -47,6 +47,7 @@ UI_ZH = {
     "Saved": "已保存",
     "Save failed": "保存失败",
     "Export failed": "导出失败",
+    "Create failed": "创建失败",
     "Overwrite GameData with the built-in defaults?": "用内置默认数据覆盖 GameData？",
     "Delete record": "删除记录",
     "Delete the selected record?": "删除选中的记录？",
@@ -812,7 +813,8 @@ class TierEditor(tk.Toplevel):
 
 
 class GameDataFormsWindow:
-    def __init__(self, parent: tk.Misc, language: str = "en"):
+    def __init__(self, parent: tk.Misc, language: str = "en",
+                 select_file: str | None = None):
         self.language = language
         self.localizer = GameDataLocalizer(language)
         self.top = tk.Toplevel(parent)
@@ -915,7 +917,13 @@ class GameDataFormsWindow:
                    command=self.close_window).pack(side="right")
 
         self.top.protocol("WM_DELETE_WINDOW", self.close_window)
-        self.files.selection_set(0)
+        position = 0
+        if select_file:
+            for index, (_name, filename) in enumerate(self.file_entries):
+                if filename == select_file:
+                    position = index
+                    break
+        self.files.selection_set(position)
         self.load_file()
 
     # ---- file and records --------------------------------------------------------------------
@@ -943,6 +951,13 @@ class GameDataFormsWindow:
         self.schema = SCHEMAS.get(filename)
         is_mod_loc = filename.startswith("Localization/")
         if is_mod_loc:
+            if not self.path.exists():
+                try:
+                    self.path.parent.mkdir(parents=True, exist_ok=True)
+                    self.path.write_text("{}\n", encoding="utf-8")
+                except OSError as error:
+                    messagebox.showerror(tr(self.language, "Create failed"), str(error),
+                                         parent=self.top)
             self.localizer.reload()
         self.data = load_json(self.path, {} if filename == "balance.json" or is_mod_loc else [])
         self.mode = "dict" if isinstance(self.data, dict) else "list"

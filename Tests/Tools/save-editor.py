@@ -1289,6 +1289,7 @@ GAME_DATA_FILES = [
     ("梦境", "dreams.json"),
     ("对话", "dialogue.json"),
     ("平衡数值", "balance.json"),
+    ("模组翻译（中文）", "Localization/zh.json"),
 ]
 
 
@@ -3351,11 +3352,16 @@ class GameDataWindow:
         body.add(right, weight=5)
         self.path_label = ttk.Label(right, text="", foreground="#555")
         self.path_label.pack(anchor="w")
+        self.hint_label = ttk.Label(right, text="", foreground="#887", wraplength=940,
+                                    justify="left")
+        self.hint_label.pack(anchor="w")
         self.text = tk.Text(right, wrap="none", undo=True)
         self.text.pack(fill="both", expand=True, pady=(4, 6))
         bar = ttk.Frame(right)
         bar.pack(fill="x")
         ttk.Button(bar, text="表单编辑", command=self.open_forms).pack(side="left")
+        ttk.Button(bar, text="模组翻译", command=self.open_mod_translations).pack(
+            side="left", padx=(6, 0))
         ttk.Button(bar, text="校验 JSON", command=self.validate).pack(side="left", padx=(6, 0))
         ttk.Button(bar, text="保存（带备份）", command=self.save).pack(side="left", padx=6)
         ttk.Button(bar, text="重新载入", command=self.load).pack(side="left")
@@ -3367,6 +3373,10 @@ class GameDataWindow:
     def open_forms(self) -> None:
         from save_editor_lib.game_data_forms import GameDataFormsWindow
         GameDataFormsWindow(self.top, language="zh")
+
+    def open_mod_translations(self) -> None:
+        from save_editor_lib.game_data_forms import GameDataFormsWindow
+        GameDataFormsWindow(self.top, language="zh", select_file="Localization/zh.json")
 
     def selected_file(self) -> tuple[str, str] | None:
         selection = self.files.curselection()
@@ -3380,6 +3390,22 @@ class GameDataWindow:
         path = game_data_directory() / name
         self.current = path
         self.path_label.configure(text=str(path))
+        is_mod_loc = name.startswith("Localization/")
+        if is_mod_loc:
+            if not path.exists():
+                try:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text("{}\n", encoding="utf-8")
+                except OSError as error:
+                    self.app.messagebox.showerror("创建失败", str(error), parent=self.top)
+                    return
+            self.hint_label.configure(
+                text="键格式：dream.<Id>.title / content.<n> / hint；对话 npc_dialogue.<Id>；"
+                     "装备 mod.equipment.<Id>.name/.description；NPC mod.npc.<Name>.name/.lore；"
+                     "怪物 mod.monster.<Family>.name/.description；层级 "
+                     "mod.monster.tier.<Tier>.name。")
+        else:
+            self.hint_label.configure(text="")
         try:
             text = path.read_text(encoding="utf-8") if path.exists() else "{\n}\n"
         except OSError as error:
