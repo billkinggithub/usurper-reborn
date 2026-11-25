@@ -122,7 +122,7 @@ Example:
 
 Dream, dialogue, monster-name and equipment-name keys are consumed by the game's localization lookups. Equipment descriptions, NPC lore notes and monster family descriptions are content fields with no built-in display path today; the Python save editor shows the same keys as Chinese previews, and a mod can still ship them so a future display path has the translation ready.
 
-In the Python save editor's Game Data window, **Mod translations** edits `GameData/Localization/<language>.json` directly and lists the accepted key formats.
+In the Python save editor's Game Data window, **Mod translations** opens a scanning assistant instead of a blank key/value form. It reads the GameData files, lists dreams, dialogue, custom equipment names and monster/tier names with their English source, shows the official Chinese text as a reference where one exists, filters to the rows that actually need a mod translation, and writes `GameData/Localization/<language>.json`. Existing translation files can still be opened as raw JSON from the same file list.
 
 ## Running the editor
 

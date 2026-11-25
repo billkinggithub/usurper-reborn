@@ -4030,8 +4030,8 @@ class GameDataWindow:
         GameDataFormsWindow(self.top, language="en")
 
     def open_mod_translations(self) -> None:
-        from save_editor_lib.game_data_forms import GameDataFormsWindow
-        GameDataFormsWindow(self.top, language="en", select_file="Localization/en.json")
+        from save_editor_lib.mod_translations import ModTranslationWindow
+        ModTranslationWindow(self.top, language="en")
 
     def selected_file(self) -> tuple[str, str] | None:
         selection = self.files.curselection()

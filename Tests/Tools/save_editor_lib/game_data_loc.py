@@ -32,8 +32,32 @@ def _clean(value: Any) -> str:
 
 
 def _snake(name: str) -> str:
-    spaced = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name)
-    return SNAKE.sub("_", spaced).strip("_").lower()
+    # Same rule as MonsterNames.IdOf: lower case, every run of non-alphanumerics
+    # becomes one underscore. Do not split camelCase.
+    return SNAKE.sub("_", name.lower()).strip("_")
+
+
+def localizable_tier_key(name: str) -> str:
+    """The official monster-name key stem for a tier name."""
+    return _snake(name)
+
+
+def localization_file(language: str) -> Path:
+    """Find Localization/<language>.json next to the game or in the repo."""
+    candidates: list[Path] = []
+    root = repo_root()
+    if root is not None:
+        candidates.append(root / "Localization" / f"{language}.json")
+    exe = game_executable()
+    if exe is not None:
+        candidates.append(exe.parent / "Localization" / f"{language}.json")
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        candidates.append(parent / "Localization" / f"{language}.json")
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
 
 
 class GameDataLocalizer:
@@ -78,20 +102,7 @@ class GameDataLocalizer:
         return (root / relative) if root is not None else Path(relative)
 
     def _localization_path(self) -> Path:
-        candidates: list[Path] = []
-        root = repo_root()
-        if root is not None:
-            candidates.append(root / "Localization" / "zh.json")
-        exe = game_executable()
-        if exe is not None:
-            candidates.append(exe.parent / "Localization" / "zh.json")
-        here = Path(__file__).resolve()
-        for parent in here.parents:
-            candidates.append(parent / "Localization" / "zh.json")
-        for candidate in candidates:
-            if candidate.exists():
-                return candidate
-        return candidates[0]
+        return localization_file("zh")
 
     def dream_title(self, dream: dict) -> str:
         return self._lookup(f"dream.{dream.get('id', '')}.title")
