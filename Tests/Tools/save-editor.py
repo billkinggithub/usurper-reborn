@@ -2241,7 +2241,9 @@ class EditorWindow:
     def actions_for_section(self) -> list[tuple[str, object]]:
         section = self.current_section()
         if section == "inventory":
-            return [("添加物品（JSON）", self.act_add_inventory_item),
+            return [("从模板添加物品", self.act_pick_inventory_item),
+                    ("按模板装备物品", self.act_equip_template_item),
+                    ("添加物品（JSON）", self.act_add_inventory_item),
                     ("删除选中物品", self.act_remove_selected_inventory),
                     ("清空物品栏", self.act_clear_inventory),
                     ("清空装备栏", self.act_clear_equipment),
@@ -2320,6 +2322,32 @@ class EditorWindow:
         self.dirty = True
         self.rebuild_view()
         self.say(message)
+
+    def act_pick_inventory_item(self) -> str | None:
+        from save_editor_lib.item_picker import pick_item, to_inventory
+        row = pick_item(self.root, "zh")
+        if row is None:
+            return None
+        player = self.player()
+        inventory = player.get("inventory")
+        if not isinstance(inventory, list):
+            inventory = []
+            player["inventory"] = inventory
+        inventory.append(to_inventory(row))
+        return f"已添加「{row['nameZh']}」，当前物品栏 {len(inventory)} 件。"
+
+    def act_equip_template_item(self) -> str | None:
+        from save_editor_lib.item_picker import pick_item
+        row = pick_item(self.root, "zh")
+        if row is None:
+            return None
+        player = self.player()
+        equipped = player.get("equippedItems")
+        if not isinstance(equipped, dict):
+            equipped = {}
+            player["equippedItems"] = equipped
+        equipped[str(row["slotInt"])] = row["id"]
+        return f"已把「{row['nameZh']}」装备到栏位 {row['slot']}（ID {row['id']}）。"
 
     def act_add_inventory_item(self) -> str | None:
         text = self.simpledialog.askstring(
@@ -3321,13 +3349,18 @@ class GameDataWindow:
         self.text.pack(fill="both", expand=True, pady=(4, 6))
         bar = ttk.Frame(right)
         bar.pack(fill="x")
-        ttk.Button(bar, text="校验 JSON", command=self.validate).pack(side="left")
+        ttk.Button(bar, text="表单编辑", command=self.open_forms).pack(side="left")
+        ttk.Button(bar, text="校验 JSON", command=self.validate).pack(side="left", padx=(6, 0))
         ttk.Button(bar, text="保存（带备份）", command=self.save).pack(side="left", padx=6)
         ttk.Button(bar, text="重新载入", command=self.load).pack(side="left")
         ttk.Button(bar, text="关闭", command=self.top.destroy).pack(side="right")
         self.current: Path | None = None
         self.files.selection_set(0)
         self.load()
+
+    def open_forms(self) -> None:
+        from save_editor_lib.game_data_forms import GameDataFormsWindow
+        GameDataFormsWindow(self.top)
 
     def selected_file(self) -> tuple[str, str] | None:
         selection = self.files.curselection()
