@@ -18,6 +18,7 @@ from tkinter import messagebox, ttk, simpledialog
 from typing import Any
 
 from .common import GAME_DATA_FILES, export_defaults, game_data_dir, load_json, write_json
+from .game_data_loc import GameDataLocalizer
 
 CAMEL = re.compile(r"[A-Z]+(?=[A-Z][a-z]|$)|[A-Z]?[a-z]+|[0-9]+")
 NONE_STORY_ROLE = "(none - regular NPC)"
@@ -331,28 +332,41 @@ SCHEMAS: dict[str, list[dict]] = {
 }
 
 
-def record_title(record: Any, index: int, filename: str = "") -> str:
+def record_title(record: Any, index: int, filename: str = "",
+                 localizer: GameDataLocalizer | None = None) -> str:
     if not isinstance(record, dict):
         return f"{index + 1}. {record}"
+    zh = localizer is not None
+
+    def value(name: Any) -> Any:
+        return tr_value("zh", str(name)) if zh else name
+
     if filename == "equipment.json":
-        return f"#{record.get('id', '?')}  {record.get('name', '')}  ({record.get('slot', '')})"
+        return (f"#{record.get('id', '?')}  {record.get('name', '')}  "
+                f"({value(record.get('slot', ''))})")
     if filename == "npcs.json":
         return (f"{record.get('name', '')}  L{record.get('startLevel', '?')}  "
-                f"{record.get('race', '')} {record.get('class', '')} "
-                f"{record.get('alignment', '')} {record.get('personality', '')}")
+                f"{value(record.get('race', ''))} {value(record.get('class', ''))} "
+                f"{value(record.get('alignment', ''))} {value(record.get('personality', ''))}")
     if filename == "monster_families.json":
         tiers = record.get("tiers")
         count = len(tiers) if isinstance(tiers, list) else 0
-        return (f"{record.get('familyName', '')}  attack={record.get('attackType', '')}  "
-                f"color={record.get('baseColor', '')}  tiers={count}")
+        name = (localizer.monster_family(record.get("familyName", ""))
+                if localizer else "") or record.get("familyName", "")
+        return (f"{name}  attack={value(record.get('attackType', ''))}  "
+                f"color={value(record.get('baseColor', ''))}  tiers={count}")
     if filename == "dreams.json":
-        return f"{record.get('id', '')} — {record.get('title', '')}"
+        title = (localizer.dream_title(record) if localizer else "") or record.get("title", "")
+        return f"{record.get('id', '')} — {title}"
     if filename == "dialogue.json":
-        snippet = str(record.get("text", ""))
+        snippet = ((localizer.dialogue_text(record) if localizer else "")
+                   or str(record.get("text", "")))
         if len(snippet) > 50:
             snippet = snippet[:47] + "..."
-        return (f"{record.get('id', '')} [{record.get('category', '')}] "
-                f"[{record.get('personalityType') or 'any'}] \"{snippet}\"")
+        personality = record.get("personalityType")
+        personality = ("任意" if zh else "any") if not personality else value(personality)
+        return (f"{record.get('id', '')} [{value(record.get('category', ''))}] "
+                f"[{personality}] \"{snippet}\"")
     for key in ("name", "familyName", "title", "id"):
         value = record.get(key)
         if isinstance(value, str) and value:
@@ -409,13 +423,16 @@ class StringListEditor(tk.Toplevel):
     """Backs the C# dream 'Content' submenu: append, edit, delete, clear, commit."""
 
     def __init__(self, parent: tk.Misc, title: str, values: list[str], on_commit,
-                 language: str = "en"):
+                 language: str = "en", previews: list[str] | None = None):
         super().__init__(parent)
         self.title(title)
-        self.geometry("700x500")
+        self.geometry("760x600")
         self.transient(parent)
         self.language = language
         self.values = list(values)
+        self.previews = list(previews or [])
+        while len(self.previews) < len(self.values):
+            self.previews.append("")
         self.on_commit = on_commit
 
         frame = ttk.Frame(self, padding=8)
@@ -434,6 +451,14 @@ class StringListEditor(tk.Toplevel):
         self.entry = ttk.Entry(frame)
         self.entry.pack(fill="x", pady=(2, 6))
 
+        self.preview_label = None
+        self.preview = None
+        if language == "zh":
+            ttk.Label(frame, text="中文预览：").pack(anchor="w")
+            self.preview = tk.Text(frame, height=4, wrap="word", state="disabled",
+                                   background="#f3faf6")
+            self.preview.pack(fill="x", pady=(2, 6))
+
         buttons = ttk.Frame(frame)
         buttons.pack(fill="x")
         ttk.Button(buttons, text=tr(language, "Append line"),
@@ -451,6 +476,9 @@ class StringListEditor(tk.Toplevel):
 
         self.protocol("WM_DELETE_WINDOW", self.destroy)
         self.refresh()
+        if self.values:
+            self.lines.selection_set(0)
+            self.set_preview(0)
         self.grab_set()
 
     def refresh(self) -> None:
@@ -458,39 +486,63 @@ class StringListEditor(tk.Toplevel):
         for line in self.values:
             self.lines.insert("end", line)
 
+    def set_preview(self, index: int | None) -> None:
+        if self.preview is None:
+            return
+        text = self.previews[index] if index is not None and 0 <= index < len(self.previews) else ""
+        if not text and index is not None:
+            text = "（这一行还没有中文翻译。）"
+        self.preview.configure(state="normal")
+        self.preview.delete("1.0", "end")
+        self.preview.insert("1.0", text)
+        self.preview.configure(state="disabled")
+
     def load_selected(self) -> None:
         selection = self.lines.curselection()
         if selection:
+            index = selection[0]
             self.entry.delete(0, "end")
-            self.entry.insert(0, self.values[selection[0]])
+            self.entry.insert(0, self.values[index])
+            self.set_preview(index)
 
     def append_line(self) -> None:
         text = self.entry.get()
         if text:
             self.values.append(text)
+            self.previews.append("")
             self.refresh()
             self.lines.selection_set(self.lines.size() - 1)
+            self.set_preview(len(self.values) - 1)
 
     def replace_line(self) -> None:
         selection = self.lines.curselection()
         if not selection:
             return
-        self.values[selection[0]] = self.entry.get()
+        index = selection[0]
+        self.values[index] = self.entry.get()
+        self.previews[index] = ""
         self.refresh()
-        self.lines.selection_set(selection[0])
+        self.lines.selection_set(index)
+        self.set_preview(index)
 
     def delete_line(self) -> None:
         selection = self.lines.curselection()
         if selection:
-            del self.values[selection[0]]
+            index = selection[0]
+            del self.values[index]
+            if index < len(self.previews):
+                del self.previews[index]
             self.refresh()
+            self.set_preview(None)
 
     def clear_lines(self) -> None:
         if self.values and messagebox.askyesno(
                 tr(self.language, "Clear all lines"),
                 tr(self.language, "Clear all lines?"), parent=self):
             self.values.clear()
+            self.previews.clear()
             self.refresh()
+            self.set_preview(None)
 
     def commit(self) -> None:
         self.on_commit(list(self.values))
@@ -500,11 +552,15 @@ class StringListEditor(tk.Toplevel):
 class TierEditor(tk.Toplevel):
     """Backs the C# monster-family tier editor, including ability pickers."""
 
-    def __init__(self, parent: tk.Misc, family: dict, on_change, language: str = "en"):
+    def __init__(self, parent: tk.Misc, family: dict, on_change, language: str = "en",
+                 localizer: GameDataLocalizer | None = None):
         super().__init__(parent)
         self.language = language
-        self.title(f"{family.get('familyName', 'Monster family')} "
-                   + ("层级" if language == "zh" else "tiers"))
+        self.localizer = localizer
+        family_name = family.get("familyName", "Monster family")
+        if language == "zh" and localizer is not None:
+            family_name = localizer.monster_family(family_name) or family_name
+        self.title(f"{family_name} " + ("层级" if language == "zh" else "tiers"))
         self.geometry("900x620")
         self.transient(parent)
         self.family = family
@@ -549,6 +605,13 @@ class TierEditor(tk.Toplevel):
         ttk.Combobox(form, textvariable=self.color, values=ANSI_COLORS,
                      state="readonly", width=37).grid(row=4, column=1, sticky="ew", pady=3)
 
+        self.preview_label = None
+        if language == "zh":
+            self.preview_label = ttk.Label(right, text="中文预览：", foreground="#0a6a4a",
+                                           wraplength=520, justify="left")
+            self.preview_label.pack(anchor="w", pady=(6, 0))
+            self.vars["name"].trace_add("write", lambda *_args: self.update_preview())
+
         ttk.Label(right, text=tr(language, "SpecialAbilities:")).pack(anchor="w", pady=(8, 2))
         ability_frame = ttk.Frame(right)
         ability_frame.pack(fill="both", expand=True)
@@ -591,8 +654,11 @@ class TierEditor(tk.Toplevel):
         self.listbox.delete(0, "end")
         for tier in self.tiers:
             if isinstance(tier, dict):
+                name = tier.get("name", "")
+                if self.language == "zh" and self.localizer is not None:
+                    name = self.localizer.monster_tier(name) or name
                 self.listbox.insert(
-                    "end", f"{tier.get('name', '')}  L{tier.get('minLevel', '?')}-"
+                    "end", f"{name}  L{tier.get('minLevel', '?')}-"
                            f"{tier.get('maxLevel', '?')}  x{tier.get('powerMultiplier', '?')}"
                            f"  color={tier.get('color', '')}"
                            f"  abilities={len(tier.get('specialAbilities') or [])}")
@@ -630,6 +696,16 @@ class TierEditor(tk.Toplevel):
         self.signature.delete(0, "end")
         for ability in tier.get("signatureAbilities") or []:
             self.signature.insert("end", ability)
+
+    def update_preview(self) -> None:
+        if self.preview_label is None:
+            return
+        name = self.vars["name"].get().strip()
+        translated = ""
+        if self.localizer is not None and name:
+            translated = self.localizer.monster_tier(name)
+        self.preview_label.configure(
+            text="中文预览：" + (translated or "（这个层级名还没有中文翻译。）"))
 
     def apply_current(self) -> bool:
         if self.current is None:
@@ -736,6 +812,7 @@ class TierEditor(tk.Toplevel):
 class GameDataFormsWindow:
     def __init__(self, parent: tk.Misc, language: str = "en"):
         self.language = language
+        self.localizer = GameDataLocalizer(language)
         self.top = tk.Toplevel(parent)
         self.top.title(tr(language, "GameData editor"))
         self.top.geometry("1240x800")
@@ -874,7 +951,7 @@ class GameDataFormsWindow:
             indices = list(range(len(self.data)))
             if query:
                 indices = [i for i in indices
-                           if query in record_title(self.data[i], i, self.filename).casefold()]
+                           if query in self.search_text(self.data[i], i).casefold()]
             return indices
         indices = list(range(len(self.dict_keys)))
         if query:
@@ -895,14 +972,25 @@ class GameDataFormsWindow:
                 text += "  [UNSAVED]"
         self.status_label.configure(text=text)
 
+    def search_text(self, record: Any, index: int) -> str:
+        title = record_title(record, index, self.filename,
+                             self.localizer if self.language == "zh" else None)
+        try:
+            raw = json.dumps(record, ensure_ascii=False)
+        except (TypeError, ValueError):
+            raw = ""
+        return f"{title} {raw}"
+
     def refresh_records(self) -> None:
         previous = self.index
         self.records.delete(0, "end")
         self.record_indices = self.filtered_indices()
+        localizer = self.localizer if self.language == "zh" else None
         csharp_types = {bool: "Boolean", int: "Int32", float: "Single", str: "String"}
         if self.mode == "list":
             for index in self.record_indices:
-                self.records.insert("end", record_title(self.data[index], index, self.filename))
+                self.records.insert("end", record_title(
+                    self.data[index], index, self.filename, localizer))
         else:
             for index in self.record_indices:
                 key = self.dict_keys[index]
@@ -958,6 +1046,9 @@ class GameDataFormsWindow:
                               foreground="#555").pack(anchor="w", pady=(10, 2))
                 value = record.get(spec["key"], self.default_for(spec))
                 self.add_field(spec["key"], tr_field(self.language, spec["title"]), value, spec)
+                preview = self.preview_for(spec["key"], record, value)
+                if preview:
+                    self.add_preview(preview)
                 keys.discard(spec["key"])
         if self.show_extras.get() and keys:
             ttk.Label(self.form, text=tr(self.language, "Other JSON fields"),
@@ -967,6 +1058,32 @@ class GameDataFormsWindow:
                 self.add_field(key, label(key), record[key], None)
         if self.filename == "equipment.json" and self.schema:
             self.update_equipment_visibility()
+
+    def preview_for(self, key: str, record: dict, value: Any) -> str:
+        if not self.localizer.enabled:
+            return ""
+        if self.filename == "dreams.json":
+            if key == "title":
+                return self.localizer.dream_title(record)
+            if key == "philosophicalHint":
+                return self.localizer.dream_hint(record)
+        if self.filename == "dialogue.json" and key == "text":
+            return self.localizer.dialogue_text(record)
+        if self.filename == "monster_families.json":
+            if key == "familyName":
+                return self.localizer.monster_family(str(value or ""))
+            if key == "description":
+                return self.localizer.description(value)
+        if self.filename == "equipment.json" and key == "description":
+            return self.localizer.description(value)
+        if self.filename == "npcs.json" and key == "loreNote":
+            return self.localizer.description(value)
+        return ""
+
+    def add_preview(self, text: str) -> None:
+        ttk.Label(self.form, text="中文预览：" + text, foreground="#0a6a4a",
+                  wraplength=760, justify="left").pack(
+            anchor="w", padx=(36, 0), pady=(0, 3))
 
     @staticmethod
     def default_for(spec: dict) -> Any:
@@ -1107,7 +1224,7 @@ class GameDataFormsWindow:
             self.dirty = True
             self.refresh_records()
 
-        TierEditor(self.top, record, changed, self.language)
+        TierEditor(self.top, record, changed, self.language, self.localizer)
 
     def open_content(self, lines: list) -> None:
         if not self.apply_form():
@@ -1121,9 +1238,13 @@ class GameDataFormsWindow:
             self.dirty = True
             self.refresh_records()
 
-        title = (f"「{record.get('title', '')}」的内容" if self.language == "zh"
+        display_title = (self.localizer.dream_title(record)
+                         if self.localizer.enabled else "") or record.get("title", "")
+        title = (f"「{display_title}」的内容" if self.language == "zh"
                  else f"Content of \"{record.get('title', '')}\"")
-        StringListEditor(self.top, title, lines, commit, self.language)
+        previews = [self.localizer.dream_content(record, index) for index in range(len(lines))] \
+            if self.localizer.enabled else []
+        StringListEditor(self.top, title, lines, commit, self.language, previews)
 
     def read_field(self, key: str) -> Any:
         kind, widget, spec = self.field_widgets[key]
