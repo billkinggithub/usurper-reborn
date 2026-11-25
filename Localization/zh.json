@@ -31149,5 +31149,11 @@
  "dungeon.wait_order": "{0}在此等候。",
  "dungeon.wait_pick": "让谁在此等候？",
  "dungeon.wait_rejoins": "{0}等到你们回来，重新归队。",
- "dungeon.wait_tag": "（等候中）"
+ "dungeon.wait_tag": "（等候中）",
+ "combat.deaths_this_playthrough": "（本局已死亡 {0} 次）",
+ "engine.credits_billkinggithub": "    billkinggithub           - 代码贡献",
+ "home.child_action_surname": "更改姓氏",
+ "home.child_new_surname_prompt": "新姓氏（按回车保留）：",
+ "home.child_surname_all_prompt": "要给全部 {0} 个子女改姓为 {1} 吗？（Y/N）",
+ "home.child_surname_taken": "  已经有人使用 {0} 这个姓氏；{1} 保留原姓氏。"
 }

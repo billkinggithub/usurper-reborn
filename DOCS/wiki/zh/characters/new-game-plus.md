@@ -1,8 +1,9 @@
 ---
 title: 新游戏+（NG+）与轮回
 path: /wiki/zh/characters/new-game-plus/
-checked: 1.3.14
+checked: 1.3.15
 sources: Scripts/Systems/EndingsSystem.cs, Scripts/Systems/OpeningSequence.cs, Scripts/Core/GameEngine.cs, Scripts/Systems/StoryProgressionSystem.cs, Scripts/Systems/MetaProgressionSystem.cs, Scripts/Systems/CharacterCreationSystem.cs, Scripts/Core/GameConfig.cs, Scripts/Systems/CombatEngine.cs, Scripts/Systems/ArtifactSystem.cs, Scripts/Core/Items.cs
+history: 1.3.15 | none
 history: 1.3.14 | none
 history: 1.3.13 | none
 history: 1.3.12 | none

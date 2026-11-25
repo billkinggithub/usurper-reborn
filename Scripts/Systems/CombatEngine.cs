@@ -24323,9 +24323,9 @@ public partial class CombatEngine
     }
 
     /// <summary>
-    /// v0.60.0 beta: when a player exceeds the playthrough death cap
-    /// (GameConfig.MaxPlaythroughDeaths, default 5), the character is
-    /// permadeleted instead of getting the normal Veil-of-Death menu.
+    /// v0.60.0 beta: online with OnlinePermadeathEnabled on, a death with no Resurrections left
+    /// erases the character instead of reviving it (1.3.15: the playthrough death count plays no
+    /// part; it erases no one).
     /// Plays a short cinematic naming the cap, then archives + hard-deletes
     /// the account row. Archive lets the player /restore within 7 days
     /// (per v0.57.22 deleted_characters table) so a single bad afternoon
@@ -25065,34 +25065,17 @@ public partial class CombatEngine
     }
 
     /// <summary>
-    /// v1.2.2: the death-cap line above the resurrection menu: the final death warning at the cap, the
-    /// deaths left near it, otherwise the count used.
+    /// v1.2.2: the death-count line above the resurrection menu.
+    /// v1.3.15: only the count. This menu is reached only where no death erases a character
+    /// (single player, and online with OnlinePermadeathEnabled off); the online erase is decided by
+    /// Resurrections before the menu, and PlaythroughDeaths erases no one. The old lines said
+    /// "The next death will erase you" and "N deaths remain before erasure", which never happened.
     /// </summary>
     private void ShowDeathCountWarning(Character player)
     {
-        int deathsLeft = GameConfig.MaxPlaythroughDeaths - player.PlaythroughDeaths;
-        if (player.PlaythroughDeaths >= GameConfig.MaxPlaythroughDeaths)
-        {
-            terminal.SetColor("bright_red");
-            terminal.WriteLine($"  {Loc.Get("combat.final_death_warning")}");
-            terminal.SetColor("red");
-            terminal.WriteLine($"  {Loc.Get("combat.final_death_times", player.PlaythroughDeaths)}");
-            terminal.SetColor("yellow");
-            terminal.WriteLine($"  {Loc.Get("combat.final_death_care")}");
-            terminal.WriteLine("");
-        }
-        else if (deathsLeft <= 2)
-        {
-            terminal.SetColor("yellow");
-            terminal.WriteLine($"  {Loc.Get(deathsLeft == 1 ? "combat.deaths_remaining_one" : "combat.deaths_remaining_many", player.PlaythroughDeaths, GameConfig.MaxPlaythroughDeaths, deathsLeft)}");
-            terminal.WriteLine("");
-        }
-        else
-        {
-            terminal.SetColor("dark_gray");
-            terminal.WriteLine($"  {Loc.Get("combat.deaths_used", player.PlaythroughDeaths, GameConfig.MaxPlaythroughDeaths)}");
-            terminal.WriteLine("");
-        }
+        terminal.SetColor("dark_gray");
+        terminal.WriteLine($"  {Loc.Get("combat.deaths_this_playthrough", player.PlaythroughDeaths)}");
+        terminal.WriteLine("");
     }
 
     private async Task<ResurrectionResult> PresentResurrectionChoices(CombatResult result)

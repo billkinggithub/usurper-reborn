@@ -1,8 +1,9 @@
 ---
 title: 世界与地点
 path: /wiki/zh/world/
-checked: 1.3.10
+checked: 1.3.15
 sources: Scripts/Locations/MainStreetDistricts.cs
+history: 1.3.15 | none
 history: 1.3.10 | none
 history: 1.3.9 | none
 ---

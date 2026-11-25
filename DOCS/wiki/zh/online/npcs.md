@@ -1,8 +1,9 @@
 ---
 title: NPC 的生活与关系
 path: /wiki/zh/online/npcs/
-checked: 1.3.14
+checked: 1.3.15
 sources: Scripts/Systems/CompanionSystem.cs, Scripts/Systems/WorldSimulator.cs, Scripts/Systems/NPCSpawnSystem.cs, Scripts/AI/EnhancedNPCBehaviors.cs, Scripts/Systems/FamilySystem.cs, Scripts/Systems/WorldSimService.cs, Scripts/BBS/DoorMode.cs, Scripts/Core/GameConfig.cs, DOCS/release-notes/RELEASE_NOTES_1.2.0.md
+history: 1.3.15 | none
 history: 1.3.14 | none
 history: 1.3.13 | none
 history: 1.3.12 | 每个新来者都会以城镇中较少的那种性别出现，因此偏向一边的城镇会随着人口更替而趋于平衡。

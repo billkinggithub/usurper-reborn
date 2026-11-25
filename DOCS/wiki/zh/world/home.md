@@ -1,8 +1,9 @@
 ---
 title: 家与家人
 path: /wiki/zh/world/home/
-checked: 1.3.14
+checked: 1.3.15
 sources: Scripts/Locations/HomeLocation.cs, Scripts/Locations/ChurchLocation.cs, Scripts/Systems/RelationshipSystem.cs, Scripts/Systems/IntimacySystem.cs, Scripts/Systems/FamilySystem.cs, Scripts/Core/Child.cs, Scripts/Systems/AlignmentSystem.cs, Scripts/Locations/CastleLocation.cs, Scripts/Systems/VisualNovelDialogueSystem.cs, Scripts/Locations/MainStreetDistricts.cs, Scripts/Core/GameConfig.cs, Scripts/Systems/DailySystemManager.cs, Scripts/Systems/CombatEngine.cs, Scripts/Locations/MainStreetClassic.cs
+history: 1.3.15 | 可以在家中的 C 菜单更改子女姓氏，可改一个子女或全部在家子女；读档时子女会保留自己的姓氏；如果改名会让子女与另一个子女、镇民或玩家同名，则会被拒绝。
 history: 1.3.14 | none
 history: 1.3.13 | none
 history: 1.3.12 | none
@@ -62,7 +63,7 @@ history: 1.2.4 | 在线时你的家是私密的；你在线期间，被独自留
 
 ## 孩子
 
-你可以与配偶或恋人孕育孩子，最多 {{balance:MaxPlayerChildren}} 个在世子女；概率由你的床决定（见上文）。孩子出生时由你命名，也可以在家的 C 菜单中改名。包含 < > & 或双引号的名字会被拒绝：新生儿会保留游戏给它的名字，被改名的孩子则保留旧名。
+你可以与配偶或恋人孕育孩子，最多 {{balance:MaxPlayerChildren}} 个在世子女；概率由你的床决定（见上文）。孩子出生时由你命名。在家中的 C 菜单里，N 可为子女取新名，L 可改姓氏，可改一个子女或全部在家子女；读档时子女会保留自己的姓氏。包含 < > & 或双引号的名字会被拒绝：新生儿会保留游戏给它的名字，被改名的孩子则保留旧名。若改名会让子女与另一个子女、镇民或玩家同名，同样会被拒绝。
 
 ### 我的孩子什么时候长大
 

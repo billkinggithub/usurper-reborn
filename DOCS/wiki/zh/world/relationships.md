@@ -1,8 +1,9 @@
 ---
 title: 关系与情缘街
 path: /wiki/zh/world/relationships/
-checked: 1.3.11
+checked: 1.3.15
 sources: Scripts/Locations/LoveStreetLocation.cs, Scripts/Locations/HomeLocation.cs, Scripts/Locations/ChurchLocation.cs
+history: 1.3.15 | none
 history: 1.3.11 | 情缘街的菜单行在所有语言下都能容纳在 79 列以内。
 history: 1.3.10 | none
 history: 1.3.9 | none

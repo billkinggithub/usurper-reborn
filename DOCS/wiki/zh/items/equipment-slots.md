@@ -1,8 +1,9 @@
 ---
 title: 装备槽位
 path: /wiki/zh/items/equipment-slots/
-checked: 1.3.14
+checked: 1.3.15
 sources: Scripts/Core/EquipmentEnums.cs, Scripts/Core/Character.cs, Scripts/Systems/InventorySystem.cs, Scripts/Locations/BaseLocation.cs, Scripts/Core/Items.cs
+history: 1.3.15 | none
 history: 1.3.14 | none
 history: 1.3.11 | none
 history: 1.3.10 | 双手武器的战利品比较会计入副手武器，并指明它卸下的副手物品。

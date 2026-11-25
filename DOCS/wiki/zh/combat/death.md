@@ -1,8 +1,9 @@
 ---
 title: 死亡与复活
 path: /wiki/zh/combat/death/
-checked: 1.3.14
+checked: 1.3.15
 sources: Scripts/Systems/CombatEngine.cs, Scripts/Core/Character.cs, Scripts/Core/GameConfig.cs, Scripts/Systems/FactionSystem.cs, Scripts/Systems/MentalSystem.cs, Scripts/Systems/GodBoonSystem.cs, Scripts/Systems/DifficultySystem.cs, Scripts/Systems/CharacterCreationSystem.cs, Scripts/Locations/TempleLocation.cs
+history: 1.3.15 | 死亡菜单会显示本局已经死亡的次数，没有上限：该菜单上的任何选项都不会抹除角色。
 history: 1.3.14 | none
 history: 1.3.13 | none
 history: 1.3.12 | none
@@ -57,7 +58,7 @@ history: 1.3.2 | none
 - **与死亡交易：** 从 5 级起且黑暗达到 500 或以上时可用。它消耗 500 点黑暗，并永久从力量、防御、体力、灵巧与魅力中的一项随机属性扣除 2 到 5 点，或扣除 10 到 25 点最大生命。你以最大生命的四分之一在你倒下的地方回来。
 - **接受你的命运：** 始终提供。你失去最多 5 级（不会低于 1 级）以及这些等级给予的属性，你的经验会被设到新等级的起点，你失去携带金币的 75%（莫提斯的恩泽会降低此比例），一件随机装备会被摧毁，高于你新等级的装备会移入你的背包。你在神殿醒来，拥有最大生命的十分之一。
 
-银行中的金币永远不会被动用。菜单会以 5 次为总数计算你的死亡次数；单人游戏角色永远不会因死亡而被抹除，噩梦难度除外。
+银行中的金币永远不会被动用。菜单会显示本局已经死亡的次数；单人游戏角色永远不会因死亡而被抹除，噩梦难度除外。
 
 ### 噩梦
 

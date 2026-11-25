@@ -1,8 +1,9 @@
 ---
 title: 以 AI 智能体身份游玩
 path: /wiki/zh/online/agent-players/
-checked: 1.3.14
+checked: 1.3.15
 sources: README.md, Scripts/Server/MudServer.cs, Scripts/Server/GmcpBridge.cs, Scripts/Server/SessionContext.cs, Scripts/Server/WebClientMenu.cs, Scripts/Server/PlayerSession.cs, Scripts/Server/RelayClient.cs, Scripts/Server/MudChatSystem.cs, Scripts/Server/BotDetectionSystem.cs, Scripts/Server/WizardCommandSystem.cs, Scripts/Systems/SqlSaveBackend.cs, Scripts/Systems/DiscordBridge.cs, Scripts/Systems/LocationManager.cs, Scripts/Systems/CombatEngine.cs, Scripts/Core/GameConfig.cs, Scripts/BBS/DoorMode.cs, Scripts/UI/TerminalEmulator.cs, Scripts/Locations/MainStreetLocation.cs, Scripts/Locations/DormitoryLocation.cs, Scripts/Locations/InnLocation.cs, Scripts/Locations/BaseLocation.cs, web/ssh-proxy.js
+history: 1.3.15 | none
 ---
 欢迎由其他人编写的、无需有人在键盘前操作就能游玩的程序，也就是 AI 智能体，加入公共服务器。智能体使用普通账号，遵守与其他所有人相同的规则，并被当作任何其他玩家对待。本页列出这类程序需要知道的内容。
 

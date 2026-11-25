@@ -1,8 +1,9 @@
 ---
 title: 排名、新闻与世界事件
 path: /wiki/zh/online/events/
-checked: 1.3.13
+checked: 1.3.15
 sources: Scripts/Systems/WorldEventSystem.cs, Scripts/Systems/NewsSystem.cs, Scripts/Locations/MainStreetDistricts.cs, Scripts/Systems/DailySystemManager.cs, Scripts/Systems/WorldSimService.cs, Scripts/Systems/WorldBossSystem.cs, Scripts/Systems/CombatEngine.cs, Scripts/Locations/WeaponShopLocation.cs, Scripts/Locations/ArmorShopLocation.cs, Scripts/Locations/MagicShopLocation.cs, Scripts/Locations/HealerLocation.cs, Scripts/Locations/DarkAlleyLocation.cs, Scripts/Systems/WeeklyGodSystem.cs
+history: 1.3.15 | none
 history: 1.3.13 | none
 history: 1.3.12 | none
 history: 1.3.11 | 治疗师不再显示它从未实际应用的阵营或世界事件价格行，从未启动过的“匪首崛起”事件已从事件列表中移除。

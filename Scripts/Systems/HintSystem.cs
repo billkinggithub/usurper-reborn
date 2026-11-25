@@ -215,7 +215,8 @@ namespace UsurperRemake.Systems
         }
 
         /// <summary>
-        /// Word wrap text to fit within a maximum width
+        /// Word wrap text to fit within a maximum width. The shared wrapper measures display columns
+        /// and can break a line with no spaces in it, which a wide-script hint needs.
         /// </summary>
         // v1.3.8: the shared wrapper measures display columns and can break a line with no spaces in
         // it. This copy split on spaces and counted characters, so a Chinese hint came out as one

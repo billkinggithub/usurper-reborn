@@ -1,8 +1,9 @@
 ---
 title: 在线世界
 path: /wiki/zh/online/
-checked: 1.3.13
+checked: 1.3.15
 sources: DOCS/MULTIPLAYER_ARCHITECTURE.md, Scripts/Systems/DailySystemManager.cs, Scripts/Systems/WorldEventSystem.cs, Scripts/Systems/WorldBossSystem.cs
+history: 1.3.15 | none
 history: 1.3.13 | none
 history: 1.3.12 | none
 history: 1.3.11 | none

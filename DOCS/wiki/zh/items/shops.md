@@ -1,8 +1,9 @@
 ---
 title: 购物、魔法服务与拍卖
 path: /wiki/zh/items/shops/
-checked: 1.3.11
+checked: 1.3.15
 sources: Scripts/Locations/WeaponShopLocation.cs, Scripts/Locations/ArmorShopLocation.cs, Scripts/Locations/MagicShopLocation.cs, Scripts/Locations/MainStreetDistricts.cs, Scripts/Systems/ShopItemGenerator.cs, Scripts/Systems/HagglingEngine.cs, Scripts/Systems/AlignmentSystem.cs, Scripts/Systems/FactionSystem.cs, Scripts/Systems/DifficultySystem.cs, Scripts/Systems/CityControlSystem.cs, Scripts/Core/King.cs, Scripts/Locations/BaseLocation.cs, Scripts/Systems/MarketplaceSystem.cs
+history: 1.3.15 | none
 history: 1.3.11 | 魔法商店的鉴定、解除诅咒和地牢重置卷轴页面会在独立页面上打开，而不是在商店菜单下方。
 history: 1.3.10 | 护甲自动购买会显示每一件物品和含税总价，并只询问一次；自动购买和商店列表都按直接购买的价格收费；走私者私藏会让你接下来 5 次购买享受 10% 折扣；离线拍卖行允许你撤回挂售（W），并在 30 天后退回未售出的挂售。
 history: 1.3.9 | none

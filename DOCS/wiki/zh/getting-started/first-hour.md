@@ -1,8 +1,9 @@
 ---
 title: 你的第一次远征
 path: /wiki/zh/getting-started/first-hour/
-checked: 1.3.11
+checked: 1.3.15
 sources: Scripts/Locations/DungeonLocation.cs, Scripts/Locations/HealerLocation.cs, Scripts/Locations/LevelMasterLocation.cs
+history: 1.3.15 | none
 history: 1.3.11 | none
 history: 1.3.10 | 地牢教程和楼层切换画面会说明楼层到达规则：在每个等级，你能下到比自身等级低多少层。
 history: 1.3.9 | none

@@ -1,8 +1,9 @@
 ---
 title: 每位神明的恩赐有什么作用
 path: /wiki/zh/gods/boons/
-checked: 1.3.14
+checked: 1.3.15
 sources: Scripts/Systems/GodBoonSystem.cs, Scripts/Systems/DivineBlessingSystem.cs, Scripts/Systems/CombatEngine.cs, Scripts/Systems/StatEffectsSystem.cs, Scripts/Systems/SpellSystem.cs, Scripts/Systems/WorldBossSystem.cs, Scripts/Locations/WildernessLocation.cs, Scripts/Locations/DarkAlleyLocation.cs, Scripts/Locations/HomeLocation.cs, Scripts/Locations/SettlementLocation.cs, Scripts/Systems/QuestSystem.cs, Scripts/Core/Character.cs, Scripts/Core/GameConfig.cs
+history: 1.3.15 | none
 history: 1.3.14 | none
 history: 1.3.13 | none
 history: 1.3.12 | none

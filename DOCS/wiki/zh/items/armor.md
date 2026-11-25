@@ -1,8 +1,9 @@
 ---
 title: 护甲与饰品
 path: /wiki/zh/items/armor/
-checked: 1.3.14
+checked: 1.3.15
 sources: Scripts/Data/EquipmentData.cs, Scripts/Core/Items.cs, Scripts/Systems/GearSetSystem.cs, Scripts/Core/Character.cs, Scripts/Locations/BaseLocation.cs, Scripts/Systems/InventorySystem.cs
+history: 1.3.15 | none
 history: 1.3.14 | none
 history: 1.3.11 | none
 history: 1.3.10 | none
