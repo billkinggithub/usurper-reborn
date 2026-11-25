@@ -1443,11 +1443,68 @@ namespace UsurperRemake.Systems
 
             // GD.Print($"[Family] Loaded {_children.Count} children from save");
 
-            // Migration: add father's surname to children who don't have one yet
+            // Migration: add a surname to children who don't have one yet (an existing one is kept)
             MigrateChildSurnames();
 
             // v1.0.4: restored children keep their names reserved (merge-only)
             NPCNameRegistry.ReserveAll(_children.Select(c => c.Name));
+        }
+
+        /// <summary>
+        /// v1.3.15: the child's name with a new surname: the given name (one first name, or two
+        /// when the pool ran out) followed by <paramref name="surname"/>. The old surname and any
+        /// uniqueness suffix after it ("II", a short fragment) are dropped; a one-word name gains one.
+        /// </summary>
+        internal static string WithSurname(string childName, string surname)
+        {
+            var parts = (childName ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0) return (surname ?? "").Trim();
+            string given = parts[0];
+            if (parts.Length >= 3
+                && (NPCSpawnSystem.ImmigrantMaleNames.Contains(parts[1]) || NPCSpawnSystem.ImmigrantFemaleNames.Contains(parts[1])))
+                given = $"{parts[0]} {parts[1]}";
+            surname = (surname ?? "").Trim();
+            return surname.Length == 0 ? given : $"{given} {surname}";
+        }
+
+        /// <summary>
+        /// v1.3.15: true when <paramref name="candidate"/> is already borne by another child, a living NPC,
+        /// the renaming player (<paramref name="parent"/>: Name, which kinship at GetParentNamesOf reads, and
+        /// DisplayName), or online by any player's display name (the check character creation uses).
+        /// Kinship (GetParentNamesOf, GetGrandparentNamesOf) and the orphan list match children by full
+        /// name, so two people may not share one. The name registry is not asked: it keeps every name
+        /// ever used, and the child's own earlier name (the one a load pass replaced) is in it.
+        /// </summary>
+        internal bool IsChildNameInUse(string candidate, Child except, Character? parent)
+        {
+            bool Same(string? a) => !string.IsNullOrEmpty(a) && string.Equals(a, candidate, StringComparison.OrdinalIgnoreCase);
+            if (_children.Any(c => !ReferenceEquals(c, except) && !c.Deleted && Same(c.Name))) return true;
+            if (NPCSpawnSystem.Instance?.ActiveNPCs?.Any(n => Same(n.Name2) || Same(n.Name1)) ?? false) return true;
+            if (parent != null && (Same(parent.Name) || Same(parent.DisplayName))) return true;
+            return UsurperRemake.BBS.DoorMode.IsOnlineMode && SaveSystem.Instance.IsDisplayNameTaken(candidate, "");
+        }
+
+        /// <summary>
+        /// v1.3.15: give <paramref name="child"/> a new surname unless the full name is in use
+        /// (IsChildNameInUse). Returns false and leaves the name as it was when it is.
+        /// </summary>
+        internal bool TryGiveSurname(Child child, string surname, Character? parent, out string newName)
+        {
+            newName = WithSurname(child.Name, surname);
+            return TryRename(child, newName, parent);
+        }
+
+        /// <summary>
+        /// v1.3.15: give <paramref name="child"/> the full name <paramref name="newName"/> unless it is in
+        /// use (IsChildNameInUse); the Home first-name rename and the last-name change both come here.
+        /// </summary>
+        internal bool TryRename(Child child, string newName, Character? parent)
+        {
+            if (newName.Equals(child.Name, StringComparison.Ordinal)) return true;
+            if (IsChildNameInUse(newName, child, parent)) return false;
+            child.Name = newName;
+            NPCNameRegistry.Reserve(newName);
+            return true;
         }
 
         /// <summary>
@@ -1459,6 +1516,11 @@ namespace UsurperRemake.Systems
         /// NPCNameRegistry, and stripping one would recreate the duplicate it exists
         /// to prevent. Only a wrong surname is rewritten, and through the registry.
         /// v1.1.13: new names carry no suffix; two first names before the surname are accepted.
+        /// v1.3.15: a child who already has a surname keeps it. A child born to a father with a
+        /// one-word name takes the mother's surname or the player's family surname at birth, and
+        /// this pass used to replace it at every load with one generated from the father's name
+        /// (a Ravenswood child became an Oldfield); a surname set at Home was undone the same way.
+        /// Only a child with a one-word name is given a surname here.
         /// </summary>
         private void MigrateChildSurnames()
         {
@@ -1470,6 +1532,7 @@ namespace UsurperRemake.Systems
                 // Extract first name (always the first word)
                 var nameParts = child.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 if (nameParts.Length == 0) continue;
+                if (nameParts.Length > 1) continue;     // v1.3.15: already has a surname; never replaced
                 var firstName = nameParts[0];
 
                 // Compute the correct surname from father (extract or generate)
