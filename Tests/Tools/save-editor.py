@@ -30,6 +30,7 @@ import math
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -1280,6 +1281,48 @@ def find_repo_root() -> Path | None:
 _source_notes: dict[str, str] | None = None
 
 
+GAME_DATA_FILES = [
+    ("装备", "equipment.json"),
+    ("NPC", "npcs.json"),
+    ("怪物家族", "monster_families.json"),
+    ("梦境", "dreams.json"),
+    ("对话", "dialogue.json"),
+    ("平衡数值", "balance.json"),
+    ("成就（通常禁用）", "achievements.json"),
+]
+
+
+def game_executable() -> Path | None:
+    root = find_repo_root()
+    if root is None:
+        return None
+    for relative in ("bin/Debug/net8.0/UsurperReborn.exe", "bin/Release/net8.0/UsurperReborn.exe",
+                     "bin/Debug/net8.0/UsurperReborn", "bin/Release/net8.0/UsurperReborn"):
+        path = root / relative
+        if path.exists():
+            return path
+    return None
+
+
+def game_data_directory() -> Path:
+    exe = game_executable()
+    if exe is not None:
+        return exe.parent / "GameData"
+    root = find_repo_root()
+    return (root / "GameData") if root is not None else (Path.cwd() / "GameData")
+
+
+def export_default_game_data() -> str:
+    exe = game_executable()
+    if exe is None:
+        raise FileNotFoundError("没有找到 UsurperReborn.exe，无法导出默认 GameData。")
+    result = subprocess.run([str(exe), "--export-data"], cwd=str(exe.parent),
+                            capture_output=True, text=True, timeout=120)
+    if result.returncode != 0:
+        raise RuntimeError((result.stderr or result.stdout or "导出失败").strip())
+    return f"默认 GameData 已导出到：{game_data_directory()}"
+
+
 def source_notes() -> dict[str, str]:
     """Comments next to the save-model properties, used when no curated note exists.
 
@@ -1574,6 +1617,10 @@ class EditorWindow:
         bar.pack(fill="x")
         ttk.Button(bar, text="同伴管理", command=self.open_companion_manager).pack(side="left")
         ttk.Button(bar, text="地牢队伍", command=self.open_party_manager).pack(side="left", padx=6)
+        ttk.Button(bar, text="存档管理", command=self.open_save_manager).pack(side="left")
+        ttk.Button(bar, text="游戏数据", command=self.open_game_data).pack(side="left", padx=6)
+        ttk.Button(bar, text="摘要", command=self.show_summary).pack(side="left")
+        ttk.Button(bar, text="文件位置", command=self.show_paths).pack(side="left", padx=6)
         self.save_button = ttk.Button(bar, text="保存全部改动", command=self.save)
         self.save_button.pack(side="left", padx=(18, 0))
         ttk.Button(bar, text="重新读取（放弃改动）", command=self.reload).pack(side="left", padx=6)
@@ -3039,6 +3086,46 @@ class EditorWindow:
         self.rebuild_view()
         return f"已清空地牢队伍（{count} 人）。"
 
+    # ---- G editor tools: save management, summary, paths ------------------------------------------
+
+    def open_save_manager(self) -> None:
+        if self.has_changes() and not self.confirm_discard():
+            return
+        SaveManagerWindow(self)
+
+    def open_game_data(self) -> None:
+        GameDataWindow(self)
+
+    def show_paths(self) -> None:
+        exe = game_executable()
+        lines = [
+            f"存档目录：{self.directory}",
+            f"GameData 目录：{game_data_directory()}",
+            f"游戏程序：{exe if exe else '未找到'}",
+            f"源码目录：{find_repo_root() or '未找到'}",
+        ]
+        self.messagebox.showinfo("文件位置", "\n".join(lines), parent=self.root)
+
+    def show_summary(self) -> None:
+        if not self.data:
+            self.say("先选择一个存档。")
+            return
+        player = self.data.get("player") or {}
+        story = self.data.get("storySystems") or {}
+        lines = [
+            f"存档：{self.save_path.name if self.save_path else '?'}",
+            f"角色：{player.get('name2') or player.get('name1')}  Lv.{player.get('level')}",
+            f"职业 / 种族：{player.get('class')} / {player.get('race')}",
+            f"生命：{player.get('hp')} / {player.get('maxHP')}    法力：{player.get('mana')} / {player.get('maxMana')}",
+            f"金币：{player.get('gold')}    银行：{player.get('bankGold')}",
+            f"属性：STR {player.get('strength')}  DEX {player.get('dexterity')}  CON {player.get('constitution')}  INT {player.get('intelligence')}  WIS {player.get('wisdom')}  CHA {player.get('charisma')}",
+            f"物品：{len(player.get('inventory') or [])} 件    装备栏：{len(player.get('equippedItems') or {})}",
+            f"任务：{len(player.get('activeQuests') or [])}    技能：{len(player.get('learnedAbilities') or [])}    法术槽：{len(player.get('spells') or [])}",
+            f"同伴：{len(story.get('companions') or [])}    封印：{len(story.get('collectedSeals') or [])}/7    神器：{len(story.get('collectedArtifacts') or [])}",
+            f"NG+ 轮回：{story.get('currentCycle')}",
+        ]
+        self.messagebox.showinfo("存档摘要", "\n".join(lines), parent=self.root)
+
     # ---- saving -----------------------------------------------------------------------------------
 
     def save(self) -> None:
@@ -3097,6 +3184,203 @@ class EditorWindow:
 
 
 _CANCELLED = object()
+
+
+class SaveManagerWindow:
+    """Clone, delete, back up and restore save files from the G editor's Save File Management."""
+
+    def __init__(self, app: "EditorWindow"):
+        self.app = app
+        tk = app.tk
+        ttk = app.ttk
+        self.top = tk.Toplevel(app.root)
+        self.top.title("存档管理")
+        self.top.geometry("860x520")
+        self.top.transient(app.root)
+        self.box = ttk.Frame(self.top, padding=8)
+        self.box.pack(fill="both", expand=True)
+        self.list = tk.Listbox(self.box, height=18)
+        self.list.pack(fill="both", expand=True)
+        bar = ttk.Frame(self.box)
+        bar.pack(fill="x", pady=(8, 0))
+        ttk.Button(bar, text="克隆", command=self.clone).pack(side="left")
+        ttk.Button(bar, text="删除", command=self.delete).pack(side="left", padx=6)
+        ttk.Button(bar, text="恢复最近备份", command=self.restore).pack(side="left")
+        ttk.Button(bar, text="打开目录", command=app.open_directory).pack(side="left", padx=6)
+        ttk.Button(bar, text="刷新", command=self.refresh).pack(side="left")
+        ttk.Button(bar, text="关闭", command=self.top.destroy).pack(side="right")
+        self.refresh()
+
+    def refresh(self) -> None:
+        self.paths = list_saves(self.app.directory)
+        self.list.delete(0, "end")
+        for path in self.paths:
+            self.list.insert("end", describe(path))
+
+    def selected(self) -> Path | None:
+        selection = self.list.curselection()
+        return self.paths[selection[0]] if selection else None
+
+    def clone(self) -> None:
+        source = self.selected()
+        if source is None:
+            self.app.messagebox.showinfo("克隆存档", "先选择一个存档。", parent=self.top)
+            return
+        name = self.app.simpledialog.askstring("克隆存档", "新角色名称：", parent=self.top)
+        if not name:
+            return
+        try:
+            data = load_save(source)
+        except (ValueError, json.JSONDecodeError, OSError) as error:
+            self.app.messagebox.showerror("克隆失败", str(error), parent=self.top)
+            return
+        player = data.setdefault("player", {})
+        player["name2"] = name
+        if "name1" in player:
+            player["name1"] = name
+        safe = re.sub(r"[^0-9A-Za-z_\-\u4e00-\u9fff]+", "_", name).strip("_") or "clone"
+        target = self.app.directory / f"{safe}_clone_{datetime.now():%Y-%m-%d_%H-%M-%S}.json"
+        counter = 1
+        while target.exists():
+            target = self.app.directory / f"{safe}_clone_{datetime.now():%Y-%m-%d_%H-%M-%S}-{counter}.json"
+            counter += 1
+        target.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        self.app.populate_saves(target)
+        self.refresh()
+        self.app.messagebox.showinfo("克隆存档", f"已克隆到：{target.name}", parent=self.top)
+
+    def delete(self) -> None:
+        path = self.selected()
+        if path is None:
+            self.app.messagebox.showinfo("删除存档", "先选择一个存档。", parent=self.top)
+            return
+        if not self.app.messagebox.askyesno(
+                "删除存档", f"要永久删除 {path.name} 吗？\n备份文件会保留。", parent=self.top):
+            return
+        try:
+            path.unlink()
+        except OSError as error:
+            self.app.messagebox.showerror("删除失败", str(error), parent=self.top)
+            return
+        if self.app.save_path == path:
+            self.app.reload()
+        self.refresh()
+
+    def restore(self) -> None:
+        path = self.selected()
+        if path is None:
+            self.app.messagebox.showinfo("恢复备份", "先选择一个存档。", parent=self.top)
+            return
+        backups = sorted(path.parent.glob(path.name + ".bak-*"),
+                         key=lambda item: item.stat().st_mtime, reverse=True)
+        if not backups:
+            self.app.messagebox.showinfo("恢复备份", "这个存档没有 .bak 备份。", parent=self.top)
+            return
+        backup = backups[0]
+        if not self.app.messagebox.askyesno(
+                "恢复备份", f"用备份 {backup.name} 覆盖 {path.name} 吗？\n当前文件会先另存为新的备份。",
+                parent=self.top):
+            return
+        try:
+            shutil.copy2(path, path.with_name(f"{path.name}.bak-{datetime.now():%Y%m%d-%H%M%S}"))
+            shutil.copy2(backup, path)
+        except OSError as error:
+            self.app.messagebox.showerror("恢复失败", str(error), parent=self.top)
+            return
+        self.app.reload()
+        self.refresh()
+        self.app.messagebox.showinfo("恢复备份", "已恢复。", parent=self.top)
+
+
+class GameDataWindow:
+    """Edit GameData/*.json in a raw JSON window, with validation and a backup on every save."""
+
+    def __init__(self, app: "EditorWindow"):
+        self.app = app
+        tk = app.tk
+        ttk = app.ttk
+        self.top = tk.Toplevel(app.root)
+        self.top.title("游戏数据 / 模组")
+        self.top.geometry("1080x700")
+        self.top.transient(app.root)
+        body = ttk.Panedwindow(self.top, orient="horizontal")
+        body.pack(fill="both", expand=True, padx=8, pady=8)
+        left = tk.Frame(body)
+        body.add(left, weight=1)
+        self.files = tk.Listbox(left)
+        self.files.pack(fill="both", expand=True)
+        for label, name in GAME_DATA_FILES:
+            self.files.insert("end", f"{label}  ·  {name}")
+        self.files.bind("<<ListboxSelect>>", lambda _event: self.load())
+        ttk.Button(left, text="导出默认数据", command=self.export_defaults).pack(fill="x", pady=(6, 0))
+        right = ttk.Frame(body)
+        body.add(right, weight=5)
+        self.path_label = ttk.Label(right, text="", foreground="#555")
+        self.path_label.pack(anchor="w")
+        self.text = tk.Text(right, wrap="none", undo=True)
+        self.text.pack(fill="both", expand=True, pady=(4, 6))
+        bar = ttk.Frame(right)
+        bar.pack(fill="x")
+        ttk.Button(bar, text="校验 JSON", command=self.validate).pack(side="left")
+        ttk.Button(bar, text="保存（带备份）", command=self.save).pack(side="left", padx=6)
+        ttk.Button(bar, text="重新载入", command=self.load).pack(side="left")
+        ttk.Button(bar, text="关闭", command=self.top.destroy).pack(side="right")
+        self.current: Path | None = None
+        self.files.selection_set(0)
+        self.load()
+
+    def selected_file(self) -> tuple[str, str] | None:
+        selection = self.files.curselection()
+        return GAME_DATA_FILES[selection[0]] if selection else None
+
+    def load(self) -> None:
+        selected = self.selected_file()
+        if selected is None:
+            return
+        _label, name = selected
+        path = game_data_directory() / name
+        self.current = path
+        self.path_label.configure(text=str(path))
+        try:
+            text = path.read_text(encoding="utf-8") if path.exists() else "{\n}\n"
+        except OSError as error:
+            self.app.messagebox.showerror("读取失败", str(error), parent=self.top)
+            return
+        self.text.delete("1.0", "end")
+        self.text.insert("1.0", text)
+
+    def validate(self) -> bool:
+        try:
+            json.loads(self.text.get("1.0", "end-1c"))
+        except json.JSONDecodeError as error:
+            self.app.messagebox.showerror("JSON 无效", str(error), parent=self.top)
+            return False
+        self.app.messagebox.showinfo("JSON", "JSON 有效。", parent=self.top)
+        return True
+
+    def save(self) -> None:
+        if self.current is None:
+            return
+        try:
+            data = json.loads(self.text.get("1.0", "end-1c"))
+        except json.JSONDecodeError as error:
+            self.app.messagebox.showerror("JSON 无效", str(error), parent=self.top)
+            return
+        self.current.parent.mkdir(parents=True, exist_ok=True)
+        if self.current.exists():
+            stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            shutil.copy2(self.current, self.current.with_name(f"{self.current.name}.bak-{stamp}"))
+        self.current.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        self.app.messagebox.showinfo("保存成功", f"已保存 {self.current.name}", parent=self.top)
+
+    def export_defaults(self) -> None:
+        try:
+            message = export_default_game_data()
+        except Exception as error:
+            self.app.messagebox.showerror("导出失败", str(error), parent=self.top)
+            return
+        self.load()
+        self.app.messagebox.showinfo("导出默认数据", message, parent=self.top)
 
 
 class CompanionManager:
