@@ -13771,7 +13771,7 @@ public partial class CombatEngine
                     string tmCol = tmPct > 0.5 ? "green" : tmPct > 0.25 ? "yellow" : "red";
                     if (i > 0) terminal.Write("  ");
                     terminal.SetColor("white");
-                    string tmName = tm.DisplayName.Length > 10 ? tm.DisplayName[..10] : tm.DisplayName;
+                    string tmName = TextWidth.Truncate(tm.DisplayName, 10);
                     terminal.Write($"{tmName} ");
                     terminal.SetColor(tmCol);
                     terminal.Write($"{tm.HP}/{tm.MaxHP}");
