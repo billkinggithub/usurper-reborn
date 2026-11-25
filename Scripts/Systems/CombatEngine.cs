@@ -31858,7 +31858,7 @@ public partial class CombatEngine
                 terminal.Write("    ");
             }
             terminal.SetColor(available ? "yellow" : "darkgray");
-            terminal.Write($"{parts[i],-34}");
+            terminal.Write(TextWidth.PadRight(parts[i], 34));
             terminal.SetColor("green");
             terminal.WriteLine("║");
         }
