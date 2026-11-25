@@ -119,6 +119,31 @@ FILE_NAMES_ZH = {
     "Balance values": "平衡数值",
 }
 
+# BalanceConfig property types, so the list shows the same Int32/Single/Double
+# names as the C# editor even though JSON only has one number type.
+BALANCE_TYPES = {
+    "criticalHitChance": "Int32",
+    "criticalHitMultiplier": "Single",
+    "backstabMultiplier": "Single",
+    "berserkMultiplier": "Single",
+    "bossPotionCooldownRounds": "Int32",
+    "bossEnrageDamageMultiplier": "Double",
+    "bossEnrageDefenseMultiplier": "Double",
+    "bossEnrageExtraAttacks": "Int32",
+    "bossCorruptionDamageBase": "Int32",
+    "bossCorruptionMaxStacks": "Int32",
+    "bossDoomDefaultRounds": "Int32",
+    "bossTankAoEAbsorption": "Double",
+    "bossPhaseImmunityResidual": "Double",
+    "bossChannelInterruptSpeedThreshold": "Int32",
+    "bossChannelInterruptChance": "Double",
+    "defaultGymSessions": "Int32",
+    "defaultDrinksAtOrbs": "Int32",
+    "defaultIntimacyActs": "Int32",
+    "defaultMaxWrestlings": "Int32",
+    "defaultPickPocketAttempts": "Int32",
+}
+
 SLOTS = ["None", "Head", "Body", "Arms", "Hands", "Legs", "Feet", "Waist", "Neck",
          "Neck2", "Face", "Cloak", "LFinger", "RFinger", "MainHand", "OffHand"]
 HANDEDNESS = ["None", "OneHanded", "TwoHanded", "OffHandOnly"]
@@ -869,9 +894,11 @@ class GameDataFormsWindow:
                 self.records.insert("end", record_title(self.data[index], index, self.filename))
         else:
             for index in self.record_indices:
-                value = self.data[self.dict_keys[index]]
-                type_name = csharp_types.get(type(value), type(value).__name__)
-                self.records.insert("end", f"{self.dict_keys[index]} = {value}   ({type_name})")
+                key = self.dict_keys[index]
+                value = self.data[key]
+                type_name = BALANCE_TYPES.get(key) or csharp_types.get(
+                    type(value), type(value).__name__)
+                self.records.insert("end", f"{key} = {value}   ({type_name})")
         self.update_status()
         if not self.records.size():
             self.index = None
