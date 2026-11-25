@@ -2,6 +2,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const MarkdownIt = require("markdown-it");
+const { buildNameMap, localize: localizeZh } = require("./wiki-zh-text");
 const root = path.resolve(__dirname, "../..");
 const sections = [
   ["getting-started", "Getting started"],
@@ -1956,6 +1957,10 @@ function build(options = {}) {
     );
   for (const e of data.bosses.world)
     add("monsters/bosses", e, render.boss(e), "Scripts/Data/WorldBossData.cs");
+  const zhNames = buildNameMap(data);
+  for (const page of pages)
+    if ((page.locale || "en") === "zh")
+      page.body = localizeZh(page.body, "zh", zhNames);
   const urls = new Set();
   for (const p of pages) {
     if (urls.has(p.path)) throw Error(`Duplicate URL: ${p.path}`);
@@ -2087,7 +2092,7 @@ function build(options = {}) {
     const history = entries.length
       ? `<section class="history" aria-labelledby="changes-by-version"><h2 id="changes-by-version">${t("history")}</h2><dl>${entries.map((h) => `<dt>${escape(h.version)}</dt><dd>${escape(h.sentence)}</dd>`).join("")}</dl></section>`
       : "";
-    return `<!doctype html><html lang="${htmlLang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escape(p.title)} | Usurper Reborn Wiki</title><meta name="description" content="${escape(preview.slice(0, 180))}"><link rel="stylesheet" href="/wiki/wiki.css"><script defer src="${prefix}wiki-labels.js"></script><script defer src="/wiki/wiki-search.js"></script><script defer src="/wiki/wiki.js"></script></head><body><a class="skip" href="#main">${t("skip")}</a><header><a class="logo" href="/">USURPER REBORN</a><nav aria-label="Site"><a href="${prefix}">${t("home")}</a><a href="/#connect">${t("play")}</a><a href="${otherHref}">${otherLabel}</a><button id="theme" type="button" aria-pressed="false">${t("theme")}</button></nav></header><div class="layout"><aside><form role="search" id="search-form"><label for="search">${t("search")}</label><input type="search" id="search" placeholder="${t("searchPlaceholder")}" maxlength="200" autocomplete="off"><button type="submit">${t("find")}</button></form><p id="search-status" role="status"></p><div id="search-results"></div><nav aria-label="Wiki sections" class="sections">${nav}</nav></aside><main id="main" tabindex="-1"><nav class="breadcrumbs" aria-label="Breadcrumb"><a href="${prefix}">${t("home")}</a>${group ? ` / <a href="${prefix}${group[0]}/">${escape(group[1])}</a>` : ""}</nav><h1>${escape(p.title)}</h1><p class="version">${t("version")} ${escape(meta.gameVersion)}. ${t("checked")} ${escape(p.checked)}.</p>${p.body}${history}<footer><p>${t("fixedRules")}</p><p>${t("sources")}: ${sourceLinks}</p><p>${t("languageNote")}</p></footer></main></div></body></html>`;
+    return `<!doctype html><html lang="${htmlLang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escape(p.title)} | Usurper Reborn Wiki</title><meta name="description" content="${escape(preview.slice(0, 180))}"><link rel="stylesheet" href="/wiki/wiki.css"><script defer src="${prefix}wiki-labels.js"></script><script defer src="/wiki/wiki-search.js"></script><script defer src="/wiki/wiki.js"></script></head><body><a class="skip" href="#main">${t("skip")}</a><header><a class="logo" href="/">USURPER REBORN</a><nav aria-label="Site"><a href="${prefix}">${t("home")}</a><a href="/#connect">${t("play")}</a><a href="${otherHref}">${otherLabel}</a><button id="theme" type="button" aria-pressed="false">${t("theme")}</button></nav></header><div class="layout"><aside><form role="search" id="search-form"><label for="search">${t("search")}</label><input type="search" id="search" placeholder="${t("searchPlaceholder")}" maxlength="200" autocomplete="off"><button type="submit">${t("find")}</button></form><p id="search-status" role="status"></p><div id="search-results"></div><nav aria-label="Wiki sections" class="sections">${nav}</nav></aside><main id="main" tabindex="-1"><nav class="breadcrumbs" aria-label="Breadcrumb"><a href="${prefix}">${t("home")}</a>${group ? ` / <a href="${prefix}${group[0]}/">${escape(tFor(locale, "section." + group[0]))}</a>` : ""}</nav><h1>${escape(p.title)}</h1><p class="version">${t("version")} ${escape(meta.gameVersion)}. ${t("checked")} ${escape(p.checked)}.</p>${p.body}${history}<footer><p>${t("fixedRules")}</p><p>${t("sources")}: ${sourceLinks}</p><p>${t("languageNote")}</p></footer></main></div></body></html>`;
   }
   // Remove only obsolete generated page files listed by our previous manifest.
   // No recursive output cleanup and no removal of hand-written assets.
@@ -2125,12 +2130,23 @@ function build(options = {}) {
     fs.mkdirSync(path.dirname(dest), { recursive: true });
     fs.writeFileSync(dest, layout(pages[i], pageText[i].text));
   }
+  for (const locale of new Set(pages.map((p) => p.locale || "en"))) {
+    fs.mkdirSync(path.join(outDir, locale), { recursive: true });
+    fs.writeFileSync(
+      path.join(outDir, locale, "search-index.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        gameVersion: meta.gameVersion,
+        pages: pageText.filter((p) => p.locale === locale),
+      }),
+    );
+  }
   fs.writeFileSync(
     path.join(outDir, "search-index.json"),
     JSON.stringify({
       schemaVersion: 1,
       gameVersion: meta.gameVersion,
-      pages: pageText.filter((p) => p.locale === "en" || p.guide),
+      pages: pageText.filter((p) => p.locale === "en"),
     }),
   );
   for (const locale of new Set(pages.map((p) => p.locale || "en"))) {

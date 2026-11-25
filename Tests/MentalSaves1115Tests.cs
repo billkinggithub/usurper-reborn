@@ -209,7 +209,7 @@ public class MentalSaves1115Tests
         src.Should().Contain("p.MentalSchema = EditorIO.PromptInt(");
         src.Should().Contain("p.MentalStrainRemainder = EditorIO.PromptInt(");
         src.Should().Contain(
-            "p.WillowDraughts = EditorIO.PromptInt($\"Willow Draughts carried (0-{GameConfig.MaxWillowDraughts})\", p.WillowDraughts, min: 0, max: GameConfig.MaxWillowDraughts);",
+            "p.WillowDraughts = EditorIO.PromptInt((FormattableString)$\"Willow Draughts carried (0-{GameConfig.MaxWillowDraughts})\", p.WillowDraughts, min: 0, max: GameConfig.MaxWillowDraughts);",
             "the carried count must stay clamped to [0, MaxWillowDraughts]");
         src.Should().Contain("p.MentalRecoveryUsedToday = EditorIO.PromptInt(");
         src.Should().Contain("p.MentalBroken = EditorIO.PromptBool(");

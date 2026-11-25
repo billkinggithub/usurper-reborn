@@ -128,7 +128,7 @@ test("all rendered pages use the agreed punctuation and semantic layout", () => 
     );
     assert.equal((html.match(/<h1>/g) || []).length, 1, page.path);
     assert.ok(
-      html.includes('lang="en"') &&
+      (html.includes('lang="en"') || html.includes('lang="zh-CN"')) &&
         html.includes('aria-label="Breadcrumb"') &&
         html.includes('id="main"'),
       page.path,
