@@ -29,6 +29,8 @@ public class SP137Spelling
     {
         ("gods/boons.md", "{{balance:GodBoonJudicarDefencePct}}"),
         ("monsters/index.md", "{{balance:EliteDefenceMultiplier}}"),
+        ("zh/gods/boons.md", "{{balance:GodBoonJudicarDefencePct}}"),
+        ("zh/monsters/index.md", "{{balance:EliteDefenceMultiplier}}"),
     };
 
     [Fact]
