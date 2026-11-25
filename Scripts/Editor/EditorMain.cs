@@ -21,7 +21,7 @@ public static class EditorMain
 {
     public static async Task<int> RunAsync(string[] args)
     {
-        EditorIO.Header($"Usurper Reborn Editor  (v{GameConfig.Version})");
+        EditorIO.Header((FormattableString)$"Usurper Reborn Editor  (v{GameConfig.Version})");
         EditorIO.Info("A separate editor tool for modifying game data and save files.");
         EditorIO.Info("Changes take effect next time the game starts.");
         EditorIO.Warn("Exit any running game instances before editing save files.");
@@ -36,7 +36,7 @@ public static class EditorMain
         }
         catch (Exception ex)
         {
-            EditorIO.Error($"Initialization failed: {ex.Message}");
+            EditorIO.Error((FormattableString)$"Initialization failed: {ex.Message}");
             return 1;
         }
 
@@ -77,7 +77,7 @@ public static class EditorMain
             }
             catch (Exception ex)
             {
-                EditorIO.Error($"Editor action failed: {ex.Message}");
+                EditorIO.Error((FormattableString)$"Editor action failed: {ex.Message}");
                 EditorIO.Info(ex.StackTrace ?? "");
                 EditorIO.Pause();
             }
@@ -133,7 +133,7 @@ public static class EditorMain
     {
         EditorIO.Section("Export Defaults");
         var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "GameData");
-        EditorIO.Info($"Target directory: {outputDir}");
+        EditorIO.Info((FormattableString)$"Target directory: {outputDir}");
         if (!EditorIO.Confirm(ExportPrompt))
         {
             EditorIO.Info("Cancelled.");
@@ -146,7 +146,7 @@ public static class EditorMain
         }
         catch (Exception ex)
         {
-            EditorIO.Error($"Export failed: {ex.Message}");
+            EditorIO.Error((FormattableString)$"Export failed: {ex.Message}");
         }
         EditorIO.Pause();
     }
@@ -155,10 +155,10 @@ public static class EditorMain
     {
         EditorIO.Section("File locations");
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-        EditorIO.Info($"Executable directory : {baseDir}");
-        EditorIO.Info($"GameData folder      : {Path.Combine(baseDir, "GameData")}");
-        EditorIO.Info($"Saves folder         : {new UsurperRemake.Systems.FileSaveBackend().GetSaveDirectory()}");
-        EditorIO.Info($"Localization folder  : {Path.Combine(baseDir, "Localization")}");
+        EditorIO.Info((FormattableString)$"Executable directory : {baseDir}");
+        EditorIO.Info((FormattableString)$"GameData folder      : {Path.Combine(baseDir, "GameData")}");
+        EditorIO.Info((FormattableString)$"Saves folder         : {new UsurperRemake.Systems.FileSaveBackend().GetSaveDirectory()}");
+        EditorIO.Info((FormattableString)$"Localization folder  : {Path.Combine(baseDir, "Localization")}");
         EditorIO.Pause();
     }
 }

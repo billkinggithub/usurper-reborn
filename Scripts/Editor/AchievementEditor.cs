@@ -21,7 +21,7 @@ internal static class AchievementEditor
         bool dirty = false;
         while (true)
         {
-            EditorIO.Section($"Achievements  —  {list.Count}{(dirty ? "  [UNSAVED]" : "")}");
+            EditorIO.Section((FormattableString)$"Achievements  —  {list.Count}{(dirty ? "  [UNSAVED]" : "")}");
             int choice = EditorIO.Menu("Choose:", new[]
             {
                 "List / filter achievements",
@@ -75,7 +75,7 @@ internal static class AchievementEditor
         }
         catch (Exception ex)
         {
-            EditorIO.Error($"Failed to read {path}: {ex.Message}");
+            EditorIO.Error((FormattableString)$"Failed to read {path}: {ex.Message}");
             return AchievementSystem.GetBuiltInAchievements();
         }
     }
@@ -87,14 +87,14 @@ internal static class AchievementEditor
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(path, JsonSerializer.Serialize(list, GameDataLoader.JsonOptions));
-            EditorIO.Success($"Wrote {list.Count} achievements to {path}");
+            EditorIO.Success((FormattableString)$"Wrote {list.Count} achievements to {path}");
             EditorIO.Info("Restart the game to pick up the changes.");
             EditorIO.Pause();
             return true;
         }
         catch (Exception ex)
         {
-            EditorIO.Error($"Write failed: {ex.Message}");
+            EditorIO.Error((FormattableString)$"Write failed: {ex.Message}");
             EditorIO.Pause();
             return false;
         }
@@ -112,10 +112,10 @@ internal static class AchievementEditor
         while (page * pageSize < shown.Count)
         {
             foreach (var a in shown.Skip(page * pageSize).Take(pageSize))
-                EditorIO.Info($"  {a.Id,-30} tier={a.Tier,-8} cat={a.Category,-14} pts={a.PointValue,-4} {(a.IsSecret ? "[SECRET] " : "")}\"{a.Name}\"");
+                EditorIO.Info((FormattableString)$"  {a.Id,-30} tier={a.Tier,-8} cat={a.Category,-14} pts={a.PointValue,-4} {(a.IsSecret ? "[SECRET] " : "")}\"{a.Name}\"");
             page++;
             if (page * pageSize >= shown.Count) break;
-            if (!EditorIO.Confirm($"Shown {page * pageSize}/{shown.Count}. More?")) break;
+            if (!EditorIO.Confirm((FormattableString)$"Shown {page * pageSize}/{shown.Count}. More?")) break;
         }
         EditorIO.Pause();
     }
@@ -153,7 +153,7 @@ internal static class AchievementEditor
     {
         var a = PickAchievement(list, "Achievement to delete");
         if (a == null) return false;
-        if (!EditorIO.Confirm($"Delete \"{a.Name}\" ({a.Id})?")) return false;
+        if (!EditorIO.Confirm((FormattableString)$"Delete \"{a.Name}\" ({a.Id})?")) return false;
         list.Remove(a);
         EditorIO.Success("Deleted.");
         EditorIO.Pause();

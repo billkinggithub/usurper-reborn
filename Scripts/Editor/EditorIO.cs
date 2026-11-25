@@ -32,6 +32,7 @@ internal static class EditorIO
 {
     public static void Header(string title)
     {
+        title = EditorLoc.T(title);
         AnsiConsole.WriteLine();
         var panel = new Panel($"[bold cyan]{Markup.Escape(title)}[/]")
         {
@@ -45,17 +46,26 @@ internal static class EditorIO
 
     public static void Section(string title)
     {
+        title = EditorLoc.T(title);
         AnsiConsole.WriteLine();
         AnsiConsole.Write(new Rule($"[yellow]{Markup.Escape(title)}[/]").LeftJustified());
     }
 
-    public static void Info(string text)    => AnsiConsole.MarkupLine($"  {Markup.Escape(text)}");
-    public static void Warn(string text)    => AnsiConsole.MarkupLine($"  [yellow]![/] {Markup.Escape(text)}");
-    public static void Error(string text)   => AnsiConsole.MarkupLine($"  [red]ERROR[/] {Markup.Escape(text)}");
-    public static void Success(string text) => AnsiConsole.MarkupLine($"  [green]OK[/] {Markup.Escape(text)}");
+    public static void Info(string text)    => AnsiConsole.MarkupLine($"  {Markup.Escape(EditorLoc.T(text))}");
+    public static void Warn(string text)    => AnsiConsole.MarkupLine($"  [yellow]![/] {Markup.Escape(EditorLoc.T(text))}");
+    public static void Error(string text)   => AnsiConsole.MarkupLine($"  [red]{EditorLoc.T("ERROR")}[/] {Markup.Escape(EditorLoc.T(text))}");
+    public static void Success(string text) => AnsiConsole.MarkupLine($"  [green]{EditorLoc.T("OK")}[/] {Markup.Escape(EditorLoc.T(text))}");
+
+    public static void Header(FormattableString title) => Header(EditorLoc.F(title));
+    public static void Section(FormattableString title) => Section(EditorLoc.F(title));
+    public static void Info(FormattableString text) => Info(EditorLoc.F(text));
+    public static void Warn(FormattableString text) => Warn(EditorLoc.F(text));
+    public static void Error(FormattableString text) => Error(EditorLoc.F(text));
+    public static void Success(FormattableString text) => Success(EditorLoc.F(text));
 
     public static string Prompt(string label)
     {
+        label = EditorLoc.T(label);
         return AnsiConsole.Prompt(
             new TextPrompt<string>($"  {Markup.Escape(label)}:")
                 .AllowEmpty())
@@ -63,8 +73,21 @@ internal static class EditorIO
     }
 
     /// <summary>Prompt for a string, returning <paramref name="current"/> unchanged when blank.</summary>
+    public static string Prompt(FormattableString label) => Prompt(EditorLoc.F(label));
+    public static string PromptString(FormattableString label, string current) => PromptString(EditorLoc.F(label), current);
+    public static int PromptInt(FormattableString label, int current, int? min = null, int? max = null) => PromptInt(EditorLoc.F(label), current, min, max);
+    public static long PromptLong(FormattableString label, long current, long? min = null, long? max = null) => PromptLong(EditorLoc.F(label), current, min, max);
+    public static bool PromptBool(FormattableString label, bool current) => PromptBool(EditorLoc.F(label), current);
+    public static bool Confirm(FormattableString question) => Confirm(EditorLoc.F(question));
+    public static string PromptChoice(FormattableString label, IReadOnlyList<string> choices, string current,
+        bool allowCustom = true, bool allowKeep = true) =>
+        PromptChoice(EditorLoc.F(label), choices, current, allowCustom, allowKeep);
+    public static TEnum PromptEnum<TEnum>(FormattableString label, TEnum current) where TEnum : struct, Enum =>
+        PromptEnum(EditorLoc.F(label), current);
+
     public static string PromptString(string label, string current)
     {
+        label = EditorLoc.T(label);
         var result = AnsiConsole.Prompt(
             new TextPrompt<string>($"  {Markup.Escape(label)} [[[grey]{Markup.Escape(current)}[/]]]:")
                 .AllowEmpty()
@@ -76,13 +99,14 @@ internal static class EditorIO
     /// <summary>Prompt for an int, returning <paramref name="current"/> on blank or parse failure.</summary>
     public static int PromptInt(string label, int current, int? min = null, int? max = null)
     {
+        label = EditorLoc.T(label);
         var prompt = new TextPrompt<int>($"  {Markup.Escape(label)} [[[grey]{current}[/]]]:")
             .DefaultValue(current)
             .ShowDefaultValue(false);
         prompt.Validate(v =>
         {
-            if (min.HasValue && v < min.Value) return ValidationResult.Error($"min {min.Value}");
-            if (max.HasValue && v > max.Value) return ValidationResult.Error($"max {max.Value}");
+            if (min.HasValue && v < min.Value) return ValidationResult.Error(EditorLoc.F("min {0}", min.Value));
+            if (max.HasValue && v > max.Value) return ValidationResult.Error(EditorLoc.F("max {0}", max.Value));
             return ValidationResult.Success();
         });
         return AnsiConsole.Prompt(prompt);
@@ -91,13 +115,14 @@ internal static class EditorIO
     /// <summary>Prompt for a long. Same semantics as <see cref="PromptInt"/>.</summary>
     public static long PromptLong(string label, long current, long? min = null, long? max = null)
     {
+        label = EditorLoc.T(label);
         var prompt = new TextPrompt<long>($"  {Markup.Escape(label)} [[[grey]{current}[/]]]:")
             .DefaultValue(current)
             .ShowDefaultValue(false);
         prompt.Validate(v =>
         {
-            if (min.HasValue && v < min.Value) return ValidationResult.Error($"min {min.Value}");
-            if (max.HasValue && v > max.Value) return ValidationResult.Error($"max {max.Value}");
+            if (min.HasValue && v < min.Value) return ValidationResult.Error(EditorLoc.F("min {0}", min.Value));
+            if (max.HasValue && v > max.Value) return ValidationResult.Error(EditorLoc.F("max {0}", max.Value));
             return ValidationResult.Success();
         });
         return AnsiConsole.Prompt(prompt);
@@ -105,6 +130,7 @@ internal static class EditorIO
 
     public static bool PromptBool(string label, bool current)
     {
+        label = EditorLoc.T(label);
         return AnsiConsole.Prompt(
             new ConfirmationPrompt($"  {Markup.Escape(label)}")
             {
@@ -124,6 +150,9 @@ internal static class EditorIO
         int idx = RunArrowMenu(title, options);
         return idx < 0 ? 0 : idx + 1;
     }
+
+    public static int Menu(FormattableString title, IList<string> options) =>
+        Menu(EditorLoc.F(title), options);
 
     /// <summary>
     /// Core interactive menu. Returns the 0-based index of the selected entry,
@@ -206,7 +235,7 @@ internal static class EditorIO
             // Title line — "TITLE   (N/M)" style. Title only ever runs to
             // ~30 chars in practice; the counter tail adds ~12 more.
             string counter = $"[grey]({viewStart + 1}-{viewEnd}/{labels.Count})[/]";
-            AnsiConsole.MarkupLine($"  [bold yellow]{Markup.Escape(title)}[/]   {counter}");
+            AnsiConsole.MarkupLine($"  [bold yellow]{Markup.Escape(EditorLoc.T(title))}[/]   {counter}");
             lineCount++;
             // Hint line — short enough to always fit in 80 cols. Shows the
             // numeric-entry buffer when one is active, otherwise the key
@@ -215,8 +244,8 @@ internal static class EditorIO
             // glyph can render as a blank or double-wide space and push the
             // visible width past 80.
             string hint = numBuffer.Length > 0
-                ? $"[yellow]typing: {numBuffer}_[/]  [grey](Enter commits, Esc clears)[/]"
-                : $"[grey]arrows, numbers, Enter picks, 0/Q/Esc back[/]";
+                ? $"[yellow]{Markup.Escape(EditorLoc.F("typing: {0}_  (Enter commits, Esc clears)", numBuffer))}[/]"
+                : $"[grey]{Markup.Escape(EditorLoc.T("arrows, numbers, Enter picks, 0/Q/Esc back"))}[/]";
             AnsiConsole.MarkupLine($"  {hint}");
             lineCount++;
             AnsiConsole.MarkupLine(""); lineCount++;
@@ -232,7 +261,7 @@ internal static class EditorIO
             int maxLabelWidth = Math.Max(20, termWidth - 11);
             if (viewStart > 0)
             {
-                AnsiConsole.MarkupLine($"  [grey]    ... {viewStart} more above[/]");
+                AnsiConsole.MarkupLine($"  [grey]    {Markup.Escape(EditorLoc.F("... {0} more above", viewStart))}[/]");
                 lineCount++;
             }
             for (int i = viewStart; i < viewEnd; i++)
@@ -247,9 +276,9 @@ internal static class EditorIO
                 // Truncate over-wide labels with "…" suffix. Done BEFORE
                 // Markup.Escape so we're measuring raw visible length, not
                 // escape sequences.
-                string rawLabel = labels[i] ?? "";
-                if (rawLabel.Length > maxLabelWidth)
-                    rawLabel = rawLabel.Substring(0, Math.Max(0, maxLabelWidth - 1)) + "…";
+                string rawLabel = EditorLoc.T(labels[i] ?? "");
+                if (UsurperRemake.UI.TextWidth.Width(rawLabel) > maxLabelWidth)
+                    rawLabel = UsurperRemake.UI.TextWidth.Truncate(rawLabel, Math.Max(0, maxLabelWidth - 1)) + "…";
                 string text = isSelected
                     ? $"[black on cyan] {Markup.Escape(rawLabel)} [/]"
                     : Markup.Escape(rawLabel);
@@ -258,7 +287,7 @@ internal static class EditorIO
             }
             if (viewEnd < labels.Count)
             {
-                AnsiConsole.MarkupLine($"  [grey]    ... {labels.Count - viewEnd} more below[/]");
+                AnsiConsole.MarkupLine($"  [grey]    {Markup.Escape(EditorLoc.F("... {0} more below", labels.Count - viewEnd))}[/]");
                 lineCount++;
             }
             prevLines = lineCount;
@@ -355,16 +384,16 @@ internal static class EditorIO
     private static int RunNumberMenuFallback(string title, IList<string> labels)
     {
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine($"  [bold yellow]{Markup.Escape(title)}[/]");
+        AnsiConsole.MarkupLine($"  [bold yellow]{Markup.Escape(EditorLoc.T(title))}[/]");
         AnsiConsole.WriteLine();
         for (int i = 0; i < labels.Count; i++)
-            AnsiConsole.MarkupLine($"  [cyan]{i + 1,2}[/]  {Markup.Escape(labels[i])}");
-        AnsiConsole.MarkupLine("  [grey] 0  Back[/]");
+            AnsiConsole.MarkupLine($"  [cyan]{i + 1,2}[/]  {Markup.Escape(EditorLoc.T(labels[i]))}");
+        AnsiConsole.MarkupLine($"  [grey] 0  {Markup.Escape(EditorLoc.T("Back"))}[/]");
         AnsiConsole.WriteLine();
         while (true)
         {
             var input = AnsiConsole.Prompt(
-                new TextPrompt<string>("  Choice:")
+                new TextPrompt<string>($"  {Markup.Escape(EditorLoc.T("Choice:"))}")
                     .AllowEmpty()
                     .DefaultValue(""))
                 .Trim();
@@ -375,7 +404,7 @@ internal static class EditorIO
                 if (n == 0) return -1;
                 if (n >= 1 && n <= labels.Count) return n - 1;
             }
-            AnsiConsole.MarkupLine("  [red]Invalid choice.[/]");
+            AnsiConsole.MarkupLine($"  [red]{Markup.Escape(EditorLoc.T("Invalid choice."))}[/]");
         }
     }
 
@@ -429,6 +458,7 @@ internal static class EditorIO
     /// <summary>Yes/no confirmation with a default of No.</summary>
     public static bool Confirm(string question)
     {
+        question = EditorLoc.T(question);
         return AnsiConsole.Prompt(
             new ConfirmationPrompt($"  {Markup.Escape(question)}")
             {
@@ -438,6 +468,7 @@ internal static class EditorIO
 
     public static void Pause(string msg = "Press Enter to continue")
     {
+        msg = EditorLoc.T(msg);
         AnsiConsole.WriteLine();
         // Spectre's TextPrompt<string>.AllowEmpty() correctly echoes Enter on
         // every terminal — including mintty / Git Bash — so we don't have to
@@ -455,6 +486,7 @@ internal static class EditorIO
     /// </summary>
     public static TEnum PromptEnum<TEnum>(string label, TEnum current) where TEnum : struct, Enum
     {
+        label = EditorLoc.T(label);
         var names = Enum.GetNames<TEnum>();
         string title = $"{label}  (current: {current})";
         int picked = RunArrowMenu(title, names);

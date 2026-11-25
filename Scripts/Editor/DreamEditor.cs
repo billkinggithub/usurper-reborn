@@ -21,7 +21,7 @@ internal static class DreamEditor
         bool dirty = false;
         while (true)
         {
-            EditorIO.Section($"Dreams  —  {dreams.Count}{(dirty ? "  [UNSAVED]" : "")}");
+            EditorIO.Section((FormattableString)$"Dreams  —  {dreams.Count}{(dirty ? "  [UNSAVED]" : "")}");
             int choice = EditorIO.Menu("Choose:", new[]
             {
                 "List / filter dreams",
@@ -77,7 +77,7 @@ internal static class DreamEditor
         }
         catch (Exception ex)
         {
-            EditorIO.Error($"Failed to read {path}: {ex.Message}");
+            EditorIO.Error((FormattableString)$"Failed to read {path}: {ex.Message}");
             return DreamSystem.GetBuiltInDreams();
         }
     }
@@ -89,14 +89,14 @@ internal static class DreamEditor
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(path, JsonSerializer.Serialize(list, GameDataLoader.JsonOptions));
-            EditorIO.Success($"Wrote {list.Count} dreams to {path}");
+            EditorIO.Success((FormattableString)$"Wrote {list.Count} dreams to {path}");
             EditorIO.Info("Restart the game to pick up the changes.");
             EditorIO.Pause();
             return true;
         }
         catch (Exception ex)
         {
-            EditorIO.Error($"Write failed: {ex.Message}");
+            EditorIO.Error((FormattableString)$"Write failed: {ex.Message}");
             EditorIO.Pause();
             return false;
         }
@@ -114,10 +114,10 @@ internal static class DreamEditor
         while (page * pageSize < shown.Count)
         {
             foreach (var d in shown.Skip(page * pageSize).Take(pageSize))
-                EditorIO.Info($"  {d.Id,-30} L{d.MinLevel}-{d.MaxLevel,-3} awk{d.MinAwakening}-{d.MaxAwakening}  pri:{d.Priority,-3}  \"{d.Title}\"");
+                EditorIO.Info((FormattableString)$"  {d.Id,-30} L{d.MinLevel}-{d.MaxLevel,-3} awk{d.MinAwakening}-{d.MaxAwakening}  pri:{d.Priority,-3}  \"{d.Title}\"");
             page++;
             if (page * pageSize >= shown.Count) break;
-            if (!EditorIO.Confirm($"Shown {page * pageSize}/{shown.Count}. More?")) break;
+            if (!EditorIO.Confirm((FormattableString)$"Shown {page * pageSize}/{shown.Count}. More?")) break;
         }
         EditorIO.Pause();
     }
@@ -155,7 +155,7 @@ internal static class DreamEditor
     {
         var d = PickDream(dreams, "Dream to delete");
         if (d == null) return false;
-        if (!EditorIO.Confirm($"Delete \"{d.Title}\" ({d.Id})?")) return false;
+        if (!EditorIO.Confirm((FormattableString)$"Delete \"{d.Title}\" ({d.Id})?")) return false;
         dreams.Remove(d);
         EditorIO.Success("Deleted.");
         EditorIO.Pause();
@@ -194,9 +194,9 @@ internal static class DreamEditor
         bool anyChange = false;
         while (true)
         {
-            EditorIO.Section($"Content of \"{d.Title}\" ({lines.Count} lines)");
+            EditorIO.Section((FormattableString)$"Content of \"{d.Title}\" ({lines.Count} lines)");
             for (int i = 0; i < lines.Count; i++)
-                EditorIO.Info($"  [{i + 1,2}] {lines[i]}");
+                EditorIO.Info((FormattableString)$"  [{i + 1,2}] {lines[i]}");
             int choice = EditorIO.Menu("Content:", new[]
             {
                 "Append line",
@@ -212,7 +212,7 @@ internal static class DreamEditor
                 case 2:
                     {
                         if (lines.Count == 0) { EditorIO.Warn("No lines."); EditorIO.Pause(); break; }
-                        int idx = EditorIO.PromptInt($"Index (1..{lines.Count})", 1, min: 1, max: lines.Count);
+                        int idx = EditorIO.PromptInt((FormattableString)$"Index (1..{lines.Count})", 1, min: 1, max: lines.Count);
                         lines[idx - 1] = EditorIO.PromptString("Line", lines[idx - 1]);
                         anyChange = true;
                         break;
@@ -220,7 +220,7 @@ internal static class DreamEditor
                 case 3:
                     {
                         if (lines.Count == 0) break;
-                        int idx = EditorIO.PromptInt($"Index to delete (1..{lines.Count})", 1, min: 1, max: lines.Count);
+                        int idx = EditorIO.PromptInt((FormattableString)$"Index to delete (1..{lines.Count})", 1, min: 1, max: lines.Count);
                         lines.RemoveAt(idx - 1);
                         anyChange = true;
                         break;

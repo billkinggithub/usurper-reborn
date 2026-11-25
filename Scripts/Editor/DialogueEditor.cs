@@ -22,7 +22,7 @@ internal static class DialogueEditor
         bool dirty = false;
         while (true)
         {
-            EditorIO.Section($"Dialogue lines  —  {list.Count}{(dirty ? "  [UNSAVED]" : "")}");
+            EditorIO.Section((FormattableString)$"Dialogue lines  —  {list.Count}{(dirty ? "  [UNSAVED]" : "")}");
             int choice = EditorIO.Menu("Choose:", new[]
             {
                 "List / filter lines",
@@ -78,7 +78,7 @@ internal static class DialogueEditor
         }
         catch (Exception ex)
         {
-            EditorIO.Error($"Failed to read {path}: {ex.Message}");
+            EditorIO.Error((FormattableString)$"Failed to read {path}: {ex.Message}");
             return NPCDialogueDatabase.GetAllBuiltInLines();
         }
     }
@@ -90,14 +90,14 @@ internal static class DialogueEditor
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(path, JsonSerializer.Serialize(list, GameDataLoader.JsonOptions));
-            EditorIO.Success($"Wrote {list.Count} lines to {path}");
+            EditorIO.Success((FormattableString)$"Wrote {list.Count} lines to {path}");
             EditorIO.Info("Restart the game to pick up the changes.");
             EditorIO.Pause();
             return true;
         }
         catch (Exception ex)
         {
-            EditorIO.Error($"Write failed: {ex.Message}");
+            EditorIO.Error((FormattableString)$"Write failed: {ex.Message}");
             EditorIO.Pause();
             return false;
         }
@@ -119,15 +119,15 @@ internal static class DialogueEditor
             shown = shown.Where(d => d.Text.Contains(textQuery, StringComparison.OrdinalIgnoreCase));
 
         var results = shown.ToList();
-        EditorIO.Info($"Matches: {results.Count}");
+        EditorIO.Info((FormattableString)$"Matches: {results.Count}");
         int page = 0, pageSize = 25;
         while (page * pageSize < results.Count)
         {
             foreach (var d in results.Skip(page * pageSize).Take(pageSize))
-                EditorIO.Info($"  {d.Id,-14} [{d.Category,-10}] [{d.PersonalityType ?? "any",-10}] tier={d.RelationshipTier,-2}  \"{d.Text}\"");
+                EditorIO.Info((FormattableString)$"  {d.Id,-14} [{d.Category,-10}] [{d.PersonalityType ?? "any",-10}] tier={d.RelationshipTier,-2}  \"{d.Text}\"");
             page++;
             if (page * pageSize >= results.Count) break;
-            if (!EditorIO.Confirm($"Shown {page * pageSize}/{results.Count}. More?")) break;
+            if (!EditorIO.Confirm((FormattableString)$"Shown {page * pageSize}/{results.Count}. More?")) break;
         }
         EditorIO.Pause();
     }
@@ -158,7 +158,7 @@ internal static class DialogueEditor
         if (ordered.Count == 0) { EditorIO.Warn("No matches."); EditorIO.Pause(); return null; }
         if (ordered.Count > 300)
         {
-            EditorIO.Warn($"{ordered.Count} matches — tighten the filter.");
+            EditorIO.Warn((FormattableString)$"{ordered.Count} matches — tighten the filter.");
             EditorIO.Pause();
             return null;
         }
@@ -196,7 +196,7 @@ internal static class DialogueEditor
     {
         var d = PickLine(list, "Line to delete");
         if (d == null) return false;
-        if (!EditorIO.Confirm($"Delete \"{d.Text}\" ({d.Id})?")) return false;
+        if (!EditorIO.Confirm((FormattableString)$"Delete \"{d.Text}\" ({d.Id})?")) return false;
         list.Remove(d);
         EditorIO.Success("Deleted.");
         EditorIO.Pause();
