@@ -2026,7 +2026,7 @@ function build(options = {}) {
     [...body.matchAll(/<details class="spoiler"><summary>([\s\S]*?)<\/summary>/g)].map(
       (m) => textOf(m[1]),
     );
-  const search = pages.map((p) => ({
+  const pageText = pages.map((p) => ({
     title: redact(p.title),
     path: p.path,
     locale: p.locale || "en",
@@ -2036,6 +2036,7 @@ function build(options = {}) {
     text: redact(textOf(p.body)),
     // Hand-written guides from DOCS/wiki rank above generated entity pages.
     ...(p.sourceFile ? { guide: true } : {}),
+    sourceFile: p.sourceFile || null,
     // A guide's spoiler folds by their summary line only, so search and the bot can point to
     // a fold without its text ever entering the index.
     ...(p.sourceFile && foldTitles(p.body).length
@@ -2122,14 +2123,14 @@ function build(options = {}) {
       "index.html",
     );
     fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.writeFileSync(dest, layout(pages[i], search[i].text));
+    fs.writeFileSync(dest, layout(pages[i], pageText[i].text));
   }
   fs.writeFileSync(
     path.join(outDir, "search-index.json"),
     JSON.stringify({
       schemaVersion: 1,
       gameVersion: meta.gameVersion,
-      pages: search,
+      pages: pageText.filter((p) => p.locale === "en" || p.guide),
     }),
   );
   for (const locale of new Set(pages.map((p) => p.locale || "en"))) {
@@ -2166,7 +2167,11 @@ function build(options = {}) {
       2,
     ),
   );
-  return { pages, search, meta };
+  return {
+    pages,
+    search: pageText.filter((p) => p.locale === "en"),
+    meta,
+  };
 }
 if (require.main === module) {
   try {
