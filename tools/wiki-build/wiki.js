@@ -16,6 +16,7 @@ theme.addEventListener("click", () => {
     localStorage.setItem("wiki-theme", light ? "light" : "dark");
   } catch (_) {}
 });
+const locale = document.documentElement.lang === "zh-CN" ? "zh" : "en";
 const input = document.getElementById("search");
 const status = document.getElementById("search-status");
 const results = document.getElementById("search-results");
@@ -42,7 +43,10 @@ async function searchWiki() {
       });
     const index = await indexPromise;
     if (current !== revision) return;
-    const matches = WikiSearch.search(index.pages, query);
+    const matches = WikiSearch.search(
+      index.pages.filter((p) => !p.locale || p.locale === locale),
+      query,
+    );
     status.textContent = matches.length
       ? WikiLabels.results.replace("{count}", matches.length)
       : WikiLabels.noResults;

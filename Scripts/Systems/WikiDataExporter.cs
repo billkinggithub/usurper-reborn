@@ -104,6 +104,21 @@ public static class WikiDataExporter
         }, JsonOptions));
     }
 
+    /// <summary>The outpost goods come back in the player's language; the wiki export is English.</summary>
+    private static string SettlementGoodName(string id) => id switch
+    {
+        "heal_potion" => Loc.GetIn("en", "street_encounter.merchant.item.healing_potion"),
+        "mana_potion" => Loc.GetIn("en", "world_boss.mana_potion"),
+        "antidote" => Loc.GetIn("en", "street_encounter.merchant.item.antidote"),
+        "healing_herb" => Loc.GetIn("en", "herb.healing_herb.name"),
+        "starbloom" => Loc.GetIn("en", "herb.starbloom_essence.name"),
+        "firebloom" => Loc.GetIn("en", "herb.firebloom_petal.name"),
+        "torch" => Loc.GetIn("en", "dungeon.settlement_item_torch"),
+        "lockpick" => Loc.GetIn("en", "dungeon.settlement_item_lockpick"),
+        "smoke_bomb" => Loc.GetIn("en", "dungeon.settlement_item_smoke_bomb"),
+        _ => id,
+    };
+
     private static Dictionary<string, string> Names(string? key, string english)
     {
         var names = new Dictionary<string, string> { ["en"] = english };
@@ -910,8 +925,8 @@ public static class WikiDataExporter
                     ? InvokePrivate<List<(string id, string name, long cost)>>(dungeon, "GetSettlementTradeItems", s)
                         // 1.3.10 (P12): a potion's price follows the buyer's level (the town price x the factor), not the floor
                         .Select(g => DungeonLocation.SettlementTownPricedGoods.Contains(g.id)
-                            ? new { id = g.id, name = g.name, price = (long?)null, townPriceFactor = (double?)GameConfig.SettlementPotionPriceMultiplier }
-                            : new { id = g.id, name = g.name, price = (long?)g.cost, townPriceFactor = (double?)null }).ToArray()
+                            ? new { id = g.id, name = SettlementGoodName(g.id), price = (long?)null, townPriceFactor = (double?)GameConfig.SettlementPotionPriceMultiplier }
+                            : new { id = g.id, name = SettlementGoodName(g.id), price = (long?)g.cost, townPriceFactor = (double?)null }).ToArray()
                     : []
             };
         }).ToArray(),

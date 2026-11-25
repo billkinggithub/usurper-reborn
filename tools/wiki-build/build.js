@@ -29,7 +29,7 @@ const escape = (value) =>
           "'": "&#39;",
         })[c],
     );
-const name = (e) => e.name?.en || e.id;
+const name = (e, locale = "en") => e.name?.[locale] || e.name?.en || e.id;
 const label = (value, keepIdentifier) =>
   String(value)
     .replace(/([a-z\d])([A-Z])/g, "$1 $2")
@@ -40,13 +40,13 @@ const label = (value, keepIdentifier) =>
 const slug = (value) =>
   String(value)
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
     .replace(/^-|-$/g, "");
-const url = (kind, id) => {
+const url = (kind, id, locale = "en") => {
   // Class:slot spell keys become Class-slot URLs so directory names also work on Windows.
   const segment = String(id).replace(/:/g, "-");
   if (!/^[A-Za-z0-9_-]+$/.test(segment)) throw Error(`Unsafe entity ID: ${id}`);
-  return `/wiki/en/${kind}/${segment}/`;
+  return `/wiki/${locale}/${kind}/${segment}/`;
 };
 const link = (kind, e) => `<a href="${url(kind, e.id)}">${escape(name(e))}</a>`;
 function publicHtml(html) {
@@ -1635,11 +1635,15 @@ function parseHistory(lines, file, gameVersion) {
 }
 function readPages(dir, options = {}) {
   const result = [];
+  const pathPrefix = options.pathPrefix || "/wiki/en/";
   for (const entry of fs
     .readdirSync(dir, { withFileTypes: true })
     .sort((a, b) => a.name.localeCompare(b.name))) {
     const file = path.join(dir, entry.name);
-    if (entry.isDirectory()) result.push(...readPages(file, options));
+    if (entry.isDirectory()) {
+      if (options.skipDirs && options.skipDirs.includes(entry.name)) continue;
+      result.push(...readPages(file, options));
+    }
     else if (entry.name.endsWith(".md")) {
       const source = fs.readFileSync(file, "utf8");
       const match = source.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
@@ -1660,11 +1664,13 @@ function readPages(dir, options = {}) {
         !fields.title ||
         !fields.checked ||
         !fields.sources ||
-        !/^\/wiki\/en\/(?:[a-z0-9-]+\/)*$/.test(fields.path)
+        !fields.path.startsWith(pathPrefix) ||
+        !/^\/wiki\/[a-z0-9-]+\/(?:[a-z0-9-]+\/)*$/.test(fields.path)
       )
         throw Error(`Invalid page metadata: ${file}`);
       result.push({
         ...fields,
+        locale: options.locale || "en",
         history: parseHistory(historyLines, file, options.gameVersion),
         markdown: match[2],
         sourceFile: path.relative(root, file).split(path.sep).join("/"),
@@ -1706,7 +1712,21 @@ function build(options = {}) {
     tokens[idx].attrSet("id", slug(tokens[idx + 1].content));
     return self.renderToken(tokens, idx, _opts);
   };
-  const pages = readPages(contentDir, { gameVersion: meta.gameVersion });
+  const pages = readPages(contentDir, {
+    gameVersion: meta.gameVersion,
+    pathPrefix: "/wiki/en/",
+    locale: "en",
+    skipDirs: ["zh"],
+  });
+  const zhContentDir = path.join(contentDir, "zh");
+  if (fs.existsSync(zhContentDir))
+    pages.push(
+      ...readPages(zhContentDir, {
+        gameVersion: meta.gameVersion,
+        pathPrefix: "/wiki/zh/",
+        locale: "zh",
+      }),
+    );
   for (const page of pages) {
     const disclosureLines = page.markdown
       .split("\n")
@@ -1764,14 +1784,19 @@ function build(options = {}) {
       .render(source)
       .replace(/<p>WIKIBLOCK(\d+)TOKEN<\/p>/g, (_m, n) => blocks[n]);
   }
-  const add = (kind, e, body, sources) =>
-    pages.push({
-      path: url(kind, e.id),
-      title: name(e),
-      checked: meta.gameVersion,
-      sources,
-      body,
-    });
+  const locales = fs.existsSync(zhContentDir) ? ["en", "zh"] : ["en"];
+  const add = (kind, e, body, sources) => {
+    for (const locale of locales) {
+      pages.push({
+        path: url(kind, e.id, locale),
+        title: name(e, locale),
+        locale,
+        checked: meta.gameVersion,
+        sources,
+        body,
+      });
+    }
+  };
   for (const e of data.items)
     add(
       "items",
@@ -1977,9 +2002,10 @@ function build(options = {}) {
       )
         throw Error(`Missing or invalid source: ${source}`);
   }
-  for (const [section] of sections)
-    if (!urls.has(`/wiki/en/${section}/`))
-      throw Error(`Missing section landing page: ${section}`);
+  for (const locale of new Set(pages.map((p) => p.locale || "en")))
+    for (const [section] of sections)
+      if (!urls.has(`/wiki/${locale}/${section}/`))
+        throw Error(`Missing ${locale} section landing page: ${section}`);
   const secretNames = [
     ...data.bosses.secret,
     ...data.bosses.oldGods,
@@ -2003,6 +2029,7 @@ function build(options = {}) {
   const search = pages.map((p) => ({
     title: redact(p.title),
     path: p.path,
+    locale: p.locale || "en",
     headings: [
       ...publicHtml(p.body).matchAll(/<h[23][^>]*>([\s\S]*?)<\/h[23]>/g),
     ].map((m) => redact(textOf(m[1]))),
@@ -2015,18 +2042,37 @@ function build(options = {}) {
       ? { folds: foldTitles(p.body).map(redact) }
       : {}),
   }));
-  const strings = JSON.parse(
-    fs.readFileSync(path.join(root, "web/lang/en.json"), "utf8"),
-  );
-  const t = (key) => {
+  const localeStrings = {};
+  function stringsFor(locale) {
+    if (!localeStrings[locale]) {
+      const file = path.join(root, "web/lang", locale + ".json");
+      localeStrings[locale] = JSON.parse(
+        fs.readFileSync(fs.existsSync(file) ? file : path.join(root, "web/lang/en.json"), "utf8"),
+      );
+    }
+    return localeStrings[locale];
+  }
+  function tFor(locale, key) {
+    const strings = stringsFor(locale);
     if (!strings["wiki." + key]) throw Error(`Missing wiki label: ${key}`);
     return escape(strings["wiki." + key]);
-  };
-  const nav = sections
-    .map(([s]) => `<a href="/wiki/en/${s}/">${t("section." + s)}</a>`)
-    .join("");
+  }
+  const navFor = (locale) =>
+    sections
+      .map(
+        ([s]) =>
+          `<a href="/wiki/${locale}/${s}/">${tFor(locale, "section." + s)}</a>`,
+      )
+      .join("");
   function layout(p, preview) {
-    const group = sections.find(([s]) => p.path.startsWith(`/wiki/en/${s}/`));
+    const locale = p.locale || "en";
+    const t = (key) => tFor(locale, key);
+    const prefix = `/wiki/${locale}/`;
+    const nav = navFor(locale);
+    const otherLocale = locale === "zh" ? "en" : "zh";
+    const otherLabel = locale === "zh" ? "English" : "中文";
+    const htmlLang = locale === "zh" ? "zh-CN" : locale;
+    const group = sections.find(([s]) => p.path.startsWith(`${prefix}${s}/`));
     const sourceLinks = p.sources
       .split(/,\s*/)
       .map(
@@ -2038,7 +2084,7 @@ function build(options = {}) {
     const history = entries.length
       ? `<section class="history" aria-labelledby="changes-by-version"><h2 id="changes-by-version">${t("history")}</h2><dl>${entries.map((h) => `<dt>${escape(h.version)}</dt><dd>${escape(h.sentence)}</dd>`).join("")}</dl></section>`
       : "";
-    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escape(p.title)} | Usurper Reborn Wiki</title><meta name="description" content="${escape(preview.slice(0, 180))}"><link rel="stylesheet" href="/wiki/wiki.css"><script defer src="/wiki/wiki-labels.js"></script><script defer src="/wiki/wiki-search.js"></script><script defer src="/wiki/wiki.js"></script></head><body><a class="skip" href="#main">${t("skip")}</a><header><a class="logo" href="/">USURPER REBORN</a><nav aria-label="Site"><a href="/wiki/en/">${t("home")}</a><a href="/#connect">${t("play")}</a><button id="theme" type="button" aria-pressed="false">${t("theme")}</button></nav></header><div class="layout"><aside><form role="search" id="search-form"><label for="search">${t("search")}</label><input type="search" id="search" placeholder="${t("searchPlaceholder")}" maxlength="200" autocomplete="off"><button type="submit">${t("find")}</button></form><p id="search-status" role="status"></p><div id="search-results"></div><nav aria-label="Wiki sections" class="sections">${nav}</nav></aside><main id="main" tabindex="-1"><nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/wiki/en/">${t("home")}</a>${group ? ` / <a href="/wiki/en/${group[0]}/">${escape(group[1])}</a>` : ""}</nav><h1>${escape(p.title)}</h1><p class="version">${t("version")} ${escape(meta.gameVersion)}. ${t("checked")} ${escape(p.checked)}.</p>${p.body}${history}<footer><p>${t("fixedRules")}</p><p>${t("sources")}: ${sourceLinks}</p><p>${t("languageNote")}</p></footer></main></div></body></html>`;
+    return `<!doctype html><html lang="${htmlLang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escape(p.title)} | Usurper Reborn Wiki</title><meta name="description" content="${escape(preview.slice(0, 180))}"><link rel="stylesheet" href="/wiki/wiki.css"><script defer src="${prefix}wiki-labels.js"></script><script defer src="/wiki/wiki-search.js"></script><script defer src="/wiki/wiki.js"></script></head><body><a class="skip" href="#main">${t("skip")}</a><header><a class="logo" href="/">USURPER REBORN</a><nav aria-label="Site"><a href="${prefix}">${t("home")}</a><a href="/#connect">${t("play")}</a><a href="/wiki/${otherLocale}/">${otherLabel}</a><button id="theme" type="button" aria-pressed="false">${t("theme")}</button></nav></header><div class="layout"><aside><form role="search" id="search-form"><label for="search">${t("search")}</label><input type="search" id="search" placeholder="${t("searchPlaceholder")}" maxlength="200" autocomplete="off"><button type="submit">${t("find")}</button></form><p id="search-status" role="status"></p><div id="search-results"></div><nav aria-label="Wiki sections" class="sections">${nav}</nav></aside><main id="main" tabindex="-1"><nav class="breadcrumbs" aria-label="Breadcrumb"><a href="${prefix}">${t("home")}</a>${group ? ` / <a href="${prefix}${group[0]}/">${escape(group[1])}</a>` : ""}</nav><h1>${escape(p.title)}</h1><p class="version">${t("version")} ${escape(meta.gameVersion)}. ${t("checked")} ${escape(p.checked)}.</p>${p.body}${history}<footer><p>${t("fixedRules")}</p><p>${t("sources")}: ${sourceLinks}</p><p>${t("languageNote")}</p></footer></main></div></body></html>`;
   }
   // Remove only obsolete generated page files listed by our previous manifest.
   // No recursive output cleanup and no removal of hand-written assets.
@@ -2047,7 +2093,7 @@ function build(options = {}) {
   if (fs.existsSync(oldManifest)) {
     const previous = JSON.parse(fs.readFileSync(oldManifest, "utf8"));
     for (const oldPath of previous.paths || []) {
-      if (!/^\/wiki\/en\/(?:[\w%:-]+\/)*$/.test(oldPath))
+      if (!/^\/wiki\/(?:en|zh)\/(?:[\w%:-]+\/)*$/.test(oldPath))
         throw Error("Invalid prior wiki manifest path");
       if (!urls.has(oldPath)) {
         const obsolete = path.join(
@@ -2084,21 +2130,25 @@ function build(options = {}) {
       pages: search,
     }),
   );
-  const clientLabels = Object.fromEntries(
-    ["searching", "results", "noResults", "searchUnavailable"].map((key) => {
-      t(key);
-      return [key, strings["wiki." + key]];
-    }),
-  );
-  fs.writeFileSync(
-    path.join(outDir, "wiki-labels.js"),
-    "globalThis.WikiLabels = " +
-      JSON.stringify(clientLabels).replace(/</g, "\\u003c") +
-      ";",
-  );
+  for (const locale of new Set(pages.map((p) => p.locale || "en"))) {
+    const strings = stringsFor(locale);
+    const clientLabels = Object.fromEntries(
+      ["searching", "results", "noResults", "searchUnavailable"].map((key) => {
+        tFor(locale, key);
+        return [key, strings["wiki." + key]];
+      }),
+    );
+    fs.mkdirSync(path.join(outDir, locale), { recursive: true });
+    fs.writeFileSync(
+      path.join(outDir, locale, "wiki-labels.js"),
+      "globalThis.WikiLabels = " +
+        JSON.stringify(clientLabels).replace(/</g, "\\u003c") +
+        ";",
+    );
+  }
   fs.writeFileSync(
     path.join(outDir, "index.html"),
-    '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Usurper Reborn Wiki</title><meta http-equiv="refresh" content="0;url=/wiki/en/"></head><body><a href="/wiki/en/">Open the English player wiki</a></body></html>',
+    '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Usurper Reborn Wiki</title></head><body><p><a href="/wiki/en/">English player wiki</a></p><p><a href="/wiki/zh/">中文玩家维基</a></p></body></html>',
   );
   for (const asset of ["wiki.css", "wiki.js"])
     fs.copyFileSync(path.join(__dirname, asset), path.join(outDir, asset));
