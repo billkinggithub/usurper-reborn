@@ -4014,7 +4014,7 @@ class GameDataWindow:
 
     def open_forms(self) -> None:
         from save_editor_lib.game_data_forms import GameDataFormsWindow
-        GameDataFormsWindow(self.top)
+        GameDataFormsWindow(self.top, language="en")
 
     def selected_file(self) -> tuple[str, str] | None:
         selection = self.files.curselection()
