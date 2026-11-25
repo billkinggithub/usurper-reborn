@@ -7,7 +7,11 @@
 
 The window covers more than the player object: every scalar in the save is reachable, with
 first-class views for the player, the NPC roster, the companions and dungeon party, the world
-state, the story systems and the settings. Every field carries a Chinese label and a note
+state, the story systems and the settings. The section bar follows the in-game G editor's
+categories (character, stats, economy, inventory, spells, companions, quests, story, family,
+status, appearance, training, team, settings and world), and each section carries the same kind
+of quick operation the G editor offers: clear inventory, learn or master spells, complete or
+clear quests, grant seals or artifacts, cure diseases, reset daily counters and so on. Every field carries a Chinese label and a note
 (curated, the game's own C# comment, or a direct gloss). A field keeps the type it already had,
 so a level cannot become 5.5 and a gold total cannot lose its digits; a list can gain or lose an
 element, and the companion and dungeon-party managers keep the flags and the id lists in step.
@@ -117,14 +121,62 @@ PLAYER_PARTY_KEYS = {"team", "teamPassword", "isTeamLeader", "teamRec", "teammat
                      "sharedPotionBelt", "autoRedistributeXP", "teamXPPercent",
                      "teamXPIsExplicit", "teamXPEvenSplit"}
 
+# The sections follow the in-game G editor's category menu. Each is a filtered view over the
+# same complete leaf list, so no field becomes unreachable; "全部字段" still lists everything.
+CHAR_INFO_KEYS = {
+    "name1", "name2", "realName", "class", "race", "sex", "age", "difficulty", "specialization",
+    "chivalry", "darkness", "fame", "knighted", "isKnighted", "nobleTitle", "king", "isKing", "immortal",
+    "isImmortal", "mental", "mentalSchema", "godFavor", "godFavorGod", "currentLocation",
+}
+STAT_KEYS = {
+    "level", "experience", "strength", "dexterity", "constitution", "intelligence", "wisdom",
+    "charisma", "defence", "agility", "stamina", "baseStrength", "baseDexterity",
+    "baseConstitution", "baseIntelligence", "baseWisdom", "baseCharisma", "baseDefence",
+    "baseAgility", "baseStamina", "hp", "maxHP", "baseMaxHP", "mana", "maxMana", "baseMaxMana",
+    "resurrections", "maxResurrections", "resurrectionsUsed", "playthroughDeaths", "trains",
+    "trainingPoints", "weapPow", "armPow", "bonusWeapPow", "bonusArmPow",
+}
+ECONOMY_KEYS = {
+    "gold", "bankGold", "bankLoan", "bankWage", "bankInterest", "royalLoanAmount",
+    "royalLoanDueDay", "loanAmount", "loanDaysRemaining", "loanInterestAccrued",
+}
+APPEARANCE_KEYS = {
+    "height", "weight", "eyes", "hair", "skin", "phrases", "description",
+}
+TEAM_KEYS = {
+    "team", "teamPassword", "isTeamLeader", "teamRec", "teammateStances",
+    "teammateDisabledAbilities", "teammateDisabledSpells", "sharedPotionBelt",
+    "autoRedistributeXP", "teamXPPercent", "teamXPIsExplicit", "teamXPEvenSplit",
+}
+STATUS_KEYS = {
+    "hp", "maxHP", "mania", "mental", "blind", "plague", "smallpox", "measles", "leprosy",
+    "loversBane", "poison", "poisonTurns", "gnollP", "addict", "steroidDays", "drugEffectDays",
+    "activeDrug", "wantedLvl", "murderWeight", "daysInPrison", "isMurderConvict",
+    "cellDoorOpen", "prisonEscapes", "divineWrathLevel", "divineWrathPending",
+    "divineWrathTurnsRemaining", "angeredGodName", "betrayedForGodName", "fatigue",
+    "groggoShadowBlessingDex", "artifactStatsApplied", "cycleStatBonusApplied",
+    "voidreaverConstitutionApplied",
+}
+TRAINING_KEYS = {"trainingPoints", "trains"}
+FAMILY_KEYS = {"kids", "divineWrathLevel", "kidsCount"}
+
 SECTIONS = [
-    ("玩家 · 常用", "player_common"),
-    ("玩家 · 全部", "player_all"),
-    ("NPC", "npc"),
-    ("队伍与同伴", "party"),
-    ("世界状态", "world"),
-    ("剧情系统", "story"),
+    ("角色信息", "char_info"),
+    ("属性与成长", "stats"),
+    ("金币与经济", "economy"),
+    ("物品与装备", "inventory"),
+    ("法术与技能", "spells"),
+    ("同伴", "companions"),
+    ("任务", "quests"),
+    ("剧情与旧神", "story"),
+    ("关系与家庭", "relationships"),
+    ("状态与清理", "status"),
+    ("外观与描述", "appearance"),
+    ("技能与训练", "training"),
+    ("队伍与公会", "team"),
     ("设置", "settings"),
+    ("世界状态", "world"),
+    ("玩家 · 全部", "player_all"),
     ("全部字段", "all"),
 ]
 
@@ -1457,6 +1509,7 @@ class EditorWindow:
         self.tk = tk
         self.ttk = ttk
         self.messagebox = messagebox
+        self.simpledialog = __import__("tkinter.simpledialog", fromlist=["simpledialog"])
         self.directory = directory
         self.saves: list[Path] = []
         self.save_path: Path | None = None
@@ -1500,7 +1553,7 @@ class EditorWindow:
         top2 = ttk.Frame(self.root, padding=(8, 0, 8, 6))
         top2.pack(fill="x")
         ttk.Label(top2, text="区域").pack(side="left")
-        self.section_box = ttk.Combobox(top2, state="readonly", width=14,
+        self.section_box = ttk.Combobox(top2, state="readonly", width=18,
                                         values=[name for name, _ in SECTIONS])
         self.section_box.current(0)
         self.section_box.pack(side="left", padx=6)
@@ -1526,6 +1579,9 @@ class EditorWindow:
         ttk.Button(bar, text="重新读取（放弃改动）", command=self.reload).pack(side="left", padx=6)
         self.change_count = ttk.Label(bar, text="没有未保存改动", foreground="#555")
         self.change_count.pack(side="right")
+
+        self.action_bar = ttk.Frame(self.root, padding=(8, 0, 8, 6))
+        self.action_bar.pack(fill="x")
 
     def _build_body(self) -> None:
         ttk = self.ttk
@@ -1616,6 +1672,7 @@ class EditorWindow:
         ttk.Separator(right).pack(fill="x", pady=12)
         ttk.Label(right, text="说明", foreground="#555", wraplength=310).pack(anchor="w")
         ttk.Label(right, text="Ctrl+Enter 应用这一项，Ctrl+S 保存，F5 重新读取。"
+                             "区域上方的快捷操作对应 G 编辑器的分类功能，执行前会确认。"
                              "只有保存时才会写文件。固定长度的列表不能增删；"
                              "items 与 itemTypes 等成对列表会先要求确认。",
                   foreground="#555", wraplength=310).pack(anchor="w")
@@ -1760,6 +1817,50 @@ class EditorWindow:
         section = self.current_section()
         leaves = self.all_leaves
 
+        if section == "char_info":
+            return self.player_key_leaves(CHAR_INFO_KEYS)
+        if section == "stats":
+            return self.player_key_leaves(STAT_KEYS)
+        if section == "economy":
+            return self.player_key_leaves(ECONOMY_KEYS)
+        if section == "appearance":
+            return self.player_key_leaves(APPEARANCE_KEYS)
+        if section == "team":
+            return self.player_key_leaves(TEAM_KEYS)
+        if section == "status":
+            chosen = self.player_key_leaves(STATUS_KEYS)
+            for prefix in (("player", "activeStatuses"), ("player", "timedStatBuffs"),
+                           ("player", "permakillLog")):
+                chosen += [leaf for leaf in leaves if leaf.path[:2] == prefix]
+            return chosen
+        if section == "inventory":
+            return self.prefix_leaves(("player", "inventory"), ("player", "equippedItems"),
+                                      ("player", "dynamicEquipment"), ("player", "items"),
+                                      ("player", "itemTypes"))
+        if section == "spells":
+            return self.prefix_leaves(("player", "spells"), ("player", "learnedAbilities"),
+                                      ("player", "quickbar"))
+        if section == "companions":
+            return self.prefix_leaves(("storySystems", "companions"),
+                                      ("storySystems", "activeCompanionIds"),
+                                      ("storySystems", "fallenCompanions"),
+                                      ("storySystems", "activeGriefs"),
+                                      ("storySystems", "griefMemories"))
+        if section == "quests":
+            return self.prefix_leaves(("player", "activeQuests"), ("worldState", "activeQuests"))
+        if section == "relationships":
+            chosen = self.prefix_leaves(("player", "relationships"), ("storySystems", "children"),
+                                        ("storySystems", "npcMarriages"),
+                                        ("storySystems", "affairs"))
+            chosen += self.player_key_leaves(FAMILY_KEYS)
+            return chosen
+        if section == "training":
+            chosen = self.prefix_leaves(("player", "skillProficiencies"),
+                                        ("player", "statTrainingCounts"),
+                                        ("player", "skillTrainingProgress"),
+                                        ("player", "craftingMaterials"))
+            chosen += self.player_key_leaves(TRAINING_KEYS)
+            return chosen
         if section == "player_common":
             order = {key: (group_index, key_index)
                      for group_index, (_, group) in enumerate(PLAYER_GROUPS)
@@ -1805,6 +1906,14 @@ class EditorWindow:
             return []
         return [leaf for leaf in self.all_leaves
                 if len(leaf.path) >= 2 and leaf.path[0] == "npCs" and leaf.path[1] == index]
+
+    def player_key_leaves(self, keys: set[str]) -> list[Leaf]:
+        return [leaf for leaf in self.all_leaves
+                if len(leaf.path) == 2 and leaf.path[0] == "player" and leaf.path[1] in keys]
+
+    def prefix_leaves(self, *prefixes: tuple) -> list[Leaf]:
+        return [leaf for leaf in self.all_leaves
+                if any(leaf.path[: len(prefix)] == prefix for prefix in prefixes)]
 
     def matches(self, leaf: Leaf, needle: str) -> bool:
         haystack = f"{path_text(leaf.path)} {self.field_text(leaf)} {display_value(leaf.value)}".lower()
@@ -1954,6 +2063,7 @@ class EditorWindow:
         hidden = len(leaves) - len(self.rows)
         if hidden > 0:
             self.say(f"匹配 {len(leaves)} 行，只显示前 {self.MAX_ROWS} 行；请用搜索缩小范围。")
+        self.render_actions()
 
     def clear_search(self) -> None:
         self.search.delete(0, "end")
@@ -2071,6 +2181,508 @@ class EditorWindow:
         else:
             self.change_count.configure(text="没有未保存改动", foreground="#555")
             self.save_button.configure(text="保存全部改动")
+
+    # ---- quick actions (the G editor's category operations) ---------------------------------------
+
+    def player(self) -> dict:
+        player = self.data.get("player")
+        if not isinstance(player, dict):
+            player = {}
+            self.data["player"] = player
+        return player
+
+    def actions_for_section(self) -> list[tuple[str, object]]:
+        section = self.current_section()
+        if section == "inventory":
+            return [("添加物品（JSON）", self.act_add_inventory_item),
+                    ("删除选中物品", self.act_remove_selected_inventory),
+                    ("清空物品栏", self.act_clear_inventory),
+                    ("清空装备栏", self.act_clear_equipment),
+                    ("解除装备诅咒", self.act_uncurse_equipment)]
+        if section == "spells":
+            return [("按 ID 学习技能", self.act_learn_ability),
+                    ("全部学会", self.act_learn_all_spells),
+                    ("全部精通", self.act_master_all_spells),
+                    ("清空法术", self.act_clear_spells),
+                    ("清空已学技能", self.act_clear_abilities),
+                    ("清空快捷栏", self.act_clear_quickbar)]
+        if section == "companions":
+            return [("复活全部同伴", self.act_revive_companions),
+                    ("同伴管理", self.open_companion_manager),
+                    ("地牢队伍", self.open_party_manager)]
+        if section == "quests":
+            return [("全部标记完成", self.act_complete_quests),
+                    ("全部标记放弃", self.act_abandon_quests),
+                    ("清空任务", self.act_clear_quests)]
+        if section == "story":
+            return [("设置旧神状态", self.act_set_old_god),
+                    ("授予神器", self.act_grant_artifact),
+                    ("授予全部封印", self.act_grant_seals),
+                    ("清除封印", self.act_clear_seals),
+                    ("设置 NG+ 轮回", self.act_set_cycle),
+                    ("清除剧情标记", self.act_clear_story_flags)]
+        if section == "relationships":
+            return [("设置关系分数", self.act_set_relationship),
+                    ("清空全部关系", self.act_clear_relationships),
+                    ("清除神罚", self.act_clear_divine_wrath)]
+        if section == "status":
+            return [("治愈疾病", self.act_cure_diseases),
+                    ("清除中毒", self.act_clear_poison),
+                    ("清除药物", self.act_clear_drugs),
+                    ("清除状态效果", self.act_clear_statuses),
+                    ("释放出狱", self.act_release_prison),
+                    ("清除通缉", self.act_clear_wanted),
+                    ("清除谋杀值", self.act_clear_murder),
+                    ("清除限时增益", self.act_clear_buffs),
+                    ("重置每日计数", self.act_reset_daily)]
+        if section == "training":
+            return [("设置技能熟练度", self.act_set_skill),
+                    ("清空技能熟练度", self.act_clear_skills),
+                    ("清空属性训练", self.act_clear_stat_training),
+                    ("添加制作材料", self.act_add_material),
+                    ("清空制作材料", self.act_clear_materials)]
+        if section == "team":
+            return [("清空队伍信息", self.act_clear_team)]
+        return []
+
+    def render_actions(self) -> None:
+        for child in self.action_bar.winfo_children():
+            child.destroy()
+        actions = self.actions_for_section()
+        if not actions:
+            return
+        self.ttk.Label(self.action_bar, text="快捷操作：", foreground="#555").pack(side="left")
+        for label, command in actions:
+            self.ttk.Button(self.action_bar, text=label, command=command).pack(side="left", padx=(4, 0))
+
+    def run_quick(self, label: str, action, confirm: str | None = None) -> None:
+        if not self.data:
+            self.say("先选择一个存档。")
+            return
+        if not self.structural_allowed():
+            return
+        if confirm and not self.messagebox.askyesno("确认操作", confirm, parent=self.root):
+            return
+        try:
+            message = action()
+        except Exception as error:
+            self.say(f"{label}失败：{error}")
+            return
+        if message is None:
+            return
+        self.dirty = True
+        self.rebuild_view()
+        self.say(message)
+
+    def act_add_inventory_item(self) -> str | None:
+        text = self.simpledialog.askstring(
+            "添加物品", "粘贴一个物品 JSON 对象（单行）：", parent=self.root,
+            initialvalue='{"name": "新物品", "type": 0, "value": 0}')
+        if not text:
+            return None
+        try:
+            item = json.loads(text)
+        except json.JSONDecodeError as error:
+            return f"JSON 无效：{error}"
+        if not isinstance(item, dict):
+            return "物品必须是一个 JSON 对象。"
+        player = self.player()
+        inventory = player.get("inventory")
+        if not isinstance(inventory, list):
+            inventory = []
+            player["inventory"] = inventory
+        inventory.append(item)
+        return f"已添加物品「{item.get('name', '?')}」，当前物品栏 {len(inventory)} 件。"
+
+    def act_remove_selected_inventory(self) -> str | None:
+        leaf = self.selected_leaf()
+        if leaf is None:
+            return "先在物品栏中选中一件物品。"
+        path = leaf.path
+        if len(path) < 3 or path[0] != "player" or path[1] != "inventory" or not isinstance(path[2], int):
+            return "请选中物品栏列表中的一件物品。"
+        inventory = self.player().get("inventory")
+        if not isinstance(inventory, list) or path[2] >= len(inventory):
+            return "物品栏索引无效。"
+        item = inventory[path[2]]
+        name = item.get("name", "?") if isinstance(item, dict) else "?"
+        if not self.messagebox.askyesno("删除物品", f"要从物品栏删除「{name}」吗？", parent=self.root):
+            return None
+        del inventory[path[2]]
+        return f"已删除「{name}」。"
+
+    def act_learn_ability(self) -> str | None:
+        name = self.simpledialog.askstring("学习技能", "职业技能 ID（例如 power_strike）：", parent=self.root)
+        if not name:
+            return None
+        player = self.player()
+        abilities = player.get("learnedAbilities")
+        if not isinstance(abilities, list):
+            abilities = []
+            player["learnedAbilities"] = abilities
+        if name in abilities:
+            return f"{name} 已经学会。"
+        abilities.append(name)
+        return f"已学会 {name}。"
+
+    def act_set_old_god(self) -> str | None:
+        god = self.simpledialog.askinteger(
+            "设置旧神状态", "旧神编号（0 Maelketh 到 6 Manwe）：", parent=self.root,
+            initialvalue=0, minvalue=0, maxvalue=6)
+        if god is None:
+            return None
+        status = self.simpledialog.askinteger(
+            "旧神状态", "状态整数：0 Unknown，1 Imprisoned，2 Dormant，3 Dying，4 Corrupted，"
+                       "5 Neutral，6 Awakened，7 Hostile，8 Allied，9 Saved，10 Defeated，11 Consumed",
+            parent=self.root, initialvalue=2, minvalue=0, maxvalue=11)
+        if status is None:
+            return None
+        states = self.story_systems().get("oldGodStates")
+        if not isinstance(states, dict):
+            states = {}
+            self.story_systems()["oldGodStates"] = states
+        states[str(god)] = status
+        return f"旧神 {god} 的状态设为 {status}。注意游戏不会检查旧神前置顺序。"
+
+    def act_grant_artifact(self) -> str | None:
+        artifact = self.simpledialog.askinteger(
+            "授予神器", "神器编号 0 造物主之眼，1 织魂之机，2 律法之秤，3 暗影之冠，"
+                       "4 日铸之刃，5 世界石，6 虚空之钥：", parent=self.root,
+            initialvalue=0, minvalue=0, maxvalue=6)
+        if artifact is None:
+            return None
+        systems = self.story_systems()
+        artifacts = systems.get("collectedArtifacts")
+        if not isinstance(artifacts, list):
+            artifacts = []
+            systems["collectedArtifacts"] = artifacts
+        if artifact not in artifacts:
+            artifacts.append(artifact)
+        return f"已授予神器 {artifact}。"
+
+    def act_clear_inventory(self) -> str | None:
+        player = self.player()
+        count = len(player.get("inventory") or [])
+        if not self.messagebox.askyesno("清空物品栏", f"要清空物品栏中的 {count} 件物品吗？", parent=self.root):
+            return None
+        player["inventory"] = []
+        return f"已清空物品栏（{count} 件）。"
+
+    def act_clear_equipment(self) -> str | None:
+        player = self.player()
+        count = len(player.get("equippedItems") or {})
+        if not self.messagebox.askyesno("清空装备栏", f"要卸下并清空 {count} 个装备栏位吗？", parent=self.root):
+            return None
+        player["equippedItems"] = {}
+        player["dynamicEquipment"] = []
+        return f"已清空装备栏（{count} 个栏位）。"
+
+    def act_uncurse_equipment(self) -> str:
+        player = self.player()
+        for key in ("weaponCursed", "armorCursed", "shieldCursed"):
+            if key in player:
+                player[key] = False
+        return "已解除武器、护甲和盾牌的诅咒标记。"
+
+    def spell_rows(self) -> list:
+        rows = self.player().get("spells")
+        if not isinstance(rows, list):
+            rows = []
+            self.player()["spells"] = rows
+        return rows
+
+    def set_spell_state(self, known: bool | None, mastered: bool | None) -> int:
+        count = 0
+        for row in self.spell_rows():
+            if isinstance(row, list) and len(row) >= 2:
+                if known is not None:
+                    row[0] = known
+                if mastered is not None:
+                    row[1] = mastered
+                count += 1
+        return count
+
+    def act_learn_all_spells(self) -> str:
+        count = self.set_spell_state(True, None)
+        return f"已把 {count} 条法术记录标记为已学会。"
+
+    def act_master_all_spells(self) -> str:
+        count = self.set_spell_state(True, True)
+        return f"已把 {count} 条法术记录标记为已精通。"
+
+    def act_clear_spells(self) -> str | None:
+        if not self.messagebox.askyesno("清空法术", "要遗忘全部法术吗？", parent=self.root):
+            return None
+        count = self.set_spell_state(False, False)
+        return f"已清除 {count} 条法术记录。"
+
+    def act_clear_abilities(self) -> str | None:
+        player = self.player()
+        count = len(player.get("learnedAbilities") or [])
+        if not self.messagebox.askyesno("清空技能", f"要移除全部 {count} 个已学职业技能吗？", parent=self.root):
+            return None
+        player["learnedAbilities"] = []
+        return f"已移除 {count} 个已学职业技能。"
+
+    def act_clear_quickbar(self) -> str | None:
+        player = self.player()
+        bar = player.get("quickbar")
+        if not isinstance(bar, list):
+            return "快捷栏字段不存在或不是列表。"
+        if not self.messagebox.askyesno("清空快捷栏", "要清空快捷栏的 9 个槽位吗？", parent=self.root):
+            return None
+        bar[:] = [None] * len(bar)
+        return "快捷栏已清空（槽位数量保持不变）。"
+
+    def act_revive_companions(self) -> str:
+        return self.revive_companions()
+
+    def quest_list(self) -> list:
+        player = self.player()
+        quests = player.get("activeQuests")
+        if not isinstance(quests, list):
+            quests = []
+            player["activeQuests"] = quests
+        return quests
+
+    def set_quest_status(self, status: int) -> int:
+        count = 0
+        for quest in self.quest_list():
+            if isinstance(quest, dict):
+                quest["status"] = status
+                count += 1
+        return count
+
+    def act_complete_quests(self) -> str:
+        count = self.set_quest_status(1)
+        return f"已把 {count} 个任务标记为已完成。"
+
+    def act_abandon_quests(self) -> str:
+        count = self.set_quest_status(3)
+        return f"已把 {count} 个任务标记为已放弃。"
+
+    def act_clear_quests(self) -> str | None:
+        count = len(self.quest_list())
+        if not self.messagebox.askyesno("清空任务", f"要从存档中移除全部 {count} 个任务吗？", parent=self.root):
+            return None
+        self.player()["activeQuests"] = []
+        return f"已移除 {count} 个任务。"
+
+    def act_grant_seals(self) -> str:
+        self.story_systems()["collectedSeals"] = [1, 2, 3, 4, 5, 6, 7]
+        return "已授予全部 7 个封印。"
+
+    def act_clear_seals(self) -> str | None:
+        if not self.messagebox.askyesno("清除封印", "要清空已收集的封印吗？", parent=self.root):
+            return None
+        self.story_systems()["collectedSeals"] = []
+        return "封印已清空。"
+
+    def act_set_cycle(self) -> str | None:
+        value = self.simpledialog.askinteger(
+            "NG+ 轮回", "新的轮回数（从 1 开始）：", parent=self.root, initialvalue=1, minvalue=1, maxvalue=99)
+        if value is None:
+            return None
+        self.story_systems()["currentCycle"] = value
+        if value > 1 and self.messagebox.askyesno(
+                "同时设置经验倍率？",
+                f"要把 CycleExpMultiplier 设为 {1.0 + (value - 1) * 0.25:.2f}x 吗？\n"
+                "不设置会让高轮回只有难度，没有对应经验奖励。", parent=self.root):
+            self.player()["cycleExpMultiplier"] = 1.0 + (value - 1) * 0.25
+        return f"NG+ 轮回已设为 {value}。"
+
+    def act_clear_story_flags(self) -> str | None:
+        if not self.messagebox.askyesno(
+                "清除剧情标记", "这会清空 StoryFlags，可能解开或重新卡住剧情。确定吗？", parent=self.root):
+            return None
+        self.story_systems()["storyFlags"] = {}
+        return "剧情标记已清空。"
+
+    def act_set_relationship(self) -> str | None:
+        name = self.simpledialog.askstring("设置关系", "NPC 的精确名称：", parent=self.root)
+        if not name:
+            return None
+        value = self.simpledialog.askfloat(
+            "关系分数", f"与 {name} 的关系分数（通常 -100 到 100）：", parent=self.root, initialvalue=0.0)
+        if value is None:
+            return None
+        player = self.player()
+        relationships = player.get("relationships")
+        if not isinstance(relationships, dict):
+            relationships = {}
+            player["relationships"] = relationships
+        relationships[name] = value
+        return f"{name} 的关系分数设为 {value:g}。"
+
+    def act_clear_relationships(self) -> str | None:
+        player = self.player()
+        count = len(player.get("relationships") or {})
+        if not self.messagebox.askyesno("清空关系", f"要清空全部 {count} 条 NPC 关系分数吗？", parent=self.root):
+            return None
+        player["relationships"] = {}
+        return f"已清空 {count} 条关系。"
+
+    def act_clear_divine_wrath(self) -> str:
+        player = self.player()
+        player["divineWrathLevel"] = 0
+        player["divineWrathPending"] = False
+        player["divineWrathTurnsRemaining"] = 0
+        player["angeredGodName"] = ""
+        player["betrayedForGodName"] = ""
+        return "神罚已清除。"
+
+    def act_cure_diseases(self) -> str:
+        player = self.player()
+        keys = [key for key in ("blind", "plague", "smallpox", "measles", "leprosy", "loversBane")
+                if key in player]
+        for key in keys:
+            player[key] = False
+        return "所有疾病已治愈。" if keys else "存档中没有疾病字段。"
+
+    def act_clear_poison(self) -> str:
+        player = self.player()
+        player["poison"] = 0
+        player["poisonTurns"] = 0
+        if "gnollP" in player:
+            player["gnollP"] = 0
+        return "中毒已清除。"
+
+    def act_clear_drugs(self) -> str:
+        player = self.player()
+        for key in ("addict", "steroidDays", "drugEffectDays", "activeDrug"):
+            if key in player:
+                player[key] = 0
+        return "药物成瘾和类固醇效果已清除。"
+
+    def act_clear_statuses(self) -> str:
+        player = self.player()
+        player["activeStatuses"] = {}
+        return "所有激活状态效果已清除。"
+
+    def act_release_prison(self) -> str:
+        player = self.player()
+        player["daysInPrison"] = 0
+        player["isMurderConvict"] = False
+        player["cellDoorOpen"] = False
+        player["prisonEscapes"] = 3
+        return "已释放出狱。"
+
+    def act_clear_wanted(self) -> str:
+        self.player()["wantedLvl"] = 0
+        return "通缉等级已清零。"
+
+    def act_clear_murder(self) -> str:
+        player = self.player()
+        player["murderWeight"] = 0
+        player["permakillLog"] = []
+        return "谋杀值和永久击杀记录已清除。"
+
+    def act_clear_buffs(self) -> str | None:
+        if not self.messagebox.askyesno("清除限时增益", "要清除全部限时属性增益和 Groggo 的祝福吗？", parent=self.root):
+            return None
+        player = self.player()
+        player["timedStatBuffs"] = []
+        player["groggoShadowBlessingDex"] = 0
+        return "限时属性增益已清除。"
+
+    def act_reset_daily(self) -> str | None:
+        if not self.messagebox.askyesno(
+                "重置每日计数", "把战斗、偷窃、斗殴、地牢事件等每日次数恢复到新的一天吗？", parent=self.root):
+            return None
+        player = self.player()
+        for key, value in (("fights", 5), ("pFights", 3), ("tFights", 2),
+                           ("thiefs", 3), ("brawls", 3), ("assa", 3)):
+            if key in player:
+                player[key] = value
+        for key in ("murdersToday", "executionsToday", "npcsImprisonedToday",
+                    "bankRobberyAttempts", "templeResurrectionsUsed", "reforgesToday", "sparesToday",
+                    "teamWarsToday", "drinkingGamesToday", "loveStreetVisitsToday",
+                    "intimateEncountersToday", "gauntletRunsToday", "tributeDemandsToday",
+                    "mercContractsClaimedToday", "almsGivenToday", "orphanageGiftsToday",
+                    "hospiceTithesToday", "confessionsToday", "desecrationsToday",
+                    "gamblingRoundsToday", "innDuelsToday", "pitFightsToday", "armWrestlesToday",
+                    "mealsToday", "prisonActivitiesToday", "wildernessExplorationsToday",
+                    "wildernessRevisitsToday", "sethFightsToday", "royQuestsToday"):
+            if key in player and isinstance(player[key], int):
+                player[key] = 0
+        for key in ("throneChallengedToday", "playerImprisonedToday", "freeBlessingClaimedToday",
+                    "jailbreakAttemptedToday", "miracleUsedToday", "settlementCircleUsedToday",
+                    "settlementGoldClaimedToday", "settlementHerbClaimedToday",
+                    "settlementShrineUsedToday", "settlementWorkshopUsedToday",
+                    "tavernStrangerTalkedToday", "marshToadAntidoteClaimedToday"):
+            if key in player:
+                player[key] = False
+        for key in ("dailyMercStandingGain", "chastisedToday"):
+            if key in player:
+                player[key] = {} if isinstance(player[key], dict) else []
+        return "每日计数已重置。"
+
+    def act_set_skill(self) -> str | None:
+        name = self.simpledialog.askstring("设置技能", "技能 ID（例如 sword、stealth）：", parent=self.root)
+        if not name:
+            return None
+        level = self.simpledialog.askinteger(
+            "技能等级", f"{name} 的熟练度（0 未训练到 8 传奇）：", parent=self.root,
+            initialvalue=0, minvalue=0, maxvalue=8)
+        if level is None:
+            return None
+        player = self.player()
+        skills = player.get("skillProficiencies")
+        if not isinstance(skills, dict):
+            skills = {}
+            player["skillProficiencies"] = skills
+        skills[name] = level
+        return f"{name} 的熟练度设为 {level}。"
+
+    def act_clear_skills(self) -> str | None:
+        player = self.player()
+        count = len(player.get("skillProficiencies") or {})
+        if not self.messagebox.askyesno("清空技能熟练度", f"要清空全部 {count} 项技能熟练度吗？", parent=self.root):
+            return None
+        player["skillProficiencies"] = {}
+        return f"已清空 {count} 项技能熟练度。"
+
+    def act_clear_stat_training(self) -> str | None:
+        player = self.player()
+        count = len(player.get("statTrainingCounts") or {})
+        if not self.messagebox.askyesno("清空属性训练", f"要清空全部 {count} 项属性训练次数吗？", parent=self.root):
+            return None
+        player["statTrainingCounts"] = {}
+        return f"已清空 {count} 项属性训练次数。"
+
+    def act_add_material(self) -> str | None:
+        name = self.simpledialog.askstring("添加材料", "材料名称：", parent=self.root)
+        if not name:
+            return None
+        quantity = self.simpledialog.askinteger(
+            "添加材料", f"{name} 的数量：", parent=self.root, initialvalue=1, minvalue=1, maxvalue=999999)
+        if quantity is None:
+            return None
+        player = self.player()
+        materials = player.get("craftingMaterials")
+        if not isinstance(materials, dict):
+            materials = {}
+            player["craftingMaterials"] = materials
+        materials[name] = materials.get(name, 0) + quantity
+        return f"已把 {name} 增加到 {materials[name]}。"
+
+    def act_clear_materials(self) -> str | None:
+        player = self.player()
+        count = len(player.get("craftingMaterials") or {})
+        if not self.messagebox.askyesno("清空制作材料", f"要清空全部 {count} 种制作材料吗？", parent=self.root):
+            return None
+        player["craftingMaterials"] = {}
+        return f"已清空 {count} 种制作材料。"
+
+    def act_clear_team(self) -> str | None:
+        if not self.messagebox.askyesno("清空队伍信息", "要退出队伍并清空队伍名、密码和队长标记吗？", parent=self.root):
+            return None
+        player = self.player()
+        player["team"] = ""
+        player["teamPassword"] = ""
+        player["isTeamLeader"] = False
+        player["teamRec"] = 0
+        return "队伍信息已清空。"
 
     # ---- list tools -------------------------------------------------------------------------------
 
