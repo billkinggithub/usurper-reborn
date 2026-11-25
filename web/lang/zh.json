@@ -12,7 +12,7 @@
   "wiki.fixedRules": "内置发行版规则。服务器模组、难度、NG+ 以及不断变化的在线世界，都可能改变实际结果。",
   "wiki.sources": "来源",
   "wiki.history": "版本变更",
-  "wiki.languageNote": "上线时指南为英文。只有在游戏内已有核实译名的情况下，实体名称才会显示中文。",
+  "wiki.languageNote": "指南正文已翻译为中文；自动生成的参考数据沿用游戏内的名称与数值。",
   "wiki.searching": "搜索中...",
   "wiki.results": "{count} 个结果",
   "wiki.noResults": "没有匹配的页面。试试职业、物品或机制的名称。",
