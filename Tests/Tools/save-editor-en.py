@@ -83,7 +83,7 @@ PAIRED_LISTS = {
     ("player", "itemTypes"): ("player", "items"),
 }
 
-# The player fields worth reaching quickly. Everything is still searchable in "玩家（全部）".
+# The player fields worth reaching quickly. Everything is still searchable in "Player · All".
 PLAYER_GROUPS: list[tuple[str, list[str]]] = [
     ("Basic", ["name1", "name2", "realName", "level", "experience", "class", "race", "sex",
               "age", "difficulty", "specialization"]),
@@ -124,7 +124,7 @@ PLAYER_PARTY_KEYS = {"team", "teamPassword", "isTeamLeader", "teamRec", "teammat
                      "teamXPIsExplicit", "teamXPEvenSplit"}
 
 # The sections follow the in-game G editor's category menu. Each is a filtered view over the
-# same complete leaf list, so no field becomes unreachable; "全部字段" still lists everything.
+# same complete leaf list, so no field becomes unreachable; "All Fields" still lists everything.
 CHAR_INFO_KEYS = {
     "name1", "name2", "realName", "class", "race", "sex", "age", "difficulty", "specialization",
     "chivalry", "darkness", "fame", "knighted", "isKnighted", "nobleTitle", "king", "isKing", "immortal",
@@ -1138,7 +1138,7 @@ LABELS = {
 }
 
 # A short English gloss for every field. Keys not listed here still get a generated
-# "直译" note, and the C# save-model comments are added when available, so the editor
+# "literal" note, and the C# save-model comments are added when available, so the editor
 # never shows a field without an explanation.
 TYPE_ZH = {"int": "Integer", "float": "Decimal", "bool": "Boolean", "str": "Text",
            "list": "List", "dict": "Object", "null": "Null"}
@@ -1943,7 +1943,6 @@ GAME_DATA_FILES = [
     ("Dreams", "dreams.json"),
     ("Dialogue", "dialogue.json"),
     ("Balance", "balance.json"),
-    ("Achievements (usually disabled)", "achievements.json"),
 ]
 
 

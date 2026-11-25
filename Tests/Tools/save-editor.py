@@ -1288,7 +1288,6 @@ GAME_DATA_FILES = [
     ("梦境", "dreams.json"),
     ("对话", "dialogue.json"),
     ("平衡数值", "balance.json"),
-    ("成就（通常禁用）", "achievements.json"),
 ]
 
 

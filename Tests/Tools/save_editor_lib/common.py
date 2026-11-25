@@ -17,7 +17,6 @@ GAME_DATA_FILES = [
     ("Dreams", "dreams.json"),
     ("Dialogue", "dialogue.json"),
     ("Balance values", "balance.json"),
-    ("Achievements (normally disabled)", "achievements.json"),
 ]
 
 
