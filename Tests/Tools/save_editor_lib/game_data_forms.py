@@ -342,10 +342,12 @@ def record_title(record: Any, index: int, filename: str = "",
         return tr_value("zh", str(name)) if zh else name
 
     if filename == "equipment.json":
-        return (f"#{record.get('id', '?')}  {record.get('name', '')}  "
+        name = (localizer.equipment_name(record) if localizer else "") or record.get("name", "")
+        return (f"#{record.get('id', '?')}  {name}  "
                 f"({value(record.get('slot', ''))})")
     if filename == "npcs.json":
-        return (f"{record.get('name', '')}  L{record.get('startLevel', '?')}  "
+        name = (localizer.npc_name(record) if localizer else "") or record.get("name", "")
+        return (f"{name}  L{record.get('startLevel', '?')}  "
                 f"{value(record.get('race', ''))} {value(record.get('class', ''))} "
                 f"{value(record.get('alignment', ''))} {value(record.get('personality', ''))}")
     if filename == "monster_families.json":
@@ -839,7 +841,10 @@ class GameDataFormsWindow:
         body.add(left, weight=1)
         self.files = tk.Listbox(left, exportselection=False)
         self.files.pack(fill="both", expand=True)
-        for name, filename in GAME_DATA_FILES:
+        mod_label = "模组翻译（中文）" if language == "zh" else "Mod translations (English)"
+        self.file_entries = list(GAME_DATA_FILES) + [
+            (mod_label, f"Localization/{language}.json")]
+        for name, filename in self.file_entries:
             shown = FILE_NAMES_ZH.get(name, name) if language == "zh" else name
             self.files.insert("end", f"{shown}  ·  {filename}")
         self.files.bind("<<ListboxSelect>>", lambda _event: self.load_file())
@@ -852,6 +857,9 @@ class GameDataFormsWindow:
         self.path_label.pack(anchor="w")
         self.status_label = ttk.Label(right, text="", foreground="#555")
         self.status_label.pack(anchor="w")
+        self.hint_label = ttk.Label(right, text="", foreground="#887", wraplength=980,
+                                    justify="left")
+        self.hint_label.pack(anchor="w", pady=(2, 0))
         options = ttk.Frame(right)
         options.pack(fill="x")
         self.vocab_button = ttk.Button(options, text=tr(language, "Show vocabulary"),
@@ -914,7 +922,7 @@ class GameDataFormsWindow:
 
     def selected_file(self):
         selection = self.files.curselection()
-        return GAME_DATA_FILES[selection[0]] if selection else None
+        return self.file_entries[selection[0]] if selection else None
 
     def load_file(self, force: bool = False) -> None:
         selected = self.selected_file()
@@ -933,7 +941,10 @@ class GameDataFormsWindow:
         self.path = game_data_dir() / filename
         self.path_label.configure(text=str(self.path))
         self.schema = SCHEMAS.get(filename)
-        self.data = load_json(self.path, {} if filename == "balance.json" else [])
+        is_mod_loc = filename.startswith("Localization/")
+        if is_mod_loc:
+            self.localizer.reload()
+        self.data = load_json(self.path, {} if filename == "balance.json" or is_mod_loc else [])
         self.mode = "dict" if isinstance(self.data, dict) else "list"
         self.dict_keys = sorted(self.data) if isinstance(self.data, dict) else []
         self.index = None
@@ -943,6 +954,21 @@ class GameDataFormsWindow:
             self.vocab_button.pack(side="left")
         else:
             self.vocab_button.pack_forget()
+        if is_mod_loc:
+            if self.language == "zh":
+                self.hint_label.configure(
+                    text="键格式：dream.<Id>.title / content.<n> / hint；对话 npc_dialogue.<Id>；"
+                         "装备 mod.equipment.<Id>.name/.description；NPC mod.npc.<Name>.name/.lore；"
+                         "怪物 mod.monster.<Family>.name/.description；层级 "
+                         "mod.monster.tier.<Tier>.name。")
+            else:
+                self.hint_label.configure(
+                    text="Key formats: dream.<Id>.title / content.<n> / hint; dialogue "
+                         "npc_dialogue.<Id>; equipment mod.equipment.<Id>.name/.description; NPC "
+                         "mod.npc.<Name>.name/.lore; monster mod.monster.<Family>.name/.description; "
+                         "tier mod.monster.tier.<Tier>.name.")
+        else:
+            self.hint_label.configure(text="")
         self.refresh_records()
 
     def filtered_indices(self) -> list[int]:
@@ -1073,11 +1099,17 @@ class GameDataFormsWindow:
             if key == "familyName":
                 return self.localizer.monster_family(str(value or ""))
             if key == "description":
-                return self.localizer.description(value)
-        if self.filename == "equipment.json" and key == "description":
-            return self.localizer.description(value)
-        if self.filename == "npcs.json" and key == "loreNote":
-            return self.localizer.description(value)
+                return self.localizer.monster_description(record)
+        if self.filename == "equipment.json":
+            if key == "name":
+                return self.localizer.equipment_name(record)
+            if key == "description":
+                return self.localizer.equipment_description(record)
+        if self.filename == "npcs.json":
+            if key == "name":
+                return self.localizer.npc_name(record)
+            if key == "loreNote":
+                return self.localizer.npc_lore(record)
         return ""
 
     def add_preview(self, text: str) -> None:
@@ -1402,6 +1434,8 @@ class GameDataFormsWindow:
             messagebox.showerror(tr(self.language, "Save failed"), str(error), parent=self.top)
             return
         self.dirty = False
+        if self.filename.startswith("Localization/"):
+            self.localizer.reload()
         self.update_status()
         if self.language == "zh":
             message = f"已保存 {self.path.name}。"
@@ -1489,7 +1523,7 @@ class GameDataFormsWindow:
                 tr(self.language, "Add value"), tr(self.language, "Key:"), parent=self.top)
             if not key or key in self.data:
                 return
-            self.data[key] = 0
+            self.data[key] = "" if self.filename.startswith("Localization/") else 0
             self.dict_keys = sorted(self.data)
             self.index = self.dict_keys.index(key)
             self.filter_var.set("")
