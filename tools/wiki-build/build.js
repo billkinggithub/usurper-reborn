@@ -2011,7 +2011,7 @@ function build(options = {}) {
     ...data.bosses.oldGods,
     ...data.achievements.filter((e) => e.isSecret),
   ]
-    .map(name)
+    .flatMap((e) => [name(e, "en"), name(e, "zh")])
     .filter((n) => n.length > 3);
   const redact = (text) =>
     secretNames.reduce(
