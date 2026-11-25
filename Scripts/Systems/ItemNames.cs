@@ -139,6 +139,13 @@ namespace UsurperRemake.Systems
         /// base, whatever else the stored name carries is kept. Any other piece reads its stored name.</summary>
         public static string DisplayIn(string lang, Equipment equipment)
         {
+            // A mod can translate its own GameData equipment by id without adding
+            // the name to any built-in template table.
+            if (equipment.Id != 0)
+            {
+                string modKey = $"mod.equipment.{equipment.Id}.name";
+                if (Loc.HasIn(lang, modKey)) return Loc.GetIn(lang, modKey);
+            }
             if (equipment.Id > 0 && !EquipmentDatabase.IsDynamic(equipment.Id) && !EquipmentDatabase.IsShopGenerated(equipment.Id))
             {
                 var template = EquipmentDatabase.GetById(equipment.Id);

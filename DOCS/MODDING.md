@@ -1,4 +1,4 @@
-<!-- doc: checked 1.3.10; sources: Console/Bootstrap/Program.cs, Scripts/Systems/GameDataLoader.cs, Scripts/Data, Scripts/Editor -->
+<!-- doc: checked 1.3.15; sources: Console/Bootstrap/Program.cs, Scripts/Systems/GameDataLoader.cs, Scripts/Systems/LocalizationSystem.cs, Scripts/Systems/ItemNames.cs, Scripts/Data, Scripts/Editor -->
 # Modding Usurper Reborn
 
 Usurper Reborn ships with a modding system and a standalone editor tool, analogous to the old DOS-era `USEDIT.EXE` companion tool that shipped with the original game. There are two ways to modify game content:
@@ -24,7 +24,7 @@ Drop any of these files into `GameData/` next to the game executable. Missing fi
 | `abilities.json`         | number tuning of existing class abilities, by ability id                 |
 | `spells.json`            | number and text tuning of existing spells, by class and spell level      |
 
-The loader reads these nine files and no others.
+The loader reads these nine data files and no others; mod translations live in `GameData/Localization/` as described below.
 
 ## Starting a mod
 
@@ -73,6 +73,56 @@ A minimum example:
 ```
 
 Full schema: any public property on the `Equipment` class in `Scripts/Core/Items.cs`. All enums (slot, rarity, weapon type, etc.) accept their name in JSON: `"MainHand"`, `"Legendary"`, `"TwoHanded"` and so on.
+
+## Translating a mod
+
+A mod that adds or replaces text should ship its own language files instead of editing the game's shared `Localization/<lang>.json`. Put flat key/value JSON here:
+
+```text
+GameData/Localization/<lang>.json
+GameData/Localization/<lang>/<anything>.json
+```
+
+`<lang>` is the same code as the official files (`zh`, `en`, `es`, `fr`, `hu`, `it`, ...). The single-file form is convenient for a small mod; the folder form lets several mods each ship a file without overwriting one another:
+
+```text
+GameData/Localization/zh.json          (one mod)
+GameData/Localization/zh/story_mod.json
+GameData/Localization/zh/gear_mod.json
+```
+
+Files are read in sorted order after the official language files. A mod key with the same name as an official key overrides it, which is what a mod that replaces a built-in dream or line wants. Keys beginning with `_` are comments and are ignored. Bad JSON is logged and skipped; the game keeps running.
+
+The keys a mod normally needs:
+
+| Content | Keys |
+|---------|------|
+| Dream | `dream.<Id>.title`, `dream.<Id>.content.<n>`, `dream.<Id>.hint` |
+| Dialogue | `npc_dialogue.<Id>` |
+| Equipment name / description | `mod.equipment.<Id>.name`, `mod.equipment.<Id>.description` |
+| NPC name / lore note | `mod.npc.<Name>.name`, `mod.npc.<Name>.lore` |
+| Monster family | `mod.monster.<FamilyName>.name`, `mod.monster.<FamilyName>.description` |
+| Monster tier | `mod.monster.tier.<TierName>.name` |
+
+Example:
+
+```json
+{
+  "_comment": "Chinese translation for my mod",
+  "dream.my_mod_dream.title": "我的模组梦境",
+  "dream.my_mod_dream.content.0": "第一行。",
+  "npc_dialogue.my_mod_line": "「这是模组新增的台词。」",
+  "mod.equipment.200001.name": "模组之剑",
+  "mod.equipment.200001.description": "由模组作者提供的中文说明。",
+  "mod.npc.My Mod NPC.lore": "模组新增 NPC 的背景。",
+  "mod.monster.My Family.name": "模组怪物家族",
+  "mod.monster.tier.My Tier.name": "模组层级"
+}
+```
+
+Dream, dialogue, monster-name and equipment-name keys are consumed by the game's localization lookups. Equipment descriptions, NPC lore notes and monster family descriptions are content fields with no built-in display path today; the Python save editor shows the same keys as Chinese previews, and a mod can still ship them so a future display path has the translation ready.
+
+In the Python save editor's Game Data window, **Mod translations** edits `GameData/Localization/<language>.json` directly and lists the accepted key formats.
 
 ## Running the editor
 

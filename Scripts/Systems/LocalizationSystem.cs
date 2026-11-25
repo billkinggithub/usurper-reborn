@@ -94,31 +94,37 @@ namespace UsurperRemake.Systems
             {
                 DebugLogger.Instance?.LogWarning("LOC", "Localization directory not found, using built-in English fallback");
                 _languages["en"] = GetBuiltInEnglish();
-                _availableLanguages = new[] { ("en", "English") };
-                return;
             }
-
-            foreach (var file in Directory.GetFiles(locDir, "*.json"))
+            else
             {
-                try
+                foreach (var file in Directory.GetFiles(locDir, "*.json"))
                 {
-                    var langCode = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
-                    var json = File.ReadAllText(file);
-                    var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
-                    if (dict != null)
+                    try
                     {
-                        // Remove comment keys (convention: _comment, _note, etc.)
-                        foreach (var key in dict.Keys.Where(k => k.StartsWith("_")).ToList())
-                            dict.Remove(key);
-                        _languages[langCode] = dict;
-                        DebugLogger.Instance?.LogInfo("LOC", $"Loaded {dict.Count} strings for '{langCode}'");
+                        var langCode = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
+                        var json = File.ReadAllText(file);
+                        var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+                        if (dict != null)
+                        {
+                            // Remove comment keys (convention: _comment, _note, etc.)
+                            foreach (var key in dict.Keys.Where(k => k.StartsWith("_")).ToList())
+                                dict.Remove(key);
+                            _languages[langCode] = dict;
+                            DebugLogger.Instance?.LogInfo("LOC", $"Loaded {dict.Count} strings for '{langCode}'");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        DebugLogger.Instance?.LogError("LOC", $"Failed to load {file}: {ex.Message}");
                     }
                 }
-                catch (Exception ex)
-                {
-                    DebugLogger.Instance?.LogError("LOC", $"Failed to load {file}: {ex.Message}");
-                }
             }
+
+            // Mods may ship their own flat key/value files under GameData/Localization.
+            // A direct <lang>.json and any <lang>/*.json files are merged after the
+            // official files, so a mod can translate its own IDs and, when it replaces
+            // official content, override the matching translation keys.
+            LoadModLocalizations(exeDir);
 
             // Build available languages list from what was actually loaded
             var langList = new List<(string Code, string Name)>();
@@ -135,6 +141,69 @@ namespace UsurperRemake.Systems
                 return string.Compare(a.Name, b.Name, StringComparison.Ordinal);
             });
             _availableLanguages = langList.ToArray();
+        }
+
+        /// <summary>
+        /// Merge mod-provided translations from GameData/Localization. Layout:
+        /// <c>GameData/Localization/&lt;lang&gt;.json</c> for a single mod file, or
+        /// <c>GameData/Localization/&lt;lang&gt;/*.json</c> so several mods can each
+        /// ship their own file without sharing one JSON object. Files are read in
+        /// sorted order and later keys win, matching normal override expectations.
+        /// </summary>
+        private static void LoadModLocalizations(string exeDir)
+        {
+            var roots = new[]
+            {
+                Path.Combine(exeDir, "GameData", "Localization"),
+                Path.Combine(Directory.GetCurrentDirectory(), "GameData", "Localization"),
+            }.Distinct(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var root in roots)
+            {
+                if (!Directory.Exists(root)) continue;
+                foreach (var file in Directory.GetFiles(root, "*.json").OrderBy(f => f, StringComparer.Ordinal))
+                {
+                    MergeModFile(file, Path.GetFileNameWithoutExtension(file).ToLowerInvariant());
+                }
+                foreach (var subdir in Directory.GetDirectories(root).OrderBy(d => d, StringComparer.Ordinal))
+                {
+                    string langCode = Path.GetFileName(subdir).ToLowerInvariant();
+                    foreach (var file in Directory.GetFiles(subdir, "*.json").OrderBy(f => f, StringComparer.Ordinal))
+                        MergeModFile(file, langCode);
+                }
+            }
+        }
+
+        private static void MergeModFile(string file, string langCode)
+        {
+            try
+            {
+                int merged = MergeModFileInto(_languages, file, langCode);
+                DebugLogger.Instance?.LogInfo(
+                    "LOC", $"Merged {merged} mod strings for '{langCode}' from {Path.GetFileName(file)}");
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.Instance?.LogError("LOC", $"Failed to load mod localization {file}: {ex.Message}");
+            }
+        }
+
+        /// <summary>Merge one mod file into a language map; exposed for the tests.</summary>
+        internal static int MergeModFileInto(
+            Dictionary<string, Dictionary<string, string>> languages, string file, string langCode)
+        {
+            if (string.IsNullOrWhiteSpace(langCode)) return 0;
+            var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(file));
+            if (dict == null) return 0;
+            foreach (var key in dict.Keys.Where(k => k.StartsWith("_")).ToList())
+                dict.Remove(key);
+            if (!languages.TryGetValue(langCode, out var target))
+            {
+                target = new Dictionary<string, string>();
+                languages[langCode] = target;
+            }
+            foreach (var pair in dict) target[pair.Key] = pair.Value;
+            return dict.Count;
         }
 
         /// <summary>
