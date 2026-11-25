@@ -101,6 +101,12 @@ try:
 except (OSError, ValueError):
     ZH_FIELDS = {}
 
+try:
+    ZH_VALUES: dict[str, str] = json.loads(
+        Path(__file__).with_name("editor_zh_values.json").read_text(encoding="utf-8"))
+except (OSError, ValueError):
+    ZH_VALUES = {}
+
 
 def tr(language: str, text: str) -> str:
     return UI_ZH.get(text, text) if language == "zh" else text
@@ -108,6 +114,10 @@ def tr(language: str, text: str) -> str:
 
 def tr_field(language: str, text: str) -> str:
     return ZH_FIELDS.get(text, text) if language == "zh" else text
+
+
+def tr_value(language: str, value: str) -> str:
+    return ZH_VALUES.get(value, value) if language == "zh" else value
 
 
 FILE_NAMES_ZH = {
@@ -738,6 +748,7 @@ class GameDataFormsWindow:
         self.schema: list[dict] | None = None
         self.index: int | None = None
         self.field_widgets: dict[str, tuple] = {}
+        self.choice_value_maps: dict[str, dict[str, str]] = {}
         self.rows: dict[str, ttk.Frame] = {}
         self.record_indices: list[int] = []
         self.dict_keys: list[str] = []
@@ -915,6 +926,7 @@ class GameDataFormsWindow:
         for child in self.form.winfo_children():
             child.destroy()
         self.field_widgets = {}
+        self.choice_value_maps = {}
         self.rows = {}
 
     def current_record(self) -> Any:
@@ -989,11 +1001,21 @@ class GameDataFormsWindow:
             ttk.Checkbutton(row, variable=variable).pack(side="left")
             self.field_widgets[key] = ("bool", variable, spec)
         elif kind == "choice":
-            variable = tk.StringVar(value=str(value))
             options = list(spec.get("options") or [])
             if str(value) not in options:
                 options.insert(0, str(value))
-            box = ttk.Combobox(row, textvariable=variable, values=options,
+            display_map: dict[str, str] = {}
+            for option in options:
+                display = tr_value(self.language, option)
+                if display in display_map:
+                    display = f"{display} ({option})"
+                display_map[display] = option
+            current_display = tr_value(self.language, str(value))
+            if current_display not in display_map:
+                display_map[current_display] = str(value)
+            self.choice_value_maps[key] = display_map
+            variable = tk.StringVar(value=current_display)
+            box = ttk.Combobox(row, textvariable=variable, values=list(display_map),
                                state="readonly", width=60)
             box.pack(side="left", fill="x", expand=True)
             if self.filename == "equipment.json" and key in ("slot", "weaponType"):
@@ -1049,11 +1071,16 @@ class GameDataFormsWindow:
                 "float" if isinstance(value, float) else "str"
             self.field_widgets[key] = (inferred, variable, spec)
 
+    def choice_value(self, key: str) -> str:
+        widget = self.field_widgets.get(key)
+        if not widget:
+            return "None"
+        shown = widget[1].get()
+        return self.choice_value_maps.get(key, {}).get(shown, shown)
+
     def update_equipment_visibility(self) -> None:
-        slot = self.field_widgets.get("slot")
-        weapon_type = self.field_widgets.get("weaponType")
-        slot_value = slot[1].get() if slot else "None"
-        weapon_value = weapon_type[1].get() if weapon_type else "None"
+        slot_value = self.choice_value("slot")
+        weapon_value = self.choice_value("weaponType")
         is_weapon = slot_value in WEAPON_SLOTS
         is_shield = is_weapon and weapon_value in SHIELD_TYPES
         for key, row in self.rows.items():
@@ -1106,7 +1133,8 @@ class GameDataFormsWindow:
         if kind == "bool":
             return bool(widget.get())
         if kind == "choice":
-            return widget.get()
+            shown = widget.get()
+            return self.choice_value_maps.get(key, {}).get(shown, shown)
         if kind in ("text", "strtext"):
             return widget.get("1.0", "end-1c")
         if kind in ("tiers", "content"):
