@@ -168,6 +168,7 @@ SECTIONS = [
     ("物品与装备", "inventory"),
     ("法术与技能", "spells"),
     ("同伴", "companions"),
+    ("NPC", "npc"),
     ("任务", "quests"),
     ("剧情与旧神", "story"),
     ("关系与家庭", "relationships"),
@@ -1852,8 +1853,14 @@ class EditorWindow:
         index = self.npc_box.current()
         if index >= 0:
             self.npc_index = index
-            self.section_box.set(SECTIONS[2][0])
+            self.select_section("npc")
             self.render()
+
+    def select_section(self, key: str) -> None:
+        for index, (_name, section_key) in enumerate(SECTIONS):
+            if section_key == key:
+                self.section_box.current(index)
+                return
 
     def current_section(self) -> str:
         index = self.section_box.current()

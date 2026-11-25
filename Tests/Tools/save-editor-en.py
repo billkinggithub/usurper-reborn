@@ -169,6 +169,7 @@ SECTIONS = [
     ("Inventory & Equipment", "inventory"),
     ("Spells & Abilities", "spells"),
     ("Companions", "companions"),
+    ("NPC", "npc"),
     ("Quests", "quests"),
     ("Story & Old Gods", "story"),
     ("Relationships & Family", "relationships"),
@@ -2507,8 +2508,14 @@ class EditorWindow:
         index = self.npc_box.current()
         if index >= 0:
             self.npc_index = index
-            self.section_box.set(SECTIONS[2][0])
+            self.select_section("npc")
             self.render()
+
+    def select_section(self, key: str) -> None:
+        for index, (_name, section_key) in enumerate(SECTIONS):
+            if section_key == key:
+                self.section_box.current(index)
+                return
 
     def current_section(self) -> str:
         index = self.section_box.current()
