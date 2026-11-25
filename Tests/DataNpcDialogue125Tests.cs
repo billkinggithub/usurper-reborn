@@ -322,7 +322,9 @@ public class DataNpcDialogue125Tests : IDisposable
             for (int seed = 0; seed < 100; seed++)
             {
                 var en = PickKeys("en", seed, NPCDialogueGenerator.PickGreeting);
-                en.Should().ContainSingle().Which.Should().StartWith("npc_dialogue.");
+                en.Should().NotBeEmpty();
+                // v1.3.9: the base line is a database line; a memory suffix may add its own keys on top.
+                en[0].Should().StartWith("npc_dialogue.");
                 foreach (var lang in Langs.Skip(1))
                     PickKeys(lang, seed, NPCDialogueGenerator.PickGreeting).Should().Equal(en);
             }

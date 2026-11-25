@@ -21,7 +21,7 @@ internal static class MonsterEditor
         bool dirty = false;
         while (true)
         {
-            EditorIO.Section($"Monster families  —  {families.Count}{(dirty ? "  [UNSAVED]" : "")}");
+            EditorIO.Section((FormattableString)$"Monster families  —  {families.Count}{(dirty ? "  [UNSAVED]" : "")}");
             int choice = EditorIO.Menu("Choose:", new[]
             {
                 "List all families",
@@ -77,7 +77,7 @@ internal static class MonsterEditor
         }
         catch (Exception ex)
         {
-            EditorIO.Error($"Failed to read {path}: {ex.Message}");
+            EditorIO.Error((FormattableString)$"Failed to read {path}: {ex.Message}");
             return MonsterFamilies.GetBuiltInFamilies();
         }
     }
@@ -89,14 +89,14 @@ internal static class MonsterEditor
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(path, JsonSerializer.Serialize(fams, GameDataLoader.JsonOptions));
-            EditorIO.Success($"Wrote {fams.Count} families to {path}");
+            EditorIO.Success((FormattableString)$"Wrote {fams.Count} families to {path}");
             EditorIO.Info("Restart the game to pick up the changes.");
             EditorIO.Pause();
             return true;
         }
         catch (Exception ex)
         {
-            EditorIO.Error($"Write failed: {ex.Message}");
+            EditorIO.Error((FormattableString)$"Write failed: {ex.Message}");
             EditorIO.Pause();
             return false;
         }
@@ -104,9 +104,9 @@ internal static class MonsterEditor
 
     private static void ListAll(List<MonsterFamilies.MonsterFamily> fams)
     {
-        EditorIO.Section($"Monster families ({fams.Count})");
+        EditorIO.Section((FormattableString)$"Monster families ({fams.Count})");
         foreach (var f in fams)
-            EditorIO.Info($"  {f.FamilyName,-18} attack={f.AttackType,-10} color={f.BaseColor,-10} tiers={f.Tiers?.Count ?? 0}");
+            EditorIO.Info((FormattableString)$"  {f.FamilyName,-18} attack={f.AttackType,-10} color={f.BaseColor,-10} tiers={f.Tiers?.Count ?? 0}");
         EditorIO.Pause();
     }
 
@@ -140,7 +140,7 @@ internal static class MonsterEditor
     {
         var f = PickFamily(fams, "Family to delete");
         if (f == null) return false;
-        if (!EditorIO.Confirm($"Delete family \"{f.FamilyName}\" and its {f.Tiers?.Count ?? 0} tiers?")) return false;
+        if (!EditorIO.Confirm((FormattableString)$"Delete family \"{f.FamilyName}\" and its {f.Tiers?.Count ?? 0} tiers?")) return false;
         fams.Remove(f);
         EditorIO.Success("Deleted.");
         EditorIO.Pause();
@@ -164,11 +164,11 @@ internal static class MonsterEditor
         f.Tiers ??= new List<MonsterFamilies.MonsterTier>();
         while (true)
         {
-            EditorIO.Section($"{f.FamilyName} tiers ({f.Tiers.Count})");
+            EditorIO.Section((FormattableString)$"{f.FamilyName} tiers ({f.Tiers.Count})");
             for (int i = 0; i < f.Tiers.Count; i++)
             {
                 var t = f.Tiers[i];
-                EditorIO.Info($"  [{i + 1}] {t.Name,-20} L{t.MinLevel}-{t.MaxLevel}  x{t.PowerMultiplier:F2}  color={t.Color}  abilities={t.SpecialAbilities?.Count ?? 0}");
+                EditorIO.Info((FormattableString)$"  [{i + 1}] {t.Name,-20} L{t.MinLevel}-{t.MaxLevel}  x{t.PowerMultiplier:F2}  color={t.Color}  abilities={t.SpecialAbilities?.Count ?? 0}");
             }
             int choice = EditorIO.Menu("Tiers:", new[]
             {
@@ -205,7 +205,7 @@ internal static class MonsterEditor
                         var tierLabels = f.Tiers.Select(t => $"{t.Name,-20} L{t.MinLevel}-{t.MaxLevel}").ToList();
                         int pick = EditorIO.Menu("Tier to delete", tierLabels);
                         if (pick == 0) break;
-                        if (EditorIO.Confirm($"Delete tier \"{f.Tiers[pick - 1].Name}\"?"))
+                        if (EditorIO.Confirm((FormattableString)$"Delete tier \"{f.Tiers[pick - 1].Name}\"?"))
                         { f.Tiers.RemoveAt(pick - 1); anyChange = true; }
                         break;
                     }
@@ -230,9 +230,9 @@ internal static class MonsterEditor
                         string a = abilityNames[aPick - 1];
                         f.Tiers[pick - 1].SpecialAbilities ??= new List<string>();
                         if (!f.Tiers[pick - 1].SpecialAbilities.Contains(a))
-                        { f.Tiers[pick - 1].SpecialAbilities.Add(a); anyChange = true; EditorIO.Success($"Added {a}."); }
+                        { f.Tiers[pick - 1].SpecialAbilities.Add(a); anyChange = true; EditorIO.Success((FormattableString)$"Added {a}."); }
                         else
-                            EditorIO.Info($"{a} already on this tier.");
+                            EditorIO.Info((FormattableString)$"{a} already on this tier.");
                         EditorIO.Pause();
                         break;
                     }

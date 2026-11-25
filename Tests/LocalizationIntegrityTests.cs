@@ -18,6 +18,16 @@ namespace UsurperRemake.Tests
     {
         private static readonly string[] TargetLangs = { "es", "fr", "it", "hu" };
 
+        /// <summary>
+        /// Languages still being translated. Every key they do carry is held to the same rules as a
+        /// finished language (placeholders, markup, no empty value, no banned punctuation), but they
+        /// are not yet required to cover every English key -- the game falls back to English for the
+        /// rest. Move a code into TargetLangs once its file is complete.
+        /// </summary>
+        private static readonly string[] PartialLangs = { "zh" };
+
+        private static IEnumerable<string> CheckedLangs => TargetLangs.Concat(PartialLangs);
+
         // Intentionally-empty translations: pro-drop pronouns (v0.61.5 design)
         // and no-plural-after-numeral suffixes. Add here ONLY with a reason.
         private static readonly HashSet<string> IntentionalEmpty = new()
@@ -34,7 +44,7 @@ namespace UsurperRemake.Tests
         // number ranges, "..." for ellipsis. The ceiling is zero.
         private static readonly Dictionary<string, int> PunctCeiling = new()
         {
-            { "en", 0 }, { "es", 0 }, { "fr", 0 }, { "it", 0 }, { "hu", 0 },
+            { "en", 0 }, { "es", 0 }, { "fr", 0 }, { "it", 0 }, { "hu", 0 }, { "zh", 0 },
         };
 
         private static string LocDir()
@@ -134,6 +144,52 @@ namespace UsurperRemake.Tests
             // from GetOrdinalSuffix) as {3}; the other languages write the ordinal their own way.
             { "news.birthday", new HashSet<string> { "{3}" } },
             { "worldsim.news_immigrant", new HashSet<string> { "{0}" } },   // v1.2.5: the English article ("A", "An")
+            // v1.3.8: HomeLocation passes a literal English plural "s" for {1} (HomeLocation.cs, the
+            // family roster), so {1} is an English suffix, not a word. Chinese does not inflect the
+            // noun after a count and leaves it out; string.Format ignores the extra argument.
+            { "home.family_married_days", new HashSet<string> { "{1}" } },
+            { "home.family_together_days", new HashSet<string> { "{1}" } },
+            { "home.family_child_age", new HashSet<string> { "{1}" } },
+            // v1.3.8: the same literal-English-plural argument. BaseLocation and InnLocation pass
+            // "s" / "" for the item count, so the position is an English suffix.
+            { "base.auction_gold_awaiting", new HashSet<string> { "{2}" } },
+            { "base.auction_expired_count", new HashSet<string> { "{1}" } },
+            { "inn.items_equipped", new HashSet<string> { "{1}" } },
+            // v1.3.8: the same literal "s" argument, found later in the feature and road text.
+            { "feature.find_potions", new HashSet<string> { "{1}" } },
+            { "feature.poison_vials", new HashSet<string> { "{1}" } },
+            { "anchor_road.defeated_after", new HashSet<string> { "{1}" } },
+            { "love_corner.child_age", new HashSet<string> { "{1}" } },
+            // v1.3.8: HomeLocation passes literal English pronouns ("she", "her", "him") into these
+            // positions rather than the localized pronoun helpers, so any translation that kept them
+            // printed English inside its own sentence. Chinese leaves the position out; the other
+            // languages keep it, and the keys are exempt here so both choices are legal.
+            { "home.hw_gets_ready", new HashSet<string> { "{0}", "{1}" } },
+            { "home.hw_prepares", new HashSet<string> { "{0}" } },
+            { "home.hw_asked_out", new HashSet<string> { "{1}" } },
+            { "home.hw_told_married", new HashSet<string> { "{0}" } },
+            { "home.hw_permission", new HashSet<string> { "{0}" } },
+            { "home.hw_leaves_date", new HashSet<string> { "{0}", "{1}" } },
+            { "home.hw_smoldering", new HashSet<string> { "{0}" } },
+            { "home.hw_attentive", new HashSet<string> { "{1}" } },
+            { "home.hw_came_home", new HashSet<string> { "{0}" } },
+            { "home.cuck_takes_hand", new HashSet<string> { "{0}", "{1}" } },
+            { "home.cuck_dont_worry", new HashSet<string> { "{0}", "{1}" } },
+            { "home.cuck_wants_this", new HashSet<string> { "{0}" } },
+            { "home.cuck_intensity", new HashSet<string> { "{0}", "{1}" } },
+            { "home.cuck_sit_there", new HashSet<string> { "{0}" } },
+            { "home.cuck_beckons", new HashSet<string> { "{0}" } },
+            { "home.cuck_gathers_leaves", new HashSet<string> { "{0}", "{1}" } },
+            { "home.cuck_discovered", new HashSet<string> { "{0}", "{1}" } },
+            { "home.reject_shakes_head", new HashSet<string> { "{0}", "{1}" } },
+            // v1.3.8: the last literal plural arguments. Chinese has no plural suffix, so its value
+            // leaves the position out; the other languages keep theirs.
+            { "engine.trade_waiting", new HashSet<string> { "{1}" } },
+            { "healer.handed_potions", new HashSet<string> { "{2}" } },
+            { "healer.handed_mana", new HashSet<string> { "{2}" } },
+            { "healer.handed_antidotes", new HashSet<string> { "{2}" } },
+            { "inn.took_items", new HashSet<string> { "{1}" } },
+            { "home.family_spouses_label", new HashSet<string> { "{0}" } },
         };
 
         [Fact]
@@ -143,7 +199,7 @@ namespace UsurperRemake.Tests
             // name renders the scene without the partner (es/hu afterglow.silent_l1, fixed
             // 2026-09-07). Pronoun positions are exempt through OptionalPlaceholders.
             var en = Load("en");
-            foreach (var lang in TargetLangs)
+            foreach (var lang in CheckedLangs)
             {
                 var d = Load(lang);
                 var bad = new List<string>();
@@ -177,7 +233,7 @@ namespace UsurperRemake.Tests
             // The crash direction: a translation referencing {N} the caller
             // never passes throws FormatException at runtime -> raw template.
             var en = Load("en");
-            foreach (var lang in TargetLangs)
+            foreach (var lang in CheckedLangs)
             {
                 var d = Load(lang);
                 var bad = new List<string>();
@@ -196,7 +252,7 @@ namespace UsurperRemake.Tests
         public void Translations_NotEmptyWhereEnglishHasText()
         {
             var en = Load("en");
-            foreach (var lang in TargetLangs)
+            foreach (var lang in CheckedLangs)
             {
                 var d = Load(lang);
                 var bad = d.Where(kv => IsRealKey(kv.Key)

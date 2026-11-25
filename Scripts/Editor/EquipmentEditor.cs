@@ -25,7 +25,7 @@ internal static class EquipmentEditor
         while (true)
         {
             int builtInCount = EquipmentDatabase.GetAll().Count(e => e.Id < GameDataLoader.ModdedEquipmentIdStart);
-            EditorIO.Section($"Equipment  —  {builtInCount} built-in (read-only), {custom.Count} custom{(dirty ? "  [UNSAVED]" : "")}");
+            EditorIO.Section((FormattableString)$"Equipment  —  {builtInCount} built-in (read-only), {custom.Count} custom{(dirty ? "  [UNSAVED]" : "")}");
             int choice = EditorIO.Menu("Choose:", new[]
             {
                 "List custom items",
@@ -70,7 +70,7 @@ internal static class EquipmentEditor
         }
         catch (Exception ex)
         {
-            EditorIO.Error($"Failed to read {path}: {ex.Message}");
+            EditorIO.Error((FormattableString)$"Failed to read {path}: {ex.Message}");
             return new List<Equipment>();
         }
     }
@@ -86,10 +86,10 @@ internal static class EquipmentEditor
         var offenders = items.Where(i => i.Id < GameDataLoader.ModdedEquipmentIdStart).ToList();
         if (offenders.Count > 0)
         {
-            EditorIO.Error($"{offenders.Count} item(s) use IDs below {GameDataLoader.ModdedEquipmentIdStart} (reserved for built-in items).");
+            EditorIO.Error((FormattableString)$"{offenders.Count} item(s) use IDs below {GameDataLoader.ModdedEquipmentIdStart} (reserved for built-in items).");
             foreach (var o in offenders.Take(10))
-                EditorIO.Info($"  #{o.Id} {o.Name}");
-            if (offenders.Count > 10) EditorIO.Info($"  ... and {offenders.Count - 10} more");
+                EditorIO.Info((FormattableString)$"  #{o.Id} {o.Name}");
+            if (offenders.Count > 10) EditorIO.Info((FormattableString)$"  ... and {offenders.Count - 10} more");
             EditorIO.Info("Custom IDs must be >= 200000. Fix these entries before saving.");
             EditorIO.Pause();
             return false;
@@ -97,7 +97,7 @@ internal static class EquipmentEditor
         var dupIds = items.GroupBy(i => i.Id).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
         if (dupIds.Count > 0)
         {
-            EditorIO.Error($"Duplicate IDs found: {string.Join(", ", dupIds.Take(10))}");
+            EditorIO.Error((FormattableString)$"Duplicate IDs found: {string.Join(", ", dupIds.Take(10))}");
             EditorIO.Info("Every item needs a unique ID. Edit the duplicates before saving.");
             EditorIO.Pause();
             return false;
@@ -109,14 +109,14 @@ internal static class EquipmentEditor
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             var json = JsonSerializer.Serialize(items, GameDataLoader.JsonOptions);
             File.WriteAllText(path, json);
-            EditorIO.Success($"Wrote {items.Count} item(s) to {path}");
+            EditorIO.Success((FormattableString)$"Wrote {items.Count} item(s) to {path}");
             EditorIO.Info("Restart the game to pick up the changes.");
             EditorIO.Pause();
             return true;
         }
         catch (Exception ex)
         {
-            EditorIO.Error($"Failed to write {path}: {ex.Message}");
+            EditorIO.Error((FormattableString)$"Failed to write {path}: {ex.Message}");
             EditorIO.Pause();
             return false;
         }
@@ -127,7 +127,7 @@ internal static class EquipmentEditor
 
     private static void ListCustomItems(List<Equipment> items)
     {
-        EditorIO.Section($"Custom items ({items.Count})");
+        EditorIO.Section((FormattableString)$"Custom items ({items.Count})");
         if (items.Count == 0)
         {
             EditorIO.Info("  (none yet — use 'Add new custom item' to create one)");
@@ -135,7 +135,7 @@ internal static class EquipmentEditor
         else
         {
             foreach (var e in items.OrderBy(x => x.Id))
-                EditorIO.Info($"  #{e.Id,-7} {e.Name,-40} slot={e.Slot} rarity={e.Rarity} value={e.Value}");
+                EditorIO.Info((FormattableString)$"  #{e.Id,-7} {e.Name,-40} slot={e.Slot} rarity={e.Rarity} value={e.Value}");
         }
         EditorIO.Pause();
     }
@@ -146,7 +146,7 @@ internal static class EquipmentEditor
             .Where(e => e.Id < GameDataLoader.ModdedEquipmentIdStart)
             .OrderBy(e => e.Id)
             .ToList();
-        EditorIO.Section($"Built-in equipment ({all.Count} items, read-only)");
+        EditorIO.Section((FormattableString)$"Built-in equipment ({all.Count} items, read-only)");
         string filter = EditorIO.Prompt("Filter by name (blank for all, 'q' to cancel)");
         if (filter == "q") return;
         var shown = string.IsNullOrWhiteSpace(filter)
@@ -156,10 +156,10 @@ internal static class EquipmentEditor
         while (page * pageSize < shown.Count)
         {
             foreach (var e in shown.Skip(page * pageSize).Take(pageSize))
-                EditorIO.Info($"  #{e.Id,-7} {e.Name,-40} slot={e.Slot} rarity={e.Rarity}");
+                EditorIO.Info((FormattableString)$"  #{e.Id,-7} {e.Name,-40} slot={e.Slot} rarity={e.Rarity}");
             page++;
             if (page * pageSize >= shown.Count) break;
-            if (!EditorIO.Confirm($"Shown {page * pageSize}/{shown.Count}. More?")) break;
+            if (!EditorIO.Confirm((FormattableString)$"Shown {page * pageSize}/{shown.Count}. More?")) break;
         }
         EditorIO.Pause();
     }
@@ -173,7 +173,7 @@ internal static class EquipmentEditor
         var item = new Equipment { Id = nextId, MinLevel = 1 };
         EditItemFields(item);
         items.Add(item);
-        EditorIO.Success($"Added #{item.Id} {item.Name}. Use 'Save' when done.");
+        EditorIO.Success((FormattableString)$"Added #{item.Id} {item.Name}. Use 'Save' when done.");
         EditorIO.Pause();
         return true;
     }
@@ -199,7 +199,7 @@ internal static class EquipmentEditor
         if (pick == 0) return false;
         var ordered = items.OrderBy(x => x.Id).ToList();
         var item = ordered[pick - 1];
-        if (!EditorIO.Confirm($"Delete #{item.Id} \"{item.Name}\"?")) return false;
+        if (!EditorIO.Confirm((FormattableString)$"Delete #{item.Id} \"{item.Name}\"?")) return false;
         items.Remove(item);
         EditorIO.Success("Deleted. Use 'Save' when done.");
         EditorIO.Pause();
@@ -208,7 +208,7 @@ internal static class EquipmentEditor
 
     private static void EditItemFields(Equipment e)
     {
-        EditorIO.Info($"Editing item #{e.Id}. Press Enter to keep current value.");
+        EditorIO.Info((FormattableString)$"Editing item #{e.Id}. Press Enter to keep current value.");
         e.Name = EditorIO.PromptString("Name", e.Name);
         e.Description = EditorIO.PromptString("Description", e.Description);
         e.Slot = EditorIO.PromptEnum("Slot", e.Slot);

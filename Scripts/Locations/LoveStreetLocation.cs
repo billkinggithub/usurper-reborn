@@ -19,6 +19,18 @@ public class LoveStreetLocation : BaseLocation
 {
     private Random random = Random.Shared;
 
+    /// <summary>v1.3.8: the localised name of a relationship preference. The enum's own ToString
+    /// printed run-together English ("openrelationship") inside a translated sentence.</summary>
+    private static string PreferenceLabel(RelationshipPreference pref) => pref switch
+    {
+        RelationshipPreference.Monogamous => Loc.Get("love_street.pref_monogamous"),
+        RelationshipPreference.OpenRelationship => Loc.Get("love_street.pref_open"),
+        RelationshipPreference.Polyamorous => Loc.Get("love_street.pref_poly"),
+        RelationshipPreference.CasualOnly => Loc.Get("love_street.pref_casual"),
+        RelationshipPreference.FriendsWithBenefits => Loc.Get("love_street.pref_fwb"),
+        _ => Loc.Get("love_street.pref_undecided"),
+    };
+
     // Per-visit state (cleared on each EnterLocation)
     private HashSet<string> _flirtedThisVisit = new();
     private bool _charmActive;
@@ -1252,8 +1264,9 @@ public class LoveStreetLocation : BaseLocation
                 possible.Add(("sensuality", profile.Sensuality > 0.6f ? Loc.Get("love_street.reveal_deeply_passionate") : profile.Sensuality > 0.3f ? Loc.Get("love_street.reveal_warm_affectionate") : Loc.Get("love_street.reveal_reserved_genuine")));
             if (!_revealedTraits[npc.ID].Contains("preference"))
             {
-                var pref = profile.RelationshipPref.ToString();
-                possible.Add(("preference", Loc.Get("love_street.reveal_prefers", pref.ToLower())));
+                // v1.3.8: the preference is looked up instead of being read off the enum, so a
+                // translated game says 开放式关系 rather than "openrelationship".
+                possible.Add(("preference", Loc.Get("love_street.reveal_prefers", PreferenceLabel(profile.RelationshipPref))));
             }
 
             if (possible.Count > 0)

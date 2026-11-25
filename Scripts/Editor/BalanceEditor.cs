@@ -23,7 +23,7 @@ internal static class BalanceEditor
         bool dirty = false;
         while (true)
         {
-            EditorIO.Section($"Balance — game tuning constants{(dirty ? "  [UNSAVED]" : "")}");
+            EditorIO.Section((FormattableString)$"Balance — game tuning constants{(dirty ? "  [UNSAVED]" : "")}");
             int choice = EditorIO.Menu("Choose:", new[]
             {
                 "List all balance values",
@@ -72,7 +72,7 @@ internal static class BalanceEditor
         }
         catch (Exception ex)
         {
-            EditorIO.Error($"Failed to read {path}: {ex.Message}");
+            EditorIO.Error((FormattableString)$"Failed to read {path}: {ex.Message}");
             return new BalanceConfig();
         }
     }
@@ -84,14 +84,14 @@ internal static class BalanceEditor
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(path, JsonSerializer.Serialize(config, GameDataLoader.JsonOptions));
-            EditorIO.Success($"Wrote balance.json to {path}");
+            EditorIO.Success((FormattableString)$"Wrote balance.json to {path}");
             EditorIO.Info("Restart the game to pick up the changes.");
             EditorIO.Pause();
             return true;
         }
         catch (Exception ex)
         {
-            EditorIO.Error($"Failed to write {path}: {ex.Message}");
+            EditorIO.Error((FormattableString)$"Failed to write {path}: {ex.Message}");
             EditorIO.Pause();
             return false;
         }
@@ -109,7 +109,7 @@ internal static class BalanceEditor
         foreach (var prop in EditableProps())
         {
             var val = prop.GetValue(config);
-            EditorIO.Info($"  {prop.Name,-45} = {val}   ({prop.PropertyType.Name})");
+            EditorIO.Info((FormattableString)$"  {prop.Name,-45} = {val}   ({prop.PropertyType.Name})");
         }
         EditorIO.Pause();
     }
@@ -125,7 +125,7 @@ internal static class BalanceEditor
         var match = props[pick - 1];
 
         var current = match.GetValue(config);
-        EditorIO.Info($"Editing {match.Name} ({match.PropertyType.Name}). Current: {current}");
+        EditorIO.Info((FormattableString)$"Editing {match.Name} ({match.PropertyType.Name}). Current: {current}");
 
         object? newVal = current;
         if (match.PropertyType == typeof(int))
@@ -150,13 +150,13 @@ internal static class BalanceEditor
             newVal = EditorIO.PromptBool("New value", current == null ? false : (bool)current);
         else
         {
-            EditorIO.Warn($"Type {match.PropertyType.Name} not supported by the editor. Edit balance.json directly.");
+            EditorIO.Warn((FormattableString)$"Type {match.PropertyType.Name} not supported by the editor. Edit balance.json directly.");
             EditorIO.Pause();
             return false;
         }
 
         match.SetValue(config, newVal);
-        EditorIO.Success($"{match.Name} = {newVal}. Use 'Save' to persist.");
+        EditorIO.Success((FormattableString)$"{match.Name} = {newVal}. Use 'Save' to persist.");
         EditorIO.Pause();
         return true;
     }

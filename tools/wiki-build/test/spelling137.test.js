@@ -11,6 +11,7 @@ const siteDir =
 // reference/balance: the name of the C# constant GodBoonJudicarDefencePct.
 const kept = [
   ["en/reference/balance/index.html", /God Boon Judicar Defence Pct/g],
+  ["zh/reference/balance/index.html", /God Boon Judicar Defence Pct/g],
 ];
 function htmlFiles(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {

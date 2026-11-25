@@ -91,6 +91,20 @@ namespace UsurperConsole
             // Initialize localization system (loads language JSON files)
             UsurperRemake.Systems.Loc.Initialize();
 
+            // v1.3.9: the optional AI dialogue settings. Off unless ai.json (or the USURPER_LLM_*
+            // environment) says otherwise, and never required: a missing or broken file leaves the
+            // mode off and the authored pools in charge.
+            UsurperRemake.Systems.AiSettings.Load();
+
+            // v1.3.9: the language last picked, so the main menu opens in it instead of asking again.
+            // Applied here, before anything renders, and only when it is a language this build ships.
+            UsurperRemake.Systems.UserSettings.Load();
+            if (!string.IsNullOrEmpty(UsurperRemake.Systems.UserSettings.Language)
+                && UsurperRemake.Systems.Loc.LoadedLanguages.Contains(UsurperRemake.Systems.UserSettings.Language))
+            {
+                GameConfig.Language = UsurperRemake.Systems.UserSettings.Language;
+            }
+
             // Export built-in wiki facts before GameDataLoader can apply local mods.
             var wikiExit = UsurperRemake.Systems.WikiDataExporter.RunCommandLine(args, Console.Out, Console.Error);
             if (wikiExit.HasValue)

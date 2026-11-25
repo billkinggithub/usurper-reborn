@@ -174,7 +174,7 @@ public abstract class BaseLocation
     protected Character GetCurrentPlayer() => currentPlayer ?? GameEngine.Instance.CurrentPlayer;
 
     /// <summary>
-    /// Localized Loc.Get("ui.your_choice") prompt. Use instead of terminal.GetInput(Loc.Get("ui.your_choice")).
+    /// Localized Loc.Get("ui.your_choice") prompt. Use instead of GetChoice().
     /// </summary>
     protected static string GetOrientationLabel(SexualOrientation orientation) => orientation switch
     {
@@ -184,6 +184,44 @@ public abstract class BaseLocation
         SexualOrientation.Asexual => Loc.Get("base.orientation_asexual"),
         _ => Loc.Get("base.orientation_straight")
     };
+
+    /// <summary>
+    /// v1.3.9: edit one stored AI setting. An empty line keeps what is already saved instead of wiping
+    /// it, which is what made the address and the key have to be typed again after every visit; a single
+    /// dash clears it deliberately. The stored value is shown afterwards so it is obvious it was kept,
+    /// and the key is never echoed.
+    /// </summary>
+    private async Task EditAiText(string label, string prompt, Func<string> read, Action<string> write, bool masked)
+    {
+        terminal.WriteLine("");
+        string current = read();
+        terminal.WriteLine($"  {label}: {Loc.Get("prefs.ai_current", string.IsNullOrWhiteSpace(current) ? Loc.Get("ui.none") : (masked ? AiSettings.MaskedKey() : current))}", "gray");
+
+        string? entered = masked ? await terminal.GetMaskedInput(prompt) : await terminal.GetInput(prompt);
+        var (value, outcome) = AiSettings.ApplyEdit(read(), entered);
+
+        if (outcome == AiSettings.EditOutcome.Unchanged)
+        {
+            terminal.WriteLine($"  {Loc.Get("prefs.ai_unchanged")}", "gray");
+            await Pacing.Wait(400);
+            return;
+        }
+
+        write(value);
+        AiSettings.Save();
+
+        if (outcome == AiSettings.EditOutcome.Cleared)
+        {
+            terminal.WriteLine($"  {Loc.Get("prefs.ai_cleared")}", "yellow");
+            await Pacing.Wait(400);
+            return;
+        }
+
+        string stored = read();
+        string shown = masked ? AiSettings.MaskedKey() : stored;
+        terminal.WriteLine($"  {Loc.Get("prefs.ai_saved_value", shown)}", "green");
+        await Pacing.Wait(400);
+    }
 
     protected async Task<string> GetChoice()
     {
@@ -3948,6 +3986,7 @@ public abstract class BaseLocation
                     {
                         GameConfig.Language = value;
                         currentPlayer.Language = value;
+                        UsurperRemake.Systems.UserSettings.RememberLanguage(value);   // v1.3.9: remembered for the next launch
                         Loc.Initialize();
                         if (GameConfig.ElectronMode)
                             ElectronBridge.EmitSettingsApplied("language", value);
@@ -4517,6 +4556,11 @@ public abstract class BaseLocation
                 terminal.WriteLine(Loc.Get("base.prefs_accessibility"));
                 terminal.WriteLine($"  4. {Loc.Get("prefs.toggle", Loc.Get("prefs.screen_reader"))}");
                 terminal.WriteLine($"  B. {Loc.Get("prefs.language")} ({UsurperRemake.Systems.Loc.GetLanguageName(currentPlayer.Language)})");
+                terminal.WriteLine(Loc.Get("base.prefs_ai_header"));
+                terminal.WriteLine($"  I. {Loc.Get("prefs.ai_mode")}: {(AiSettings.Enabled ? Loc.Get("prefs.ai_mode.on") : Loc.Get("prefs.ai_mode.off"))}");
+                terminal.WriteLine($"  C. {Loc.Get("prefs.ai_endpoint")}: {(string.IsNullOrWhiteSpace(AiSettings.Endpoint) ? Loc.Get("ui.none") : AiSettings.Endpoint)}");
+                terminal.WriteLine($"  K. {Loc.Get("prefs.ai_key")}: {(string.IsNullOrWhiteSpace(AiSettings.ApiKey) ? Loc.Get("ui.none") : AiSettings.MaskedKey())}");
+                terminal.WriteLine($"  V. {Loc.Get("prefs.ai_model")}: {(string.IsNullOrWhiteSpace(AiSettings.EffectiveModel) ? Loc.Get("ui.none") : AiSettings.EffectiveModel)}");
                 terminal.WriteLine(Loc.Get("base.prefs_character"));
                 terminal.WriteLine($"  3. {Loc.Get("prefs.toggle", Loc.Get("prefs.skip_intimate"))}");
                 terminal.WriteLine($"  O. {Loc.Get("prefs.orientation")}");
@@ -4603,6 +4647,18 @@ public abstract class BaseLocation
                 terminal.SetColor("white");
                 WriteMenuOption("4", $"{Loc.Get("prefs.screen_reader")}: {onOff(currentPlayer.ScreenReaderMode)}");
                 WriteMenuOption("B", $"{Loc.Get("prefs.language")}: {UsurperRemake.Systems.Loc.GetLanguageName(currentPlayer.Language)}");
+                terminal.WriteLine("");
+
+                // -- AI DIALOGUE --
+                // v1.3.9: off unless the player turns it on. The switch takes effect on the next line,
+                // and the credentials live outside the save (see AiSettings).
+                terminal.SetColor("bright_cyan");
+                terminal.WriteLine($"  {Loc.Get("base.prefs_ai_header")}");
+                terminal.SetColor("white");
+                WriteMenuOption("I", $"{Loc.Get("prefs.ai_mode")}: {(AiSettings.Enabled ? Loc.Get("prefs.ai_mode.on") : Loc.Get("prefs.ai_mode.off"))}");
+                WriteMenuOption("C", $"{Loc.Get("prefs.ai_endpoint")}: {(string.IsNullOrWhiteSpace(AiSettings.Endpoint) ? Loc.Get("ui.none") : AiSettings.Endpoint)}");
+                WriteMenuOption("K", $"{Loc.Get("prefs.ai_key")}: {(string.IsNullOrWhiteSpace(AiSettings.ApiKey) ? Loc.Get("ui.none") : AiSettings.MaskedKey())}");
+                WriteMenuOption("V", $"{Loc.Get("prefs.ai_model")}: {(string.IsNullOrWhiteSpace(AiSettings.EffectiveModel) ? Loc.Get("ui.none") : AiSettings.EffectiveModel)}");
                 terminal.WriteLine("");
 
                 // -- CHARACTER --
@@ -4871,6 +4927,46 @@ public abstract class BaseLocation
                     await Pacing.Wait(800);
                     break;
 
+                case "I":
+                    // v1.3.9: the AI mode switch. Takes effect on the next line either way; nothing is
+                    // regenerated and no state is lost by turning it off.
+                    AiSettings.Enabled = !AiSettings.Enabled;
+                    AiSettings.Save();
+                    terminal.WriteLine("");
+                    if (AiSettings.Enabled && !AiSettings.IsConfigured)
+                        terminal.WriteLine(Loc.Get("prefs.ai_needs_endpoint"), "yellow");
+                    else
+                        terminal.WriteLine(AiSettings.Enabled ? Loc.Get("prefs.ai_mode.on") : Loc.Get("prefs.ai_mode.off"), "green");
+                    await Pacing.Wait(600);
+                    break;
+
+                case "C":
+                    await EditAiText(
+                        Loc.Get("prefs.ai_endpoint"),
+                        Loc.Get("prefs.ai_endpoint_prompt"),
+                        () => AiSettings.Endpoint,
+                        v => AiSettings.Endpoint = v,
+                        masked: false);
+                    break;
+
+                case "K":
+                    await EditAiText(
+                        Loc.Get("prefs.ai_key"),
+                        Loc.Get("prefs.ai_key_prompt"),
+                        () => AiSettings.ApiKey,
+                        v => AiSettings.ApiKey = v,
+                        masked: true);
+                    break;
+
+                case "V":
+                    await EditAiText(
+                        Loc.Get("prefs.ai_model"),
+                        Loc.Get("prefs.ai_model_prompt"),
+                        () => AiSettings.EffectiveModel,
+                        v => AiSettings.Model = v,
+                        masked: false);
+                    break;
+
                 case "B":
                     terminal.WriteLine("");
                     terminal.WriteLine(Loc.Get("prefs.select_language"), "bright_yellow");
@@ -4882,11 +4978,12 @@ public abstract class BaseLocation
                         terminal.WriteLine($"  {li + 1}. {langs[li].Name}{marker}");
                     }
                     terminal.WriteLine("");
-                    var langChoice = await terminal.GetInput(Loc.Get("ui.your_choice"));
+                    var langChoice = await GetChoice();
                     if (int.TryParse(langChoice.Trim(), out int langIdx) && langIdx >= 1 && langIdx <= langs.Length)
                     {
                         var selectedLang = langs[langIdx - 1].Code;
                         currentPlayer.Language = selectedLang;
+                        UsurperRemake.Systems.UserSettings.RememberLanguage(selectedLang);   // v1.3.9: remembered for the next launch
                         GameConfig.Language = selectedLang;
                         terminal.WriteLine(Loc.Get("prefs.language_set", UsurperRemake.Systems.Loc.GetLanguageName(selectedLang)), "green");
                         // Invalidate cached dungeon floor so rooms regenerate in new language
@@ -4979,7 +5076,7 @@ public abstract class BaseLocation
                     terminal.WriteLine($"  {Loc.Get("creation.orientation_3")}");
                     terminal.WriteLine($"  {Loc.Get("creation.orientation_4")}");
                     terminal.WriteLine("");
-                    var oriChoice = await terminal.GetInput(Loc.Get("ui.your_choice"));
+                    var oriChoice = await GetChoice();
                     switch (oriChoice.Trim())
                     {
                         case "1":

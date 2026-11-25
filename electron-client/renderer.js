@@ -9,7 +9,9 @@ const WebLinksAddon = window.WebLinksAddon?.WebLinksAddon || window.WebLinksAddo
 
 // Terminal setup
 const term = new Terminal({
-  fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace",
+  // The trailing families carry CJK glyphs: xterm.js keeps its own cell grid, so a wide glyph
+  // still lands on two cells, but without them a system with no CJK font shows empty boxes.
+  fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Consolas', 'Sarasa Mono SC', 'Noto Sans Mono CJK SC', 'NSimSun', 'SimSun', 'MS Gothic', monospace",
   fontSize: 14,
   theme: {
     background: '#000000',

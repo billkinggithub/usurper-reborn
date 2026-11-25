@@ -3152,7 +3152,7 @@ public partial class CombatEngine
         terminal.WriteLine("╔═══════════════════════════════════════╗");
         terminal.Write("║");
         terminal.SetColor("bright_white");
-        { var ct = Loc.Get("combat.choose_action"); var pl = (39 + ct.Length) / 2; terminal.Write(TextWidth.PadLeft(ct, pl).PadRight(39)); }
+        { var ct = Loc.Get("combat.choose_action"); var pl = (39 + TextWidth.Width(ct)) / 2; terminal.Write(TextWidth.PadRight(TextWidth.PadLeft(ct, pl), 39)); }
         terminal.SetColor("green");
         terminal.WriteLine("║");
         terminal.WriteLine("╠═══════════════════════════════════════╣");
@@ -3169,7 +3169,8 @@ public partial class CombatEngine
         }
         terminal.Write("║ ");
         terminal.SetColor("cyan");
-        terminal.Write($"{hpStatus,-37}");
+        if (TextWidth.Width(hpStatus) > 37) hpStatus = TextWidth.Truncate(hpStatus, 34) + "...";
+        terminal.Write(TextWidth.PadRight(hpStatus, 37));
         terminal.SetColor("green");
         terminal.WriteLine(" ║");
 
@@ -3188,9 +3189,9 @@ public partial class CombatEngine
 
             terminal.Write("║ ");
             terminal.SetColor("yellow");
-            string statusStr = string.Join(", ", list);
-            if (statusStr.Length > 35) statusStr = statusStr.Substring(0, 32) + "...";
-            terminal.Write($"{Loc.Get("combat.status_prefix") + statusStr,-37}");
+            string statusText = Loc.Get("combat.status_prefix") + string.Join(", ", list);
+            if (TextWidth.Width(statusText) > 37) statusText = TextWidth.Truncate(statusText, 34) + "...";
+            terminal.Write(TextWidth.PadRight(statusText, 37));
             terminal.SetColor("green");
             terminal.WriteLine(" ║");
         }
@@ -3407,7 +3408,7 @@ public partial class CombatEngine
         terminal.WriteLine("╔═══════════════════════════════════════╗");
         terminal.Write("║");
         terminal.SetColor("bright_white");
-        { var ct = Loc.Get("combat.choose_action"); var pl = (39 + ct.Length) / 2; terminal.Write(TextWidth.PadLeft(ct, pl).PadRight(39)); }
+        { var ct = Loc.Get("combat.choose_action"); var pl = (39 + TextWidth.Width(ct)) / 2; terminal.Write(TextWidth.PadRight(TextWidth.PadLeft(ct, pl), 39)); }
         terminal.SetColor("green");
         terminal.WriteLine("║");
         terminal.WriteLine("╠═══════════════════════════════════════╣");
@@ -13386,16 +13387,16 @@ public partial class CombatEngine
             terminal.SetColor(monster.IsBoss ? "bright_red" : "white");
             // Truncate long names to fit the status box (18 chars)
             string displayName = MonsterNames.Display(monster);
-            if (displayName.Length > 18)
+            if (TextWidth.Width(displayName) > 18)
             {
                 // For bosses with titles like "Maelketh, The Broken Blade", use just the first name
                 int commaIdx = displayName.IndexOf(',');
-                if (commaIdx > 0 && commaIdx <= 18)
+                if (commaIdx > 0 && TextWidth.Width(displayName[..commaIdx]) <= 18)
                     displayName = displayName[..commaIdx];
                 else
-                    displayName = displayName[..18];
+                    displayName = TextWidth.Truncate(displayName, 18);
             }
-            terminal.Write($"{displayName,-18} ");
+            terminal.Write(TextWidth.PadRight(displayName, 18) + " ");
             terminal.SetColor(hpPercent > 0.5 ? "green" : hpPercent > 0.25 ? "yellow" : "red");
             terminal.Write($"{hpBar} ");
             terminal.SetColor("white");
@@ -13442,7 +13443,9 @@ public partial class CombatEngine
         terminal.SetColor("bright_cyan");
         terminal.Write($"║ ");
         terminal.SetColor("bright_white");
-        terminal.Write($"{(player.Name2 ?? player.Name1),-18} ");
+        string playerName = player.Name2 ?? player.Name1;
+        if (TextWidth.Width(playerName) > 30) playerName = TextWidth.Truncate(playerName, 30);
+        terminal.Write(TextWidth.PadRight(playerName, 18) + " ");
 
         // HP bar
         terminal.SetColor(playerHpPercent > 0.5 ? "bright_green" : playerHpPercent > 0.25 ? "yellow" : "bright_red");
@@ -13559,7 +13562,9 @@ public partial class CombatEngine
                     terminal.SetColor("bright_cyan");
                     terminal.Write($"║ ");
                     terminal.SetColor("white");
-                    terminal.Write($"{teammate.DisplayName,-16} ");
+                    string downName = teammate.DisplayName;
+                    if (TextWidth.Width(downName) > 30) downName = TextWidth.Truncate(downName, 30);
+                    terminal.Write(TextWidth.PadRight(downName, 16) + " ");
                     terminal.SetColor("bright_red");
                     terminal.WriteLine(Loc.Get("combat.box_down"));
                     continue;
@@ -13576,7 +13581,9 @@ public partial class CombatEngine
                 terminal.SetColor("bright_cyan");
                 terminal.Write($"║ ");
                 terminal.SetColor("white");
-                terminal.Write($"{teammate.DisplayName,-16} ");
+                string allyName = teammate.DisplayName;
+                if (TextWidth.Width(allyName) > 30) allyName = TextWidth.Truncate(allyName, 30);
+                terminal.Write(TextWidth.PadRight(allyName, 16) + " ");
                 terminal.SetColor(tmHpPercent > 0.5 ? "green" : tmHpPercent > 0.25 ? "yellow" : "red");
                 terminal.Write($"{Loc.Get("combat.bar_hp")}:{tmHpBar} ");
                 terminal.SetColor("white");
@@ -13632,8 +13639,8 @@ public partial class CombatEngine
             terminal.SetColor("yellow");
             terminal.Write($" [{monsters.IndexOf(m1) + 1}]");
             terminal.SetColor("white");
-            string name1 = m1.Name.Length > 14 ? m1.Name[..14] : m1.Name;
-            terminal.Write($"{name1,-14} ");
+            string name1 = TextWidth.Truncate(m1.Name, 14);
+            terminal.Write(TextWidth.PadRight(name1, 14) + " ");
             terminal.SetColor(col1);
             terminal.Write($"{bar1} ");
             terminal.SetColor("white");
@@ -13651,8 +13658,8 @@ public partial class CombatEngine
                 terminal.SetColor("yellow");
                 terminal.Write($"[{monsters.IndexOf(m2) + 1}]");
                 terminal.SetColor("white");
-                string name2 = m2.Name.Length > 14 ? m2.Name[..14] : m2.Name;
-                terminal.Write($"{name2,-14} ");
+                string name2 = TextWidth.Truncate(m2.Name, 14);
+                terminal.Write(TextWidth.PadRight(name2, 14) + " ");
                 terminal.SetColor(col2);
                 terminal.Write($"{bar2} ");
                 terminal.SetColor("white");
@@ -13764,7 +13771,7 @@ public partial class CombatEngine
                     string tmCol = tmPct > 0.5 ? "green" : tmPct > 0.25 ? "yellow" : "red";
                     if (i > 0) terminal.Write("  ");
                     terminal.SetColor("white");
-                    string tmName = tm.DisplayName.Length > 10 ? tm.DisplayName[..10] : tm.DisplayName;
+                    string tmName = TextWidth.Truncate(tm.DisplayName, 10);
                     terminal.Write($"{tmName} ");
                     terminal.SetColor(tmCol);
                     terminal.Write($"{tm.HP}/{tm.MaxHP}");
@@ -24316,9 +24323,9 @@ public partial class CombatEngine
     }
 
     /// <summary>
-    /// v0.60.0 beta: when a player exceeds the playthrough death cap
-    /// (GameConfig.MaxPlaythroughDeaths, default 5), the character is
-    /// permadeleted instead of getting the normal Veil-of-Death menu.
+    /// v0.60.0 beta: online with OnlinePermadeathEnabled on, a death with no Resurrections left
+    /// erases the character instead of reviving it (1.3.15: the playthrough death count plays no
+    /// part; it erases no one).
     /// Plays a short cinematic naming the cap, then archives + hard-deletes
     /// the account row. Archive lets the player /restore within 7 days
     /// (per v0.57.22 deleted_characters table) so a single bad afternoon
@@ -31834,7 +31841,7 @@ public partial class CombatEngine
                 terminal.Write("    ");
             }
             terminal.SetColor(available ? "yellow" : "darkgray");
-            terminal.Write($"{parts[i],-34}");
+            terminal.Write(TextWidth.PadRight(parts[i], 34));
             terminal.SetColor("green");
             terminal.WriteLine("║");
         }

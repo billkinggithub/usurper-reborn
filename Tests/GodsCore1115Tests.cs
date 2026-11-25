@@ -396,7 +396,7 @@ public class GodsCore1115Tests
     {
         var src = Source("Editor", "PlayerSaveEditor.cs");
         src.Should().Contain("p.GodFavorSchema = EditorIO.PromptInt(");
-        src.Should().Contain("p.GodFavor = EditorIO.PromptInt($\"Favor with the worshipped god ({GameConfig.GodFavorMin}-{GameConfig.GodFavorMax})\", p.GodFavor, min: GameConfig.GodFavorMin, max: GameConfig.GodFavorMax);");
+        src.Should().Contain("p.GodFavor = EditorIO.PromptInt((FormattableString)$\"Favor with the worshipped god ({GameConfig.GodFavorMin}-{GameConfig.GodFavorMax})\", p.GodFavor, min: GameConfig.GodFavorMin, max: GameConfig.GodFavorMax);");
         src.Should().Contain("p.GodFavorGod = EditorIO.PromptString(");
         src.Should().Contain("p.DaysSinceDevotion = EditorIO.PromptInt(");
         src.Should().Contain("p.GodFavorDayGains = new Dictionary<string, int>();");

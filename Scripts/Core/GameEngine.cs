@@ -882,6 +882,7 @@ public partial class GameEngine
                     var selectedLang = doorLangs[doorLangIdx - 1].Code;
                     GameConfig.Language = selectedLang;
                     _languageSetThisSession.Value = true;
+                    UsurperRemake.Systems.UserSettings.RememberLanguage(GameConfig.Language);   // v1.3.9: remembered for the next launch
                     terminal.WriteLine(Loc.Get("prefs.language_set", UsurperRemake.Systems.Loc.GetLanguageName(selectedLang)), "green");
                     await Pacing.Wait(800);
                 }
@@ -1847,6 +1848,7 @@ public partial class GameEngine
                         var selectedLang = mainLangs[mainLangIdx - 1].Code;
                         GameConfig.Language = selectedLang;
                         _languageSetThisSession.Value = true;
+                        UsurperRemake.Systems.UserSettings.RememberLanguage(GameConfig.Language);   // v1.3.9: remembered for the next launch
                         terminal.WriteLine(Loc.Get("prefs.language_set", UsurperRemake.Systems.Loc.GetLanguageName(selectedLang)), "green");
                         await Pacing.Wait(800);
                     }
@@ -4753,6 +4755,16 @@ public partial class GameEngine
             terminal.WriteLine(Loc.Get("engine.load_game_failed"), "red");
             await Pacing.Wait(2000);
             return;
+        }
+
+        // v1.3.9: the saved language has to be in place before anything below prints or simulates. The
+        // world catch-up further down generates its news with Loc.Get, which reads GameConfig.Language at
+        // the moment of the call, so a fresh process still on the startup default wrote an English news
+        // feed into a Chinese save. A language chosen on the main menu this session wins over the saved one.
+        if (!string.IsNullOrEmpty(saveData.Player?.Language))
+        {
+            if (_languageSetThisSession.Value) saveData.Player!.Language = GameConfig.Language;
+            else GameConfig.Language = saveData.Player!.Language;
         }
 
         // Restore player from save data
@@ -8637,6 +8649,7 @@ public partial class GameEngine
         terminal.WriteLine(Loc.Get("engine.credits_lowleveljavacoder"));
         terminal.WriteLine(Loc.Get("engine.credits_coosh"));
         terminal.WriteLine(Loc.Get("engine.credits_testingbytes"));
+        terminal.WriteLine(Loc.Get("engine.credits_billkinggithub"));
         terminal.WriteLine("");
 
         terminal.SetColor("bright_magenta");

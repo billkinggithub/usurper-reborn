@@ -43,10 +43,50 @@ namespace UsurperRemake.Systems
             }
         }
 
+        /// <summary>v1.3.8: true when this process can actually create files in the directory. Creating
+        /// the directory is not enough: a sandboxed token can see a directory that already exists and
+        /// still be denied a write inside it, which is how saves were failing without a word.</summary>
+        private static bool TryPrepareDirectory(string directory, out string error)
+        {
+            error = "";
+            try
+            {
+                Directory.CreateDirectory(directory);
+                var probe = Path.Combine(directory, ".write-probe");
+                File.WriteAllText(probe, "ok");
+                File.Delete(probe);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
         public FileSaveBackend()
         {
+            // v1.3.8: the user data folder is the normal home for saves, but a process can be started
+            // with a token that cannot write there (a sandboxed shell, a managed desktop, a locked-down
+            // profile). Before this, every save in such a session failed silently and the player lost
+            // the run. If the folder cannot be written, fall back to a saves folder beside the game and
+            // say so in the log, so the session is never lost without a trace.
             baseSaveDirectory = Path.Combine(GetUserDataPath(), "saves");
-            Directory.CreateDirectory(baseSaveDirectory);
+            if (!TryPrepareDirectory(baseSaveDirectory, out var userDataError))
+            {
+                var besideTheGame = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "saves");
+                if (TryPrepareDirectory(besideTheGame, out var fallbackError))
+                {
+                    DebugLogger.Instance.LogWarning("SAVE",
+                        $"Cannot write to {baseSaveDirectory} ({userDataError}); saving to {besideTheGame} instead.");
+                    baseSaveDirectory = besideTheGame;
+                }
+                else
+                {
+                    DebugLogger.Instance.LogError("SAVE",
+                        $"Cannot write to {baseSaveDirectory} ({userDataError}) or {besideTheGame} ({fallbackError}); saves will fail.");
+                }
+            }
 
             jsonOptions = new JsonSerializerOptions
             {

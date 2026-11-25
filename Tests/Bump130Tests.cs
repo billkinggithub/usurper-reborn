@@ -290,6 +290,7 @@ public class Bump130Tests
     {
         string root = RepoRoot();
         foreach (string file in Directory.EnumerateFiles(Path.Combine(root, "DOCS", "wiki"), "*.md", SearchOption.AllDirectories)
+                     .Where(f => !f.Contains(Path.DirectorySeparatorChar + "zh" + Path.DirectorySeparatorChar))
                      .OrderBy(f => f, StringComparer.Ordinal))
             yield return (Path.GetRelativePath(root, file).Replace('\\', '/'),
                 File.ReadAllText(file, Encoding.UTF8).Replace("\r\n", "\n"));

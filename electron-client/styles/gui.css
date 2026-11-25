@@ -38,7 +38,7 @@
   flex-direction: column;
   height: 100%;
   background: var(--bg-void);
-  font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+  font-family: 'JetBrains Mono', 'Cascadia Code', 'Sarasa Mono SC', 'Noto Sans Mono CJK SC', 'NSimSun', 'SimSun', 'MS Gothic', monospace;
   color: var(--text-default);
   overflow: hidden;
   user-select: none;

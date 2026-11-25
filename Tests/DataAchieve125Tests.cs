@@ -34,7 +34,7 @@ public class DataAchieve125Tests : IDisposable
     private const string LongName = "Aranyszivu Hosszunevu Kalandor";
 
     private static readonly string[] AllLanguages = { "en", "es", "fr", "hu", "it" };
-    private static readonly string[] OtherLanguages = { "es", "fr", "hu", "it" };
+    private static readonly string[] OtherLanguages = { "es", "fr", "hu", "it", "zh" };
 
     // Names that are the same word in Hungarian as in English.
     private static readonly string[] SameInHungarian = { "???", "MVP" };

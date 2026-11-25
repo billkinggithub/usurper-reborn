@@ -36,7 +36,7 @@ public class WikiDataExporterTests : IClassFixture<WikiDataFixture>
         Assert.Equal("Rusty Dagger", dagger.GetProperty("name").GetProperty("en").GetString());
         Assert.Equal(2, dagger.GetProperty("stats").GetProperty("weaponPower").GetInt32());
         // v1.2.5: every language its own name (ItemNames keys), the English one is the stored name
-        Assert.Equal(5, dagger.GetProperty("name").EnumerateObject().Count());
+        Assert.Equal(6, dagger.GetProperty("name").EnumerateObject().Count());   // the fork adds zh
         Assert.Equal("Rozsdás Tőr", dagger.GetProperty("name").GetProperty("hu").GetString());
     }
 
@@ -1030,7 +1030,7 @@ public class WikiDataExporterTests : IClassFixture<WikiDataFixture>
         Assert.Equal(WikiDataExporter.SchemaVersion, document.RootElement.GetProperty("schemaVersion").GetInt32());
         Assert.Equal(GameConfig.Version, document.RootElement.GetProperty("gameVersion").GetString());
         Assert.True(DateTimeOffset.TryParse(document.RootElement.GetProperty("generatedAtUtc").GetString(), out _));
-        Assert.Equal(5, document.RootElement.GetProperty("languages").GetArrayLength());
+        Assert.Equal(6, document.RootElement.GetProperty("languages").GetArrayLength());   // the fork adds zh
     }
 }
 

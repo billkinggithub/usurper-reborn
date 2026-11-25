@@ -820,7 +820,10 @@ public partial class NPC : Character
         // Use the Dynamic NPC Dialogue Generator for rich, contextual greetings
         if (player is Player playerChar)
         {
-            return NPCDialogueGenerator.GenerateGreeting(this, playerChar);
+            var authored = NPCDialogueGenerator.GenerateGreeting(this, playerChar);
+            // v1.3.9: with AI dialogue on, the same line is re-voiced for this NPC and the language in
+            // use. Off, unreachable or slow, the authored line is returned unchanged.
+            return AiDialogue.Rewrite(this, playerChar, authored);
         }
 
         // Fallback for non-Player characters - use legacy personality-based greeting

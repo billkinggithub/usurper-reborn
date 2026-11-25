@@ -355,27 +355,120 @@ namespace UsurperRemake.Data
         #region State Extraction Helpers
 
         private static string GetNpcPersonalityType(NPC npc)
+            => VoiceFor(npc?.Personality, npc?.Personality?.Archetype, npc?.Name2 ?? npc?.Name1);
+
+        /// <summary>
+        /// v1.3.9: the register this NPC actually speaks in. About a third of them consistently lean
+        /// on their second strongest voice, so two guards with different personalities no longer read
+        /// the same while each stays recognisable from one conversation to the next. The lean comes
+        /// from the name, so it survives a save and load without storing anything new.
+        /// </summary>
+        internal static string VoiceFor(PersonalityProfile? p, string? archetype, string? name)
         {
-            // Try to get personality string from the NPC's PersonalityProfile
-            if (npc.Personality != null && !string.IsNullOrEmpty(npc.Personality.Archetype))
-            {
-                var mapped = GetPersonalityType(npc.Personality.Archetype);
-                if (mapped != "stoic") return mapped; // Found a specific match
-            }
+            var (primary, secondary) = RegistersFor(p, archetype);
+            if (secondary == primary || string.IsNullOrEmpty(name)) return primary;
+            return LeansOnSecondary(name) ? secondary : primary;
+        }
 
-            // Try personality traits to infer type
-            if (npc.Personality != null)
+        /// <summary>v1.3.9: a stable ~30% of names, decided by FNV-1a so the same NPC always answers
+        /// the same way. Not a security hash; it only has to be spread out and repeatable.</summary>
+        private static bool LeansOnSecondary(string name)
+        {
+            unchecked
             {
-                if (npc.Personality.Aggression > 0.7f) return "aggressive";
-                if (npc.Personality.Loyalty > 0.7f && npc.Personality.Courage > 0.6f) return "noble";
-                if (npc.Personality.Intelligence > 0.7f && npc.Personality.Caution > 0.6f) return "cunning";
-                if (npc.Personality.Mysticism > 0.6f && npc.Personality.Patience > 0.6f) return "pious";
-                if (npc.Personality.Intelligence > 0.7f) return "scholarly";
-                if (npc.Personality.Sociability > 0.7f) return "charming";
-                if (npc.Personality.Patience < 0.3f || npc.Personality.Greed > 0.7f) return "cynical";
+                uint hash = 2166136261;
+                foreach (char c in name)
+                {
+                    hash ^= c;
+                    hash *= 16777619;
+                }
+                return hash % 100 < 30;
             }
+        }
 
-            return "stoic"; // Default fallback
+        /// <summary>
+        /// v1.3.9: the strongest and second strongest greeting registers for a personality.
+        ///
+        /// The register used to be chosen by a chain of thresholds that returned on the first match,
+        /// with the archetype label able to short-circuit it entirely. Because archetypes carry
+        /// guaranteed trait ranges (a thug's Aggression is always 0.70 or better, a merchant's Greed
+        /// always 0.70 or better), the first threshold won nearly every time: every thug was
+        /// aggressive and no merchant escaped the cynical branch, whatever else they were. Half the
+        /// traits could never influence a line.
+        ///
+        /// Every register is now scored across the traits and ranked, so the trade colours the voice
+        /// and the personality decides how strongly.
+        /// </summary>
+        internal static (string Primary, string Secondary) RegistersFor(PersonalityProfile? p, string? archetype)
+        {
+            string mapped = GetPersonalityType(archetype);
+            if (p == null) return (mapped, mapped);
+
+            var scores = new (string Register, double Value)[]
+            {
+                ("aggressive", 0.50 * p.Aggression + 0.20 * p.Impulsiveness + 0.20 * p.Courage + 0.10 * p.Vengefulness),
+                ("noble",      0.40 * p.Loyalty + 0.30 * p.Courage + 0.30 * p.Trustworthiness),
+                ("cunning",    0.35 * p.Intelligence + 0.25 * p.Caution + 0.25 * p.Ambition + 0.15 * p.Greed),
+                ("pious",      0.50 * p.Mysticism + 0.30 * p.Patience + 0.20 * p.Tenderness),
+                ("scholarly",  0.50 * p.Intelligence + 0.30 * p.Patience + 0.20 * p.Caution),
+                ("charming",   0.40 * p.Sociability + 0.25 * p.Flirtatiousness + 0.20 * p.Romanticism + 0.15 * p.Passion),
+                ("cynical",    0.40 * p.Greed + 0.25 * p.Vengefulness + 0.20 * (1.0 - p.Patience) + 0.15 * (1.0 - p.Trustworthiness)),
+                ("stoic",      0.45 * (1.0 - p.Sociability) + 0.30 * p.Patience + 0.25 * p.Caution),
+            };
+
+            // an authored adjective ("gruff", "proud", "sly") or an occupation both lean the result;
+            // worth more than a rounding difference, not enough to silence a strong personality
+            const double ArchetypeBonus = 0.06;
+            string prior = ArchetypePrior(mapped, archetype);
+
+            string primary = "stoic", secondary = "stoic";
+            double best = double.NegativeInfinity, second = double.NegativeInfinity;
+            foreach (var (register, value) in scores)
+            {
+                // stoic is the catch-all voice: it should win only when nothing else is distinctive,
+                // so it is held slightly under the specialised registers
+                double total = (register == "stoic" ? value * 0.90 : value)
+                             + (register == prior ? ArchetypeBonus : 0.0);
+                if (total > best)
+                {
+                    second = best;
+                    secondary = primary;
+                    best = total;
+                    primary = register;
+                }
+                else if (total > second)
+                {
+                    second = total;
+                    secondary = register;
+                }
+            }
+            return (primary, secondary);
+        }
+
+        /// <summary>v1.3.9: the strongest register, ignoring the per-NPC lean.</summary>
+        internal static string RegisterFor(PersonalityProfile? p, string? archetype)
+            => RegistersFor(p, archetype).Primary;
+
+        /// <summary>
+        /// v1.3.9: the register an occupation leans towards. The adjective map above only covers
+        /// authoring labels ("gruff", "proud"); the archetypes the generator actually stores are
+        /// occupations ("guard", "merchant"), which fell through it and got no prior at all. Without
+        /// this, a guard's high Patience and Caution pushed him into stoic instead of noble.
+        /// </summary>
+        private static string ArchetypePrior(string mapped, string? archetype)
+        {
+            if (mapped != "stoic") return mapped;                 // an adjective label wins
+            return (archetype ?? "").ToLowerInvariant() switch
+            {
+                "thug" or "brawler" => "aggressive",
+                "merchant" or "trader" => "cunning",
+                "guard" or "soldier" => "noble",
+                "priest" or "cleric" => "pious",
+                "mage" or "mystic" => "scholarly",
+                "noble" or "aristocrat" => "noble",
+                "artisan" or "craftsman" => "scholarly",
+                _ => "stoic",
+            };
         }
 
         private static int GetRelationshipTier(NPC npc, Player player)

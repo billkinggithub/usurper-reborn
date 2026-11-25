@@ -13,6 +13,20 @@ namespace UsurperRemake.Systems;
 /// </summary>
 public class FeatureInteractionSystem
 {
+    /// <summary>v1.3.8: the localised verb for a room feature. The enum name used to be lowercased
+    /// straight into the sentence, so every translation said "You examine the statue" in English.</summary>
+    private static string VerbLabel(FeatureInteraction interaction) => interaction switch
+    {
+        FeatureInteraction.Examine => Loc.Get("feature.verb_examine"),
+        FeatureInteraction.Open => Loc.Get("feature.verb_open"),
+        FeatureInteraction.Search => Loc.Get("feature.verb_search"),
+        FeatureInteraction.Read => Loc.Get("feature.verb_read"),
+        FeatureInteraction.Take => Loc.Get("feature.verb_take"),
+        FeatureInteraction.Use => Loc.Get("feature.verb_use"),
+        FeatureInteraction.Break => Loc.Get("feature.verb_break"),
+        _ => Loc.Get("feature.verb_enter"),
+    };
+
     private static FeatureInteractionSystem? _instance;
     public static FeatureInteractionSystem Instance => _instance ??= new FeatureInteractionSystem();
 
@@ -137,7 +151,7 @@ public class FeatureInteractionSystem
         var lore = GetLoreForLevel(level, theme, feature);
 
         terminal.SetColor("cyan");
-        terminal.WriteLine(Loc.Get("feature.interact_with", feature.Interaction.ToString().ToLower(), feature.Name));
+        terminal.WriteLine(Loc.Get("feature.interact_with", VerbLabel(feature.Interaction), feature.Name));
         terminal.WriteLine("");
         await Pacing.Wait(800);
 
@@ -690,7 +704,7 @@ public class FeatureInteractionSystem
         string statName = StatLabel(stat);
 
         terminal.SetColor("cyan");
-        terminal.WriteLine(Loc.Get("feature.interact_with", feature.Interaction.ToString().ToLower(), feature.Name));
+        terminal.WriteLine(Loc.Get("feature.interact_with", VerbLabel(feature.Interaction), feature.Name));
         terminal.WriteLine("");
         await Pacing.Wait(600);
 
@@ -856,7 +870,7 @@ public class FeatureInteractionSystem
         var choice = GetMoralChoice(feature, level);
 
         terminal.SetColor("cyan");
-        terminal.WriteLine(Loc.Get("feature.interact_with", feature.Interaction.ToString().ToLower(), feature.Name));
+        terminal.WriteLine(Loc.Get("feature.interact_with", VerbLabel(feature.Interaction), feature.Name));
         terminal.WriteLine("");
         await Pacing.Wait(600);
 
@@ -1075,11 +1089,13 @@ public class FeatureInteractionSystem
         TerminalEmulator terminal, FeatureOutcome outcome, List<Character>? teammates = null)
     {
         terminal.SetColor("cyan");
-        terminal.WriteLine(Loc.Get("feature.interact_with", feature.Interaction.ToString().ToLower(), feature.Name));
+        terminal.WriteLine(Loc.Get("feature.interact_with", VerbLabel(feature.Interaction), feature.Name));
         terminal.WriteLine("");
         await Pacing.Wait(600);
 
-        var className = player.Class.ToString();
+        // v1.3.8: the class goes through the localiser, so the line does not print the enum name
+        // in every language. English is unchanged: for en the helper returns the display name.
+        var className = GameConfig.GetLocalizedClassName(player.Class);
         terminal.SetColor("bright_magenta");
         var article = "aeiouAEIOU".Contains(className[0]) ? "an" : "a";
         terminal.WriteLine(Loc.Get("feature.class_training_reveals", article, className));
@@ -1216,7 +1232,7 @@ public class FeatureInteractionSystem
         TerminalEmulator terminal, FeatureOutcome outcome)
     {
         terminal.SetColor("cyan");
-        terminal.WriteLine(Loc.Get("feature.interact_with", feature.Interaction.ToString().ToLower(), feature.Name));
+        terminal.WriteLine(Loc.Get("feature.interact_with", VerbLabel(feature.Interaction), feature.Name));
         terminal.WriteLine("");
         await Pacing.Wait(600);
 
@@ -1298,7 +1314,7 @@ public class FeatureInteractionSystem
         TerminalEmulator terminal, FeatureOutcome outcome)
     {
         terminal.SetColor("cyan");
-        terminal.WriteLine(Loc.Get("feature.interact_with", feature.Interaction.ToString().ToLower(), feature.Name));
+        terminal.WriteLine(Loc.Get("feature.interact_with", VerbLabel(feature.Interaction), feature.Name));
         terminal.WriteLine("");
         await Pacing.Wait(600);
 
@@ -1415,7 +1431,7 @@ public class FeatureInteractionSystem
         TerminalEmulator terminal, FeatureOutcome outcome)
     {
         terminal.SetColor("cyan");
-        terminal.WriteLine(Loc.Get("feature.interact_with", feature.Interaction.ToString().ToLower(), feature.Name));
+        terminal.WriteLine(Loc.Get("feature.interact_with", VerbLabel(feature.Interaction), feature.Name));
         terminal.WriteLine("");
         await Pacing.Wait(600);
 
@@ -1534,7 +1550,7 @@ public class FeatureInteractionSystem
         TerminalEmulator terminal, FeatureOutcome outcome)
     {
         terminal.SetColor("cyan");
-        terminal.WriteLine(Loc.Get("feature.interact_with", feature.Interaction.ToString().ToLower(), feature.Name));
+        terminal.WriteLine(Loc.Get("feature.interact_with", VerbLabel(feature.Interaction), feature.Name));
         terminal.WriteLine("");
         terminal.SetColor("white");
         terminal.WriteLine(feature.Description);

@@ -36,7 +36,7 @@ internal static class NPCEditor
 
         while (true)
         {
-            EditorIO.Section($"NPCs  —  {npcs.Count} total{(dirty ? "  [UNSAVED]" : "")}");
+            EditorIO.Section((FormattableString)$"NPCs  —  {npcs.Count} total{(dirty ? "  [UNSAVED]" : "")}");
             int choice = EditorIO.Menu("Choose:", new[]
             {
                 "List all NPCs",
@@ -92,7 +92,7 @@ internal static class NPCEditor
         }
         catch (Exception ex)
         {
-            EditorIO.Error($"Failed to read {path}: {ex.Message}");
+            EditorIO.Error((FormattableString)$"Failed to read {path}: {ex.Message}");
             EditorIO.Info("Falling back to built-in defaults for this session.");
             return ClassicNPCs.GetBuiltInNPCs();
         }
@@ -105,14 +105,14 @@ internal static class NPCEditor
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(path, JsonSerializer.Serialize(npcs, GameDataLoader.JsonOptions));
-            EditorIO.Success($"Wrote {npcs.Count} NPC(s) to {path}");
+            EditorIO.Success((FormattableString)$"Wrote {npcs.Count} NPC(s) to {path}");
             EditorIO.Info("Restart the game to pick up the changes.");
             EditorIO.Pause();
             return true;
         }
         catch (Exception ex)
         {
-            EditorIO.Error($"Failed to write {path}: {ex.Message}");
+            EditorIO.Error((FormattableString)$"Failed to write {path}: {ex.Message}");
             EditorIO.Pause();
             return false;
         }
@@ -120,7 +120,7 @@ internal static class NPCEditor
 
     private static void ListAll(List<NPCTemplate> npcs)
     {
-        EditorIO.Section($"NPCs ({npcs.Count})");
+        EditorIO.Section((FormattableString)$"NPCs ({npcs.Count})");
         string filter = EditorIO.Prompt("Filter by name (blank for all, 'q' to cancel)");
         if (filter == "q") return;
         var shown = string.IsNullOrWhiteSpace(filter)
@@ -130,10 +130,10 @@ internal static class NPCEditor
         while (page * pageSize < shown.Count)
         {
             foreach (var n in shown.Skip(page * pageSize).Take(pageSize))
-                EditorIO.Info($"  {n.Name,-28} L{n.StartLevel,-3} {n.Race,-10} {n.Class,-13} {n.Alignment,-7} {n.Personality}");
+                EditorIO.Info((FormattableString)$"  {n.Name,-28} L{n.StartLevel,-3} {n.Race,-10} {n.Class,-13} {n.Alignment,-7} {n.Personality}");
             page++;
             if (page * pageSize >= shown.Count) break;
-            if (!EditorIO.Confirm($"Shown {page * pageSize}/{shown.Count}. More?")) break;
+            if (!EditorIO.Confirm((FormattableString)$"Shown {page * pageSize}/{shown.Count}. More?")) break;
         }
         EditorIO.Pause();
     }
@@ -148,7 +148,7 @@ internal static class NPCEditor
             return false;
         }
         npcs.Add(n);
-        EditorIO.Success($"Added \"{n.Name}\". Use 'Save' when done.");
+        EditorIO.Success((FormattableString)$"Added \"{n.Name}\". Use 'Save' when done.");
         EditorIO.Pause();
         return true;
     }
@@ -173,7 +173,7 @@ internal static class NPCEditor
         int pick = EditorIO.Menu("NPC to delete", labels);
         if (pick == 0) return false;
         var n = npcs[pick - 1];
-        if (!EditorIO.Confirm($"Delete \"{n.Name}\"?")) return false;
+        if (!EditorIO.Confirm((FormattableString)$"Delete \"{n.Name}\"?")) return false;
         npcs.RemoveAt(pick - 1);
         EditorIO.Success("Deleted. Use 'Save' when done.");
         EditorIO.Pause();

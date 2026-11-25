@@ -54,7 +54,7 @@ internal static class PlayerSaveEditor
         EditorIO.Section("Player Saves");
         var backend = new FileSaveBackend();
         var saveDir = backend.GetSaveDirectory();
-        EditorIO.Info($"Save directory: {saveDir}");
+        EditorIO.Info((FormattableString)$"Save directory: {saveDir}");
 
         var saves = backend.GetAllSaves();
         if (saves.Count == 0)
@@ -81,7 +81,7 @@ internal static class PlayerSaveEditor
             : Path.Combine(saveDir, SanitizeFileName(chosen.PlayerName) + ".json");
         if (!File.Exists(path))
         {
-            EditorIO.Error($"Expected save file not found: {path}");
+            EditorIO.Error((FormattableString)$"Expected save file not found: {path}");
             EditorIO.Pause();
             return;
         }
@@ -96,7 +96,7 @@ internal static class PlayerSaveEditor
         }
         catch (Exception ex)
         {
-            EditorIO.Error($"Failed to parse save JSON: {ex.Message}");
+            EditorIO.Error((FormattableString)$"Failed to parse save JSON: {ex.Message}");
             EditorIO.Pause();
             return;
         }
@@ -119,7 +119,7 @@ internal static class PlayerSaveEditor
         while (true)
         {
             var p = data.Player;
-            EditorIO.Section($"Editing: {p.Name2} (L{p.Level} {p.Class}, {p.Race}){(dirty ? "  [UNSAVED CHANGES]" : "")}");
+            EditorIO.Section((FormattableString)$"Editing: {p.Name2} (L{p.Level} {p.Class}, {p.Race}){(dirty ? "  [UNSAVED CHANGES]" : "")}");
             int choice = EditorIO.Menu("Choose category:", new[]
             {
                 "Character Info           — name, class, race, alignment, fame, knighthood",
@@ -186,7 +186,7 @@ internal static class PlayerSaveEditor
             }
             catch (Exception ex)
             {
-                EditorIO.Error($"Editor action failed: {ex.Message}");
+                EditorIO.Error((FormattableString)$"Editor action failed: {ex.Message}");
                 EditorIO.Info(ex.StackTrace ?? "");
                 EditorIO.Pause();
             }
@@ -212,13 +212,13 @@ internal static class PlayerSaveEditor
             // IncludeFields), or the game won't see the edited fields when it reloads.
             var json = JsonSerializer.Serialize(data, GameSaveJsonOptions);
             File.WriteAllText(path, json);
-            EditorIO.Success($"Saved. Backup at: {backupPath}");
+            EditorIO.Success((FormattableString)$"Saved. Backup at: {backupPath}");
             EditorIO.Pause();
             return true;
         }
         catch (Exception ex)
         {
-            EditorIO.Error($"Write failed: {ex.Message}");
+            EditorIO.Error((FormattableString)$"Write failed: {ex.Message}");
             EditorIO.Pause();
             return false;
         }
@@ -284,7 +284,7 @@ internal static class PlayerSaveEditor
         EditorIO.Info("-- Mental health (v1.1.15) --");
         p.MentalSchema = EditorIO.PromptInt("Mental schema (0 = legacy, resets Mental to full on load; 1 = current)", p.MentalSchema, min: 0, max: GameConfig.MentalSchemaCurrent);
         p.MentalStrainRemainder = EditorIO.PromptInt("Mental strain remainder (hundredths of a per mille toward the next point)", p.MentalStrainRemainder, min: 0);
-        p.WillowDraughts = EditorIO.PromptInt($"Willow Draughts carried (0-{GameConfig.MaxWillowDraughts})", p.WillowDraughts, min: 0, max: GameConfig.MaxWillowDraughts);
+        p.WillowDraughts = EditorIO.PromptInt((FormattableString)$"Willow Draughts carried (0-{GameConfig.MaxWillowDraughts})", p.WillowDraughts, min: 0, max: GameConfig.MaxWillowDraughts);
         p.MentalRecoveryUsedToday = EditorIO.PromptInt("Mental recovery sources used today (MentalDailySource bitmask, 0 = none)", p.MentalRecoveryUsedToday, min: 0);
         p.MentalBroken = EditorIO.PromptBool("Mental collapse (Broken) affliction active", p.MentalBroken);
         p.MentalHintShown = EditorIO.PromptBool("First mental-health hint already shown", p.MentalHintShown);
@@ -294,7 +294,7 @@ internal static class PlayerSaveEditor
 
         EditorIO.Info("-- God Favor (1.2.0) --");
         p.GodFavorSchema = EditorIO.PromptInt("God Favor schema (0 = legacy, sets Favor 10 with the current god on load; 1 = current)", p.GodFavorSchema, min: 0, max: GameConfig.GodFavorSchemaCurrent);
-        p.GodFavor = EditorIO.PromptInt($"Favor with the worshipped god ({GameConfig.GodFavorMin}-{GameConfig.GodFavorMax})", p.GodFavor, min: GameConfig.GodFavorMin, max: GameConfig.GodFavorMax);
+        p.GodFavor = EditorIO.PromptInt((FormattableString)$"Favor with the worshipped god ({GameConfig.GodFavorMin}-{GameConfig.GodFavorMax})", p.GodFavor, min: GameConfig.GodFavorMin, max: GameConfig.GodFavorMax);
         p.GodFavorGod = EditorIO.PromptString("God the Favor belongs to (must match the worshipped god, else Favor reads 0)", p.GodFavorGod ?? "");
         p.DaysSinceDevotion = EditorIO.PromptInt("Daily resets since the last devotion (neglect)", p.DaysSinceDevotion, min: 0);
         p.DivineDomain = PromptDivineDomain(p.DivineDomain);
@@ -306,14 +306,14 @@ internal static class PlayerSaveEditor
         EditorIO.Info("Immortal: followers chastised today: " + (p.ChastisedToday == null || p.ChastisedToday.Count == 0 ? "none" : string.Join(", ", p.ChastisedToday)));
         if (EditorIO.PromptBool("Clear the followers chastised today", false))
             p.ChastisedToday = new List<string>();
-        EditorIO.Info($"Single-player desecration standing penalties (week {p.GodStandingPenaltyWeek}): " +
+        EditorIO.Info((FormattableString)$"Single-player desecration standing penalties (week {p.GodStandingPenaltyWeek}): " +
             (p.GodStandingPenalties == null || p.GodStandingPenalties.Count == 0 ? "none" : string.Join(", ", p.GodStandingPenalties.Select(kv => $"{kv.Key} -{kv.Value}"))));
         if (EditorIO.PromptBool("Clear the desecration standing penalties", false))
         {
             p.GodStandingPenalties = new Dictionary<string, int>();
             p.GodStandingPenaltyWeek = -1;
         }
-        EditorIO.Info($"Single-player strongest god of the week: {(string.IsNullOrEmpty(p.WeeklyGod) ? "none" : p.WeeklyGod)} (week {p.WeeklyGodWeek})");
+        EditorIO.Info((FormattableString)$"Single-player strongest god of the week: {(string.IsNullOrEmpty(p.WeeklyGod) ? "none" : p.WeeklyGod)} (week {p.WeeklyGodWeek})");
         if (EditorIO.PromptBool("Clear the weekly god pick (picked again at the next check)", false))
         {
             p.WeeklyGodWeek = -1;
@@ -335,7 +335,7 @@ internal static class PlayerSaveEditor
         {
             string input = EditorIO.PromptString("Immortal's god domain (Light, War, Love, Law, Shadow, Earth, Death, Magic, Nature, Chaos; blank = not chosen)", shown);
             if (IsValidDomainInput(input)) return input;
-            EditorIO.Warn($"Unknown domain \"{input}\". Enter one of Light, War, Love, Law, Shadow, Earth, Death, Magic, Nature, Chaos.");
+            EditorIO.Warn((FormattableString)$"Unknown domain \"{input}\". Enter one of Light, War, Love, Law, Shadow, Earth, Death, Magic, Nature, Chaos.");
         }
     }
 
@@ -435,16 +435,16 @@ internal static class PlayerSaveEditor
         {
             int choice = EditorIO.Menu("Inventory & Equipment", new[]
             {
-                $"View inventory ({p.Inventory?.Count ?? 0} items)",
+                EditorLoc.F("View inventory ({0} items)", p.Inventory?.Count ?? 0),
                 "Add item to inventory (by ID)",
                 "Remove item from inventory",
                 "Clear entire inventory",
-                $"View equipped slots ({p.EquippedItems?.Count ?? 0} equipped)",
+                EditorLoc.F("View equipped slots ({0} equipped)", p.EquippedItems?.Count ?? 0),
                 "Equip item in slot (by ID)",
                 "Unequip a slot",
                 "Clear all equipped items",
                 "Uncurse equipped items (weapon/armor/shield flags)",
-                $"Potions (heal: {p.Healing}, mana: {p.ManaPotions}, antidote: {p.Antidotes})",
+                EditorLoc.F("Potions (heal: {0}, mana: {1}, antidote: {2})", p.Healing, p.ManaPotions, p.Antidotes),
             });
             if (choice == 0) return;
             switch (choice)
@@ -475,7 +475,7 @@ internal static class PlayerSaveEditor
 
     private static void ListInventory(PlayerData p)
     {
-        EditorIO.Section($"Inventory ({p.Inventory?.Count ?? 0})");
+        EditorIO.Section((FormattableString)$"Inventory ({p.Inventory?.Count ?? 0})");
         if (p.Inventory == null || p.Inventory.Count == 0)
         {
             EditorIO.Info("  (empty)");
@@ -488,9 +488,9 @@ internal static class PlayerSaveEditor
         for (int i = 0; i < p.Inventory.Count && i < 200; i++)
         {
             var inv = p.Inventory[i];
-            EditorIO.Info($"  [{i + 1,3}] {inv.Name,-38} type={inv.Type,-10} val={inv.Value,-7} cursed={inv.IsCursed} identified={inv.IsIdentified}");
+            EditorIO.Info((FormattableString)$"  [{i + 1,3}] {inv.Name,-38} type={inv.Type,-10} val={inv.Value,-7} cursed={inv.IsCursed} identified={inv.IsIdentified}");
         }
-        if (p.Inventory.Count > 200) EditorIO.Info($"  ...and {p.Inventory.Count - 200} more (use the JSON for full audit).");
+        if (p.Inventory.Count > 200) EditorIO.Info((FormattableString)$"  ...and {p.Inventory.Count - 200} more (use the JSON for full audit).");
         EditorIO.Pause();
     }
 
@@ -528,7 +528,7 @@ internal static class PlayerSaveEditor
 
         var shown = filtered.ToList();
         if (shown.Count == 0) { EditorIO.Warn("No matches."); EditorIO.Pause(); return; }
-        if (shown.Count > 400) { EditorIO.Warn($"{shown.Count} matches — tighten the filter."); EditorIO.Pause(); return; }
+        if (shown.Count > 400) { EditorIO.Warn((FormattableString)$"{shown.Count} matches — tighten the filter."); EditorIO.Pause(); return; }
 
         var labels = shown.Select(e =>
             $"#{e.Id,-7} [{e.Slot,-10}] [{e.Rarity,-8}] {e.Name,-38} MinL{e.MinLevel,-3} {e.Value,8:N0}g"
@@ -562,7 +562,7 @@ internal static class PlayerSaveEditor
             IsCursed = eq.IsCursed,
             IsIdentified = true,
         });
-        EditorIO.Success($"Added \"{eq.Name}\" to inventory.");
+        EditorIO.Success((FormattableString)$"Added \"{eq.Name}\" to inventory.");
         EditorIO.Pause();
     }
 
@@ -580,22 +580,22 @@ internal static class PlayerSaveEditor
         if (pick == 0) return;
         var match = p.Inventory[pick - 1];
         p.Inventory.RemoveAt(pick - 1);
-        EditorIO.Success($"Removed \"{match.Name}\".");
+        EditorIO.Success((FormattableString)$"Removed \"{match.Name}\".");
         EditorIO.Pause();
     }
 
     private static void ListEquipped(PlayerData p)
     {
-        EditorIO.Section($"Equipped slots ({p.EquippedItems?.Count ?? 0})");
+        EditorIO.Section((FormattableString)$"Equipped slots ({p.EquippedItems?.Count ?? 0})");
         if (p.EquippedItems == null || p.EquippedItems.Count == 0)
         { EditorIO.Info("  (nothing equipped)"); EditorIO.Pause(); return; }
         foreach (var kv in p.EquippedItems)
         {
             string slotName = ((EquipmentSlot)kv.Key).ToString();
             string itemName = ResolveItemName(kv.Value) ?? "<unknown>";
-            EditorIO.Info($"  {slotName,-12} ID:{kv.Value,-7} {itemName}");
+            EditorIO.Info((FormattableString)$"  {slotName,-12} ID:{kv.Value,-7} {itemName}");
         }
-        EditorIO.Info($"  WeaponCursed={p.WeaponCursed} ArmorCursed={p.ArmorCursed} ShieldCursed={p.ShieldCursed}");
+        EditorIO.Info((FormattableString)$"  WeaponCursed={p.WeaponCursed} ArmorCursed={p.ArmorCursed} ShieldCursed={p.ShieldCursed}");
         EditorIO.Pause();
     }
 
@@ -614,7 +614,7 @@ internal static class PlayerSaveEditor
             .ToList();
         if (candidates.Count == 0)
         {
-            EditorIO.Warn($"No equipment registered for slot {slot}.");
+            EditorIO.Warn((FormattableString)$"No equipment registered for slot {slot}.");
             EditorIO.Pause();
             return;
         }
@@ -625,23 +625,23 @@ internal static class PlayerSaveEditor
             ? candidates
             : candidates.Where(e => e.Name.Contains(nameFilter, StringComparison.OrdinalIgnoreCase)).ToList();
         if (shown.Count == 0) { EditorIO.Warn("No matches."); EditorIO.Pause(); return; }
-        if (shown.Count > 400) { EditorIO.Warn($"{shown.Count} matches — tighten the filter."); EditorIO.Pause(); return; }
+        if (shown.Count > 400) { EditorIO.Warn((FormattableString)$"{shown.Count} matches — tighten the filter."); EditorIO.Pause(); return; }
 
         var labels = shown.Select(e =>
             $"#{e.Id,-7} [{e.Rarity,-8}] {e.Name,-38} MinL{e.MinLevel,-3} Pow={e.WeaponPower}/{e.ArmorClass} {e.Value,8:N0}g"
         ).ToList();
-        int pick = EditorIO.Menu($"Item to equip in {slot}", labels);
+        int pick = EditorIO.Menu((FormattableString)$"Item to equip in {slot}", labels);
         if (pick == 0) return;
         var eq = shown[pick - 1];
         p.EquippedItems ??= new Dictionary<int, int>();
         p.EquippedItems[(int)slot] = eq.Id;
-        EditorIO.Success($"{slot} = #{eq.Id} ({eq.Name})");
+        EditorIO.Success((FormattableString)$"{slot} = #{eq.Id} ({eq.Name})");
         // Class/level restrictions are enforced at runtime (Character.CanEquip),
         // not at load — so equipping out-of-class gear via editor writes fine
         // but the game will block actual use (e.g. Warrior can't swing a Staff's
         // magic bonuses). Let the user know rather than silently "allowing" it.
         if (eq.MinLevel > p.Level)
-            EditorIO.Warn($"Warning: {eq.Name} has MinLevel={eq.MinLevel}, player is L{p.Level}. Item works on load but gameplay may restrict.");
+            EditorIO.Warn((FormattableString)$"Warning: {eq.Name} has MinLevel={eq.MinLevel}, player is L{p.Level}. Item works on load but gameplay may restrict.");
         EditorIO.Pause();
     }
 
@@ -660,7 +660,7 @@ internal static class PlayerSaveEditor
         if (pick == 0) return;
         int slotKey = filled[pick - 1].Key;
         p.EquippedItems.Remove(slotKey);
-        EditorIO.Success($"{(EquipmentSlot)slotKey} cleared.");
+        EditorIO.Success((FormattableString)$"{(EquipmentSlot)slotKey} cleared.");
         EditorIO.Pause();
     }
 
@@ -756,7 +756,7 @@ internal static class PlayerSaveEditor
             catch (Exception ex)
             {
                 // Silent — one bad entry shouldn't block editing the rest.
-                EditorIO.Warn($"Skipped dynamic equipment #{equipData.Id}: {ex.Message}");
+                EditorIO.Warn((FormattableString)$"Skipped dynamic equipment #{equipData.Id}: {ex.Message}");
             }
         }
     }
@@ -771,15 +771,15 @@ internal static class PlayerSaveEditor
         {
             int choice = EditorIO.Menu("Spells & Abilities", new[]
             {
-                $"View learned spells ({p.Spells?.Count(s => s != null && s.Count > 0 && s[0]) ?? 0} known)",
+                EditorLoc.F("View learned spells ({0} known)", p.Spells?.Count(s => s != null && s.Count > 0 && s[0]) ?? 0),
                 "Learn ALL spells (known, not mastered)",
                 "Master ALL spells",
                 "Clear all spells",
-                $"View learned abilities ({p.LearnedAbilities?.Count ?? 0})",
+                EditorLoc.F("View learned abilities ({0})", p.LearnedAbilities?.Count ?? 0),
                 "Add ability by ID",
                 "Remove ability",
                 "Clear all abilities",
-                $"View quickbar ({p.Quickbar?.Count ?? 0} slots)",
+                EditorLoc.F("View quickbar ({0} slots)", p.Quickbar?.Count ?? 0),
                 "Clear quickbar",
             });
             if (choice == 0) return;
@@ -798,7 +798,7 @@ internal static class PlayerSaveEditor
                     if (p.LearnedAbilities == null || p.LearnedAbilities.Count == 0)
                         EditorIO.Info("(none)");
                     else
-                        foreach (var a in p.LearnedAbilities) EditorIO.Info($"  {a}");
+                        foreach (var a in p.LearnedAbilities) EditorIO.Info((FormattableString)$"  {a}");
                     EditorIO.Pause();
                     break;
                 case 6:
@@ -813,9 +813,9 @@ internal static class PlayerSaveEditor
                         var chosen = all[pick - 1];
                         p.LearnedAbilities ??= new List<string>();
                         if (!p.LearnedAbilities.Contains(chosen.Id))
-                        { p.LearnedAbilities.Add(chosen.Id); EditorIO.Success($"Granted {chosen.Name}."); }
+                        { p.LearnedAbilities.Add(chosen.Id); EditorIO.Success((FormattableString)$"Granted {chosen.Name}."); }
                         else
-                            EditorIO.Info($"{chosen.Name} already known.");
+                            EditorIO.Info((FormattableString)$"{chosen.Name} already known.");
                         EditorIO.Pause();
                         break;
                     }
@@ -827,7 +827,7 @@ internal static class PlayerSaveEditor
                         if (pick == 0) break;
                         var removed = p.LearnedAbilities[pick - 1];
                         p.LearnedAbilities.RemoveAt(pick - 1);
-                        EditorIO.Success($"Removed {removed}.");
+                        EditorIO.Success((FormattableString)$"Removed {removed}.");
                         EditorIO.Pause();
                         break;
                     }
@@ -839,7 +839,7 @@ internal static class PlayerSaveEditor
                     if (p.Quickbar == null || p.Quickbar.Count == 0)
                         EditorIO.Info("(empty)");
                     else
-                        for (int i = 0; i < p.Quickbar.Count; i++) EditorIO.Info($"  [{i + 1}] {p.Quickbar[i] ?? "(empty)"}");
+                        for (int i = 0; i < p.Quickbar.Count; i++) EditorIO.Info((FormattableString)$"  [{i + 1}] {p.Quickbar[i] ?? "(empty)"}");
                     EditorIO.Pause();
                     break;
                 case 10:
@@ -857,10 +857,10 @@ internal static class PlayerSaveEditor
         {
             var row = p.Spells[i];
             if (row == null || row.Count == 0) continue;
-            if (row[0]) { known++; EditorIO.Info($"  Spell[{i}] known{(row.Count > 1 && row[1] ? ", mastered" : "")}"); }
+            if (row[0]) { known++; EditorIO.Info((FormattableString)$"  Spell[{i}] known{(row.Count > 1 && row[1] ? ", mastered" : "")}"); }
             if (row.Count > 1 && row[1]) mastered++;
         }
-        EditorIO.Info($"  Total known: {known}, mastered: {mastered}");
+        EditorIO.Info((FormattableString)$"  Total known: {known}, mastered: {mastered}");
         EditorIO.Pause();
     }
 
@@ -875,7 +875,7 @@ internal static class PlayerSaveEditor
         // user understands the edit is effectively a no-op for them.
         if (!IsCasterClass(p.Class))
         {
-            EditorIO.Warn($"{p.Class} is not a caster class. Spells require a mana pool; granted spells won't be castable.");
+            EditorIO.Warn((FormattableString)$"{p.Class} is not a caster class. Spells require a mana pool; granted spells won't be castable.");
             EditorIO.Info("Caster classes: Cleric, Magician, Sage, MysticShaman, and all 5 prestige classes.");
             EditorIO.Info("(Paladin, Bard, Alchemist use stamina, not mana — their class abilities live under 'Abilities' instead.)");
             if (!EditorIO.Confirm("Write the spell entries anyway?")) return;
@@ -893,7 +893,7 @@ internal static class PlayerSaveEditor
             row[1] = mastered;
             p.Spells[i] = row;
         }
-        EditorIO.Success($"All spells {(mastered ? "mastered" : "learned")}.");
+        EditorIO.Success((FormattableString)$"All spells {(mastered ? "mastered" : "learned")}.");
         EditorIO.Pause();
     }
 
@@ -930,7 +930,7 @@ internal static class PlayerSaveEditor
         {
             int choice = EditorIO.Menu("Companions", new[]
             {
-                $"List companions ({data.StorySystems.Companions.Count})",
+                EditorLoc.F("List companions ({0})", data.StorySystems.Companions.Count),
                 "Revive a fallen companion",
                 "Set loyalty / trust / romance level",
                 "Recruit a companion by ID",
@@ -942,7 +942,7 @@ internal static class PlayerSaveEditor
             {
                 case 1:
                     foreach (var c in data.StorySystems.Companions)
-                        EditorIO.Info($"  ID:{c.Id}  recruited:{c.IsRecruited} active:{c.IsActive} dead:{c.IsDead}  L{c.Level}  loyalty:{c.LoyaltyLevel} trust:{c.TrustLevel} romance:{c.RomanceLevel}");
+                        EditorIO.Info((FormattableString)$"  ID:{c.Id}  recruited:{c.IsRecruited} active:{c.IsActive} dead:{c.IsDead}  L{c.Level}  loyalty:{c.LoyaltyLevel} trust:{c.TrustLevel} romance:{c.RomanceLevel}");
                     EditorIO.Pause();
                     break;
                 case 2:
@@ -979,7 +979,7 @@ internal static class PlayerSaveEditor
                             }
                         }
                         data.StorySystems.FallenCompanions.RemoveAll(f => f.CompanionId == id);
-                        EditorIO.Success($"{picked} set to recruited{(ex.IsActive ? "+active" : "")}.");
+                        EditorIO.Success((FormattableString)$"{picked} set to recruited{(ex.IsActive ? "+active" : "")}.");
                         EditorIO.Pause();
                         break;
                     }
@@ -991,7 +991,7 @@ internal static class PlayerSaveEditor
                         if (ex == null) { EditorIO.Warn("Not found."); EditorIO.Pause(); break; }
                         ex.IsRecruited = false; ex.IsActive = false;
                         data.StorySystems.ActiveCompanionIds.Remove(id);
-                        EditorIO.Success($"{picked} dismissed.");
+                        EditorIO.Success((FormattableString)$"{picked} dismissed.");
                         EditorIO.Pause();
                         break;
                     }
@@ -1026,9 +1026,9 @@ internal static class PlayerSaveEditor
         var picked = EditorIO.PromptEnum("Companion to revive", UsurperRemake.Systems.CompanionId.Aldric);
         int id = (int)picked;
         var c = companions.FirstOrDefault(x => x.Id == id);
-        if (c == null) { EditorIO.Warn($"{picked} is not in the save. Use 'Recruit' first."); EditorIO.Pause(); return; }
+        if (c == null) { EditorIO.Warn((FormattableString)$"{picked} is not in the save. Use 'Recruit' first."); EditorIO.Pause(); return; }
         if (!c.IsDead && !fallen.Any(f => f.CompanionId == id))
-        { EditorIO.Info($"{picked} is not dead."); EditorIO.Pause(); return; }
+        { EditorIO.Info((FormattableString)$"{picked} is not dead."); EditorIO.Pause(); return; }
         c.IsDead = false;
         c.IsRecruited = true;
         // v0.57.4 (pass 3): remove from FallenCompanions too — CompanionSystem
@@ -1045,7 +1045,7 @@ internal static class PlayerSaveEditor
             data.StorySystems.ActiveGriefs.RemoveAll(g => g.CompanionId == id);
         if (data.StorySystems.GriefMemories != null)
             data.StorySystems.GriefMemories.RemoveAll(m => m.CompanionId == id);
-        EditorIO.Success($"{picked} revived. Use Recruit to re-add them to the active party.");
+        EditorIO.Success((FormattableString)$"{picked} revived. Use Recruit to re-add them to the active party.");
         EditorIO.Pause();
     }
 
@@ -1054,7 +1054,7 @@ internal static class PlayerSaveEditor
         var picked = EditorIO.PromptEnum("Companion", UsurperRemake.Systems.CompanionId.Aldric);
         int id = (int)picked;
         var c = companions.FirstOrDefault(x => x.Id == id);
-        if (c == null) { EditorIO.Warn($"{picked} is not in the save. Recruit them first."); EditorIO.Pause(); return; }
+        if (c == null) { EditorIO.Warn((FormattableString)$"{picked} is not in the save. Recruit them first."); EditorIO.Pause(); return; }
         c.LoyaltyLevel = EditorIO.PromptInt("Loyalty (0-100)", c.LoyaltyLevel, min: 0, max: 100);
         c.TrustLevel = EditorIO.PromptInt("Trust (0-100)", c.TrustLevel, min: 0, max: 100);
         c.RomanceLevel = EditorIO.PromptInt("Romance (0-100)", c.RomanceLevel, min: 0, max: 100);
@@ -1082,7 +1082,7 @@ internal static class PlayerSaveEditor
         {
             int choice = EditorIO.Menu("Quests", new[]
             {
-                $"List quests ({p.ActiveQuests.Count})",
+                EditorLoc.F("List quests ({0})", p.ActiveQuests.Count),
                 "Mark a quest complete (sets Status)",
                 "Cancel a quest",
                 "Clear ALL quests",
@@ -1093,7 +1093,7 @@ internal static class PlayerSaveEditor
                 case 1:
                     if (p.ActiveQuests.Count == 0) { EditorIO.Info("(none)"); EditorIO.Pause(); break; }
                     foreach (var q in p.ActiveQuests)
-                        EditorIO.Info($"  [{q.Id}] {q.Title}  status={q.Status}  reward={q.Reward}");
+                        EditorIO.Info((FormattableString)$"  [{q.Id}] {q.Title}  status={q.Status}  reward={q.Reward}");
                     EditorIO.Pause();
                     break;
                 case 2:
@@ -1102,7 +1102,7 @@ internal static class PlayerSaveEditor
                         var q = PickQuest(p.ActiveQuests, "Quest to mark complete");
                         if (q == null) break;
                         q.Status = QuestStatus.Completed;
-                        EditorIO.Success($"Marked \"{q.Title}\" complete.");
+                        EditorIO.Success((FormattableString)$"Marked \"{q.Title}\" complete.");
                         EditorIO.Pause();
                         break;
                     }
@@ -1112,7 +1112,7 @@ internal static class PlayerSaveEditor
                         var q = PickQuest(p.ActiveQuests, "Quest to cancel");
                         if (q == null) break;
                         q.Status = QuestStatus.Abandoned;
-                        EditorIO.Success($"Cancelled \"{q.Title}\".");
+                        EditorIO.Success((FormattableString)$"Cancelled \"{q.Title}\".");
                         EditorIO.Pause();
                         break;
                     }
@@ -1158,16 +1158,16 @@ internal static class PlayerSaveEditor
         {
             int choice = EditorIO.Menu("Story & Old Gods", new[]
             {
-                $"Old God states ({s.OldGodStates?.Count ?? 0} tracked)",
+                EditorLoc.F("Old God states ({0} tracked)", s.OldGodStates?.Count ?? 0),
                 "Set Old God status by ID",
-                $"Collected seals ({s.CollectedSeals?.Count ?? 0}/7)",
+                EditorLoc.F("Collected seals ({0}/7)", s.CollectedSeals?.Count ?? 0),
                 "Grant all seven seals",
                 "Clear seals",
-                $"Collected artifacts ({s.CollectedArtifacts?.Count ?? 0})",
+                EditorLoc.F("Collected artifacts ({0})", s.CollectedArtifacts?.Count ?? 0),
                 "Grant artifact by ID",
-                $"NG+ cycle: {s.CurrentCycle}",
+                EditorLoc.F("NG+ cycle: {0}", s.CurrentCycle),
                 "Set NG+ cycle",
-                $"Completed endings: [{string.Join(",", s.CompletedEndings ?? new())}]",
+                EditorLoc.F("Completed endings: [{0}]", string.Join(",", s.CompletedEndings ?? new())),
                 "Clear story flags",
             });
             if (choice == 0) return;
@@ -1175,14 +1175,14 @@ internal static class PlayerSaveEditor
             {
                 case 1:
                     foreach (var kv in s.OldGodStates ?? new())
-                        EditorIO.Info($"  God#{kv.Key}  status={kv.Value}");
+                        EditorIO.Info((FormattableString)$"  God#{kv.Key}  status={kv.Value}");
                     EditorIO.Pause();
                     break;
                 case 2:
                     SetOldGodStatus(s);
                     break;
                 case 3:
-                    foreach (var id in s.CollectedSeals ?? new()) EditorIO.Info($"  Seal #{id}");
+                    foreach (var id in s.CollectedSeals ?? new()) EditorIO.Info((FormattableString)$"  Seal #{id}");
                     EditorIO.Pause();
                     break;
                 case 4:
@@ -1196,7 +1196,7 @@ internal static class PlayerSaveEditor
                     EditorIO.Pause();
                     break;
                 case 6:
-                    foreach (var id in s.CollectedArtifacts ?? new()) EditorIO.Info($"  Artifact #{id}");
+                    foreach (var id in s.CollectedArtifacts ?? new()) EditorIO.Info((FormattableString)$"  Artifact #{id}");
                     EditorIO.Pause();
                     break;
                 case 7:
@@ -1204,7 +1204,7 @@ internal static class PlayerSaveEditor
                         s.CollectedArtifacts ??= new List<int>();
                         var artifact = EditorIO.PromptEnum("Artifact", ArtifactType.CreatorsEye);
                         if (!s.CollectedArtifacts.Contains((int)artifact)) s.CollectedArtifacts.Add((int)artifact);
-                        EditorIO.Success($"Granted {artifact}.");
+                        EditorIO.Success((FormattableString)$"Granted {artifact}.");
                         EditorIO.Pause();
                         break;
                     }
@@ -1228,10 +1228,10 @@ internal static class PlayerSaveEditor
                     {
                         float suggested = 1.0f + (s.CurrentCycle - 1) * 0.25f;
                         var p = data.Player;
-                        if (EditorIO.Confirm($"Also set CycleExpMultiplier to {suggested:F2}x (suggested for cycle {s.CurrentCycle})?"))
+                        if (EditorIO.Confirm((FormattableString)$"Also set CycleExpMultiplier to {suggested:F2}x (suggested for cycle {s.CurrentCycle})?"))
                         {
                             p.CycleExpMultiplier = suggested;
-                            EditorIO.Success($"CycleExpMultiplier = {suggested:F2}x");
+                            EditorIO.Success((FormattableString)$"CycleExpMultiplier = {suggested:F2}x");
                         }
                     }
                     break;
@@ -1253,7 +1253,7 @@ internal static class PlayerSaveEditor
         var god = EditorIO.PromptEnum("Old God", OldGodType.Maelketh);
         var status = EditorIO.PromptEnum("Status", GodStatus.Dormant);
         s.OldGodStates[(int)god] = (int)status;
-        EditorIO.Success($"{god} = {status}.");
+        EditorIO.Success((FormattableString)$"{god} = {status}.");
         EditorIO.Pause();
     }
 
@@ -1277,12 +1277,12 @@ internal static class PlayerSaveEditor
         {
             int choice = EditorIO.Menu("Relationships & Family", new[]
             {
-                $"List relationships ({p.Relationships.Count})",
+                EditorLoc.F("List relationships ({0})", p.Relationships.Count),
                 "Set a relationship score by NPC name",
                 "Clear all relationships",
-                $"Kids: {p.Kids}",
+                EditorLoc.F("Kids: {0}", p.Kids),
                 "Set kid count (simple counter; full Children list editable via JSON)",
-                $"Divine wrath level: {p.DivineWrathLevel}",
+                EditorLoc.F("Divine wrath level: {0}", p.DivineWrathLevel),
                 "Clear divine wrath (forgive the betrayed god)",
             });
             if (choice == 0) return;
@@ -1290,7 +1290,7 @@ internal static class PlayerSaveEditor
             {
                 case 1:
                     foreach (var kv in p.Relationships.OrderByDescending(k => k.Value))
-                        EditorIO.Info($"  {kv.Key,-25} {kv.Value:F1}");
+                        EditorIO.Info((FormattableString)$"  {kv.Key,-25} {kv.Value:F1}");
                     EditorIO.Pause();
                     break;
                 case 2:
@@ -1300,7 +1300,7 @@ internal static class PlayerSaveEditor
                         float cur = p.Relationships.TryGetValue(name, out var v) ? v : 0;
                         var s = EditorIO.PromptString("Score (-100..100 typical)", cur.ToString("F1"));
                         if (float.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var f))
-                        { p.Relationships[name] = f; EditorIO.Success($"{name} = {f}"); }
+                        { p.Relationships[name] = f; EditorIO.Success((FormattableString)$"{name} = {f}"); }
                         else EditorIO.Warn("Not a number.");
                         EditorIO.Pause();
                         break;
@@ -1346,18 +1346,18 @@ internal static class PlayerSaveEditor
         {
             int choice = EditorIO.Menu("Status & Cleanup", new[]
             {
-                $"Cure diseases (Blind={p.Blind} Plague={p.Plague} Smallpox={p.Smallpox} Measles={p.Measles} Leprosy={p.Leprosy} LoversBane={p.LoversBane})",
-                $"Clear poison (Poison={p.Poison}, turns={p.PoisonTurns})",
+                EditorLoc.F("Cure diseases (Blind={0} Plague={1} Smallpox={2} Measles={3} Leprosy={4} LoversBane={5})", p.Blind, p.Plague, p.Smallpox, p.Measles, p.Leprosy, p.LoversBane),
+                EditorLoc.F("Clear poison (Poison={0}, turns={1})", p.Poison, p.PoisonTurns),
                 "Clear drug addiction / steroid effects",
                 "Reset ALL daily counters (fights, brawls, thievery, etc.)",
                 "Clear all active status effects",
                 "Release from prison",
                 "Clear wanted level",
                 "Clear murder weight / perma-kill log",
-                $"Timed stat buffs ({p.TimedStatBuffs?.Count ?? 0} active, Groggo DEX={p.GroggoShadowBlessingDex}): list and clear",
-                $"Artifact stats restored at login (ArtifactStatsApplied={p.ArtifactStatsApplied}): toggle",
-                $"NG+ cycle stat bonus backfilled at login (CycleStatBonusApplied={p.CycleStatBonusApplied}): toggle",
-                $"Voidreaver CON topped up (VoidreaverConstitutionApplied={p.VoidreaverConstitutionApplied}): toggle",
+                EditorLoc.F("Timed stat buffs ({0} active, Groggo DEX={1}): list and clear", p.TimedStatBuffs?.Count ?? 0, p.GroggoShadowBlessingDex),
+                EditorLoc.F("Artifact stats restored at login (ArtifactStatsApplied={0}): toggle", p.ArtifactStatsApplied),
+                EditorLoc.F("NG+ cycle stat bonus backfilled at login (CycleStatBonusApplied={0}): toggle", p.CycleStatBonusApplied),
+                EditorLoc.F("Voidreaver CON topped up (VoidreaverConstitutionApplied={0}): toggle", p.VoidreaverConstitutionApplied),
             });
             if (choice == 0) return;
             switch (choice)
@@ -1410,19 +1410,19 @@ internal static class PlayerSaveEditor
                 case 10:
                     // 1.2.0: false makes the next login add the stats of every collected artifact once
                     p.ArtifactStatsApplied = !p.ArtifactStatsApplied;
-                    EditorIO.Success($"ArtifactStatsApplied = {p.ArtifactStatsApplied}.");
+                    EditorIO.Success((FormattableString)$"ArtifactStatsApplied = {p.ArtifactStatsApplied}.");
                     EditorIO.Pause();
                     break;
                 case 11:
                     // 1.2.0: false makes the next login grant the NG+ cycle stat bonus once from the cycle number
                     p.CycleStatBonusApplied = !p.CycleStatBonusApplied;
-                    EditorIO.Success($"CycleStatBonusApplied = {p.CycleStatBonusApplied}.");
+                    EditorIO.Success((FormattableString)$"CycleStatBonusApplied = {p.CycleStatBonusApplied}.");
                     EditorIO.Pause();
                     break;
                 case 12:
                     // 1.3.7: false makes the next login add every level's Voidreaver Constitution once
                     p.VoidreaverConstitutionApplied = !p.VoidreaverConstitutionApplied;
-                    EditorIO.Success($"VoidreaverConstitutionApplied = {p.VoidreaverConstitutionApplied}.");
+                    EditorIO.Success((FormattableString)$"VoidreaverConstitutionApplied = {p.VoidreaverConstitutionApplied}.");
                     EditorIO.Pause();
                     break;
             }
@@ -1437,9 +1437,9 @@ internal static class PlayerSaveEditor
         foreach (var b in buffs)
         {
             string end = b.EndsOn == StatBuffEnd.Combats ? $"{b.CombatsLeft} fight(s) left" : "until next rest";
-            EditorIO.Info($"  {b.Source}: {b.Stat} {(b.Amount >= 0 ? "+" : "")}{b.Amount} ({end})");
+            EditorIO.Info((FormattableString)$"  {b.Source}: {b.Stat} {(b.Amount >= 0 ? "+" : "")}{b.Amount} ({end})");
         }
-        EditorIO.Info($"  Groggo's Shadow Blessing: Dexterity +{p.GroggoShadowBlessingDex}");
+        EditorIO.Info((FormattableString)$"  Groggo's Shadow Blessing: Dexterity +{p.GroggoShadowBlessingDex}");
         if (EditorIO.Confirm("Clear all timed stat buffs and Groggo's blessing?"))
         {
             p.TimedStatBuffs = new List<TimedStatBuffData>();
@@ -1492,22 +1492,22 @@ internal static class PlayerSaveEditor
 
     private static void ShowSummary(PlayerData p)
     {
-        EditorIO.Section($"{p.Name2}  —  L{p.Level} {p.Race} {p.Class}");
-        EditorIO.Info($"  HP:   {p.HP} / {p.MaxHP}   Mana: {p.Mana} / {p.MaxMana}");
-        EditorIO.Info($"  XP:   {p.Experience}   Fame: {p.Fame}{(p.IsKnighted ? " (knighted)" : "")}{(p.King ? " — CURRENT KING" : "")}");
-        EditorIO.Info($"  Gold: {p.Gold} (bank: {p.BankGold}, loan: {p.BankLoan})");
-        EditorIO.Info($"  STR {p.Strength}  DEX {p.Dexterity}  CON {p.Constitution}  INT {p.Intelligence}  WIS {p.Wisdom}  CHA {p.Charisma}");
-        EditorIO.Info($"  DEF {p.Defence}  AGI {p.Agility}  STA {p.Stamina}   WeapPow {p.WeapPow}  ArmPow {p.ArmPow}");
-        EditorIO.Info($"  Chivalry {p.Chivalry}  Darkness {p.Darkness}");
-        EditorIO.Info($"  Resurrections: {p.Resurrections}/{p.MaxResurrections} (used {p.ResurrectionsUsed})");
-        EditorIO.Info($"  Potions: heal={p.Healing}  mana={p.ManaPotions}  antidote={p.Antidotes}");
-        EditorIO.Info($"  Inventory: {p.Inventory?.Count ?? 0} items   Equipped slots: {p.EquippedItems?.Count ?? 0}");
-        EditorIO.Info($"  Abilities: {p.LearnedAbilities?.Count ?? 0}   Quests: {p.ActiveQuests?.Count ?? 0}   Achievements: {p.Achievements?.Count(kv => kv.Value) ?? 0}");
+        EditorIO.Section((FormattableString)$"{p.Name2}  —  L{p.Level} {p.Race} {p.Class}");
+        EditorIO.Info((FormattableString)$"  HP:   {p.HP} / {p.MaxHP}   Mana: {p.Mana} / {p.MaxMana}");
+        EditorIO.Info((FormattableString)$"  XP:   {p.Experience}   Fame: {p.Fame}{(p.IsKnighted ? " (knighted)" : "")}{(p.King ? " — CURRENT KING" : "")}");
+        EditorIO.Info((FormattableString)$"  Gold: {p.Gold} (bank: {p.BankGold}, loan: {p.BankLoan})");
+        EditorIO.Info((FormattableString)$"  STR {p.Strength}  DEX {p.Dexterity}  CON {p.Constitution}  INT {p.Intelligence}  WIS {p.Wisdom}  CHA {p.Charisma}");
+        EditorIO.Info((FormattableString)$"  DEF {p.Defence}  AGI {p.Agility}  STA {p.Stamina}   WeapPow {p.WeapPow}  ArmPow {p.ArmPow}");
+        EditorIO.Info((FormattableString)$"  Chivalry {p.Chivalry}  Darkness {p.Darkness}");
+        EditorIO.Info((FormattableString)$"  Resurrections: {p.Resurrections}/{p.MaxResurrections} (used {p.ResurrectionsUsed})");
+        EditorIO.Info((FormattableString)$"  Potions: heal={p.Healing}  mana={p.ManaPotions}  antidote={p.Antidotes}");
+        EditorIO.Info((FormattableString)$"  Inventory: {p.Inventory?.Count ?? 0} items   Equipped slots: {p.EquippedItems?.Count ?? 0}");
+        EditorIO.Info((FormattableString)$"  Abilities: {p.LearnedAbilities?.Count ?? 0}   Quests: {p.ActiveQuests?.Count ?? 0}   Achievements: {p.Achievements?.Count(kv => kv.Value) ?? 0}");
         bool anyDisease = p.Blind || p.Plague || p.Smallpox || p.Measles || p.Leprosy || p.LoversBane;
-        if (anyDisease) EditorIO.Warn($"  Has diseases: Blind={p.Blind} Plague={p.Plague} Smallpox={p.Smallpox} Measles={p.Measles} Leprosy={p.Leprosy} LoversBane={p.LoversBane}");
-        if (p.Poison > 0) EditorIO.Warn($"  Poisoned ({p.PoisonTurns} turns remain)");
-        if (p.DaysInPrison > 0) EditorIO.Warn($"  In prison ({p.DaysInPrison} days)");
-        if (p.WantedLvl > 0) EditorIO.Warn($"  Wanted level: {p.WantedLvl}");
+        if (anyDisease) EditorIO.Warn((FormattableString)$"  Has diseases: Blind={p.Blind} Plague={p.Plague} Smallpox={p.Smallpox} Measles={p.Measles} Leprosy={p.Leprosy} LoversBane={p.LoversBane}");
+        if (p.Poison > 0) EditorIO.Warn((FormattableString)$"  Poisoned ({p.PoisonTurns} turns remain)");
+        if (p.DaysInPrison > 0) EditorIO.Warn((FormattableString)$"  In prison ({p.DaysInPrison} days)");
+        if (p.WantedLvl > 0) EditorIO.Warn((FormattableString)$"  Wanted level: {p.WantedLvl}");
         EditorIO.Pause();
     }
 
@@ -1528,13 +1528,13 @@ internal static class PlayerSaveEditor
         p.Phrases ??= new List<string>();
         while (p.Phrases.Count < 6) p.Phrases.Add("");
         for (int i = 0; i < 6; i++)
-            p.Phrases[i] = EditorIO.PromptString($"Phrase {i + 1}", p.Phrases[i]);
+            p.Phrases[i] = EditorIO.PromptString((FormattableString)$"Phrase {i + 1}", p.Phrases[i]);
 
         EditorIO.Info("— Character description (4 lines; shown on character sheets) —");
         p.Description ??= new List<string>();
         while (p.Description.Count < 4) p.Description.Add("");
         for (int i = 0; i < 4; i++)
-            p.Description[i] = EditorIO.PromptString($"Desc line {i + 1}", p.Description[i]);
+            p.Description[i] = EditorIO.PromptString((FormattableString)$"Desc line {i + 1}", p.Description[i]);
 
         p.BattleCry = EditorIO.PromptString("Battle cry (short slogan)", p.BattleCry);
     }
@@ -1552,11 +1552,11 @@ internal static class PlayerSaveEditor
             p.CraftingMaterials ??= new Dictionary<string, int>();
             int choice = EditorIO.Menu("Skills & Training", new[]
             {
-                $"Unspent training sessions: {p.Trains}",
-                $"Training points: {p.TrainingPoints}",
-                $"Skill proficiencies ({p.SkillProficiencies.Count})",
-                $"Gold-based stat training counts ({p.StatTrainingCounts.Count})",
-                $"Crafting materials ({p.CraftingMaterials.Count})",
+                EditorLoc.F("Unspent training sessions: {0}", p.Trains),
+                EditorLoc.F("Training points: {0}", p.TrainingPoints),
+                EditorLoc.F("Skill proficiencies ({0})", p.SkillProficiencies.Count),
+                EditorLoc.F("Gold-based stat training counts ({0})", p.StatTrainingCounts.Count),
+                EditorLoc.F("Crafting materials ({0})", p.CraftingMaterials.Count),
                 "Set a skill proficiency level",
                 "Clear all skill proficiencies",
                 "Set stat training count (resets the 'too expensive' progression)",
@@ -1569,17 +1569,17 @@ internal static class PlayerSaveEditor
                 case 2: p.TrainingPoints = EditorIO.PromptInt("Training points", p.TrainingPoints, min: 0); break;
                 case 3:
                     foreach (var kv in p.SkillProficiencies.OrderBy(k => k.Key))
-                        EditorIO.Info($"  {kv.Key,-20} level {kv.Value}");
+                        EditorIO.Info((FormattableString)$"  {kv.Key,-20} level {kv.Value}");
                     EditorIO.Pause();
                     break;
                 case 4:
                     foreach (var kv in p.StatTrainingCounts.OrderBy(k => k.Key))
-                        EditorIO.Info($"  {kv.Key,-20} trained {kv.Value} times");
+                        EditorIO.Info((FormattableString)$"  {kv.Key,-20} trained {kv.Value} times");
                     EditorIO.Pause();
                     break;
                 case 5:
                     foreach (var kv in p.CraftingMaterials.OrderBy(k => k.Key))
-                        EditorIO.Info($"  {kv.Key,-25} x{kv.Value}");
+                        EditorIO.Info((FormattableString)$"  {kv.Key,-25} x{kv.Value}");
                     EditorIO.Pause();
                     break;
                 case 6:
@@ -1622,7 +1622,7 @@ internal static class PlayerSaveEditor
                         // ProficiencyLevel enum: 0 Untrained, 1 Poor, 2 Average, 3 Good,
                         // 4 Skilled, 5 Expert, 6 Superb, 7 Master, 8 Legendary (max).
                         p.SkillProficiencies[skillId] = EditorIO.PromptInt("Level (0 Untrained .. 8 Legendary)", prev, min: 0, max: 8);
-                        EditorIO.Success($"{skillId} = {p.SkillProficiencies[skillId]}");
+                        EditorIO.Success((FormattableString)$"{skillId} = {p.SkillProficiencies[skillId]}");
                         EditorIO.Pause();
                         break;
                     }
@@ -1686,7 +1686,7 @@ internal static class PlayerSaveEditor
             EditorIO.Info("  (none)");
         else
             foreach (var kv in p.UnpaidWageDays)
-                EditorIO.Info($"  {kv.Key,-20} {kv.Value} days unpaid");
+                EditorIO.Info((FormattableString)$"  {kv.Key,-20} {kv.Value} days unpaid");
         if (p.UnpaidWageDays.Count > 0 && EditorIO.Confirm("Clear all unpaid wages?"))
         {
             p.UnpaidWageDays.Clear();
@@ -1714,7 +1714,7 @@ internal static class PlayerSaveEditor
         {
             var langCodes = availableLangs.Select(l => l.Code).ToList();
             var langLabels = availableLangs.Select(l => $"{l.Code}  —  {l.Name}").ToList();
-            int pick = EditorIO.Menu($"Language (current: {p.Language ?? "en"})", langLabels);
+            int pick = EditorIO.Menu((FormattableString)$"Language (current: {p.Language ?? "en"})", langLabels);
             if (pick > 0) p.Language = langCodes[pick - 1];
         }
         else
@@ -1767,12 +1767,12 @@ internal static class PlayerSaveEditor
         data.Player.GameTimeMinutes = EditorIO.PromptInt("GameTimeMinutes (0-1439)", data.Player.GameTimeMinutes, min: 0, max: 1439);
 
         EditorIO.Info("— Clean-up options —");
-        if (w.ActiveEvents?.Count > 0 && EditorIO.Confirm($"Clear {w.ActiveEvents.Count} active world events?"))
+        if (w.ActiveEvents?.Count > 0 && EditorIO.Confirm((FormattableString)$"Clear {w.ActiveEvents.Count} active world events?"))
         {
             w.ActiveEvents.Clear();
             EditorIO.Success("Cleared.");
         }
-        if (w.RecentNews?.Count > 0 && EditorIO.Confirm($"Clear {w.RecentNews.Count} news entries?"))
+        if (w.RecentNews?.Count > 0 && EditorIO.Confirm((FormattableString)$"Clear {w.RecentNews.Count} news entries?"))
         {
             w.RecentNews.Clear();
             EditorIO.Success("Cleared.");

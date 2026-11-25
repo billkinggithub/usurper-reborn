@@ -218,7 +218,11 @@ namespace UsurperRemake.Systems
         /// Word wrap text to fit within a maximum width. The shared wrapper measures display columns
         /// and can break a line with no spaces in it, which a wide-script hint needs.
         /// </summary>
-        internal static List<string> WordWrap(string text, int maxWidth)   // 1.3.9: static, the combat tips wrap with it too
+        // v1.3.8: the shared wrapper measures display columns and can break a line with no spaces in
+        // it. This copy split on spaces and counted characters, so a Chinese hint came out as one
+        // line and ran past the box. English wraps exactly as before.
+        // 1.3.9: static, the combat tips wrap with it too.
+        internal static List<string> WordWrap(string text, int maxWidth)
             => UsurperRemake.UI.UIHelper.WordWrap(text, maxWidth);
 
         /// <summary>

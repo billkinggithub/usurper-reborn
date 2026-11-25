@@ -508,7 +508,17 @@ namespace UsurperRemake.Systems
                 terminal.WriteLine("");
             }
 
-            string choice = await terminal!.GetInput(Loc.Get("ui.your_choice"));
+            // v1.3.9: a line beginning with a slash is the player speaking in their own words rather
+            // than picking an option. Nothing else about the conversation changes.
+            string conversationPrompt = Loc.Get("ui.your_choice");
+            if (AiSettings.Enabled) conversationPrompt += Loc.Get("ai.chat_hint");
+            string choice = await terminal!.GetInput(conversationPrompt);
+
+            if (choice.StartsWith("/", StringComparison.Ordinal))
+            {
+                await SayInOwnWords(npc, choice[1..].Trim(), relationLevel);
+                return true;
+            }
 
             if (choice == "0")
             {
@@ -532,7 +542,173 @@ namespace UsurperRemake.Systems
         }
 
         /// <summary>
-        /// Emit the current NPC dialogue state to the Electron overlay: speaker
+        /// v1.3.9: the player says something in their own words during a conversation and the NPC answers
+        /// it in theirs. Only this screen understands the slash, and nothing here moves the player or runs
+        /// a command, so the rest of the game is untouched.
+        /// </summary>
+        private async Task SayInOwnWords(NPC npc, string said, int relationLevel)
+        {
+            if (string.IsNullOrWhiteSpace(said)) return;
+            if (npc == null)
+            {
+                terminal.WriteLine($"  {Loc.Get("ai.chat_off")}", "yellow");
+                await Pacing.Wait(800);
+                return;
+            }
+
+            terminal.WriteLine("");
+            terminal.WriteLine($"  {Loc.Get("ai.chat_you", said)}", "bright_white");
+
+            if (!AiSettings.IsActive)
+            {
+                terminal.WriteLine($"  {Loc.Get("ai.chat_off")}", "yellow");
+                await Pacing.Wait(900);
+                return;
+            }
+
+            terminal.WriteLine($"  {Loc.Get("ai.chat_thinking")}", "gray");
+            string languageName = UsurperRemake.Systems.Loc.GetLanguageName(GameConfig.Language ?? "en");
+            string? reply = AiDialogue.ChatReply(npc, said, relationLevel, languageName);
+
+            if (reply != null)
+            {
+                terminal.WriteLine($"  {npc.Name2}: {reply}", "white");
+            }
+            else
+            {
+                terminal.WriteLine($"  {Loc.Get("ai.chat_no_reply")}", "yellow");
+            }
+
+            await ShowPersuasionTrial(npc, said, relationLevel, languageName);
+            await Pacing.Wait(700);
+        }
+
+        /// <summary>
+        /// v1.3.9: what the model makes of the player's words, and the one part of its answer that is
+        /// applied: a memory.
+        ///
+        /// Weights are shown but never changed, because a trial had the model raise "Find Better Weapons"
+        /// during a conversation about revenge. The memory is written, because that is the loop the design
+        /// rests on: it goes into the NPC's own MemorySystem, the existing impression rule turns it into a
+        /// shift in how he feels, and every later scoring pass reads it as it would any other memory. It
+        /// is capped at a low importance, so when the memory list is full the engine's own events push it
+        /// out first, and one per NPC per day, so it cannot be farmed.
+        /// </summary>
+        private async Task ShowPersuasionTrial(NPC npc, string said, int relationLevel, string languageName)
+        {
+            var goals = npc?.Brain?.Goals?.GetActiveGoals();
+            var candidates = (goals ?? new List<Goal>())
+                .Where(g => g.IsActive && !g.IsCompleted && !string.IsNullOrWhiteSpace(g.Name))
+                .GroupBy(g => g.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(group => (Action: group.Key, Weight: (double)group.Max(g => g.GetEffectivePriority()) * 100))
+                .OrderByDescending(c => c.Weight)
+                .ToList();
+
+            terminal.WriteLine("");
+            if (candidates.Count == 0)
+            {
+                terminal.WriteLine($"  {Loc.Get("ai.trial_no_goals")}", "gray");
+                return;
+            }
+
+            string playerName = player?.Name2 ?? player?.DisplayName ?? "";
+            bool memoryAllowed = !HasAiMemoryToday(npc, playerName);
+            float impressionBefore = npc?.Brain?.Memory?.GetCharacterImpression(playerName) ?? 0f;
+
+            terminal.WriteLine($"  {Loc.Get("ai.trial_header")}", "darkgray");
+            terminal.WriteLine($"  {Loc.Get("ai.trial_goals", string.Join(", ", candidates.Select(c => $"{c.Action} {c.Weight:0}")))}", "gray");
+
+            var outcome = await AiPersuasion.AskAsync(
+                npc!, player, relationLevel, candidates, said, languageName, memoryAllowed);
+            if (outcome == null) return;
+
+            // v1.3.9: the weight change is deliberately never applied, so showing it only promised
+            // something that would not happen. The goals line stays as context and the memory is the part
+            // that is real. The impression is printed because "did it change anything" should be a number
+            // on the screen, not a guess.
+            if (outcome.Memory != null)
+            {
+                // v1.3.9: a claim of past help has to be checked, not believed. "Thank you for helping me"
+                // when she never did is a lie, and the model has no way to tell; her own memory does.
+                if (outcome.Memory == MemoryType.Helped && !AiPersuasion.HasRealHelp(npc!, playerName))
+                {
+                    terminal.WriteLine($"  {Loc.Get("ai.memory_unearned")}", "yellow");
+                    terminal.WriteLine($"  {Loc.Get("ai.impression_now", impressionBefore)}", "gray");
+                    return;
+                }
+
+                bool written = RecordPersuasionMemory(npc!, playerName, outcome);
+                terminal.WriteLine(written
+                    ? $"  {Loc.Get("ai.memory_written", outcome.MemoryText)}"
+                    : $"  {Loc.Get("ai.trial_memory", outcome.MemoryText, outcome.MemoryImportance)}", "bright_cyan");
+
+                if (written)
+                {
+                    float impressionAfter = npc?.Brain?.Memory?.GetCharacterImpression(playerName) ?? 0f;
+                    terminal.WriteLine($"  {Loc.Get("ai.impression_after", impressionBefore, impressionAfter)}", "bright_cyan");
+                }
+            }
+            else if (outcome.MemoryRefusedToday)
+            {
+                // the model did offer one; saying nothing made a spent allowance look like a model that
+                // had nothing to say
+                terminal.WriteLine($"  {Loc.Get("ai.memory_spent")}", "gray");
+                terminal.WriteLine($"  {Loc.Get("ai.impression_now", impressionBefore)}", "gray");
+            }
+            else if (outcome.MemoryRefusedThin)
+            {
+                // a greeting is not something to remember; saying so is better than a silent nothing
+                terminal.WriteLine($"  {Loc.Get("ai.memory_thin")}", "gray");
+                terminal.WriteLine($"  {Loc.Get("ai.impression_now", impressionBefore)}", "gray");
+            }
+            else if (!outcome.HasAnything)
+            {
+                terminal.WriteLine($"  {Loc.Get("ai.trial_nothing")}", "gray");
+            }
+        }
+
+        /// <summary>True when this NPC already took a memory from the player's words in the last day, which
+        /// keeps a repeated conversation from being a second helping.</summary>
+        private static bool HasAiMemoryToday(NPC npc, string playerName)
+        {
+            var memory = npc?.Brain?.Memory;
+            if (memory == null || string.IsNullOrEmpty(playerName)) return false;
+
+            // v1.3.9: this used to look for a tag written into Details, which the save does not carry, so
+            // restarting the game gave the same NPC a fresh allowance. It now reads only what does survive
+            // a reload: a memory of a type conversation may create, about this player, inside the last day.
+            // Stricter than before, because an engine compliment counts too, and that is the safe side.
+            return memory.GetRecentEvents(24).Any(e =>
+                AiPersuasion.AllowedMemories.Contains(e.Type)
+                && string.Equals(e.InvolvedCharacter, playerName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>Write the one memory the answer earned. Marked in Details so the daily check can find
+        /// it again, and capped low so the engine's own events outrank it when the list is full.</summary>
+        private static bool RecordPersuasionMemory(NPC npc, string playerName, PersuasionOutcome outcome)
+        {
+            var memory = npc.Brain?.Memory;
+            if (memory == null || outcome.Memory == null || string.IsNullOrWhiteSpace(outcome.MemoryText))
+                return false;
+
+            var record = new MemoryEvent
+            {
+                Type = outcome.Memory.Value,
+                Description = outcome.MemoryText!,
+                InvolvedCharacter = playerName,
+                Importance = outcome.MemoryImportance,
+                EmotionalImpact = outcome.MemoryImpact,
+            };
+            record.Details[AiPersuasion.MemoryTag] = true;
+
+            memory.RecordEvent(record);
+            float impression = memory.GetCharacterImpression(playerName);
+            DebugLogger.Instance.LogInfo("AI",
+                $"memory recorded: {outcome.Memory.Value} for {playerName}, impression now {impression:0.00}");
+            return true;
+        }
+
+        /// <summary>
         /// portrait, last narration text, and the available player choices. The
         /// graphical client renders this as a side-panel with the NPC portrait,
         /// the body text in a speech bubble, and choice buttons below. Input
